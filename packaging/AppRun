@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+bartizan_appdir=${APPDIR:-$(dirname "$(readlink -f "$0")")}
+export LD_LIBRARY_PATH="$bartizan_appdir/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+exec "$bartizan_appdir/bartizan" "$@"

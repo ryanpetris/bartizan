@@ -1,0 +1,132 @@
+{
+  "name": "bartizan",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SSH terminals and remote browsing",
+  "homepage": "https://github.com/ryanpetris/bartizan",
+  "author": "Bartizan contributors",
+  "license": "MIT",
+  "main": "dist/main.cjs",
+  "desktopName": "bartizan.desktop",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "rigs": "node scripts/rigs.mjs",
+    "start": "npm run build && electron .",
+    "postinstall": "electron-builder install-app-deps",
+    "package": "npm run build && node scripts/native-linux.mjs && electron-builder --linux --publish never"
+  },
+  "build": {
+    "appId": "app.bartizan.desktop",
+    "productName": "Bartizan",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "!dist/**/*.map",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/node-pty/**"
+    ],
+    "linux": {
+      "extraFiles": [
+        "LICENSE",
+        {
+          "from": "packaging/AppRun",
+          "to": "AppRun"
+        },
+        {
+          "from": "assets/icon.png",
+          "to": "bartizan.png"
+        }
+      ],
+      "target": [
+        "AppImage",
+        "deb",
+        "pacman",
+        "tar.gz"
+      ],
+      "category": "Network;RemoteAccess",
+      "executableName": "bartizan",
+      "icon": "assets/icon.png",
+      "artifactName": "${name}-${version}-linux-x64.${ext}",
+      "maintainer": "Ryan Petris <ryan@petris.net>",
+      "syncDesktopName": true
+    },
+    "npmRebuild": false,
+    "afterPack": "./scripts/after-pack.mjs",
+    "appImage": {
+      "executableArgs": [],
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "deb": {
+      "afterInstall": "packaging/after-install.sh",
+      "afterRemove": "packaging/after-remove.sh",
+      "artifactName": "${name}_${version}_amd64.${ext}",
+      "depends": [
+        "openssh-client",
+        "libgtk-3-0",
+        "libnss3",
+        "libasound2",
+        "libxss1",
+        "libgbm1",
+        "libxkbcommon0",
+        "libxcomposite1",
+        "libxdamage1",
+        "libxrandr2"
+      ],
+      "fpm": [
+        "--description",
+        "SSH terminals and remote browsing"
+      ]
+    },
+    "pacman": {
+      "afterInstall": "packaging/after-install.sh",
+      "afterRemove": "packaging/after-remove.sh",
+      "artifactName": "${name}-${version}-1-x86_64.pkg.tar.zst",
+      "compression": "zstd",
+      "depends": [
+        "openssh",
+        "gtk3",
+        "nss",
+        "alsa-lib",
+        "libxss",
+        "mesa",
+        "libxkbcommon",
+        "libxcomposite",
+        "libxdamage",
+        "libxrandr"
+      ],
+      "fpm": [
+        "--description",
+        "SSH terminals and remote browsing"
+      ]
+    }
+  },
+  "dependencies": {
+    "node-pty": "1.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.5.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/addon-web-links": "0.12.0",
+    "@xterm/addon-webgl": "0.19.0",
+    "@xterm/xterm": "6.0.0",
+    "electron": "44.3.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "sonner": "2.0.8",
+    "tsx": "4.23.13",
+    "typescript": "7.0.2",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  }
+}

@@ -1,0 +1,76 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Set release version
+        run: npm version "${RELEASE_TAG#v}" --no-git-tag-version --ignore-scripts --allow-same-version
+      - name: Install dependencies
+        run: npm ci
+      - name: Check source
+        run: |
+          npm run typecheck
+          npm test
+      - name: Install packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libarchive-tools
+      - name: Build packages
+        run: npm run package
+      - name: Check packaged application
+        run: BARTIZAN_EXECUTABLE=release/linux-unpacked/bartizan node scripts/rigs.mjs --docker smoke
+      - name: Record checksums
+        working-directory: release
+        run: sha256sum *.AppImage *.pkg.tar.zst *.deb *.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            release/*.AppImage
+            release/*.pkg.tar.zst
+            release/*.deb
+            release/*.tar.gz
+            release/SHA256SUMS
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: release
+      - name: Verify checksums
+        working-directory: release
+        run: sha256sum -c SHA256SUMS
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes release/*.AppImage release/*.pkg.tar.zst release/*.deb release/*.tar.gz release/SHA256SUMS
+          gh release edit "$RELEASE_TAG" --draft=false
