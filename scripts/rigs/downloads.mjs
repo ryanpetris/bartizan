@@ -68,7 +68,7 @@ async function run(Browsers) {
   mkdirSync(downloads);
   const window = new BrowserWindow({ width: 900, height: 700, webPreferences: { sandbox: true } });
   await window.loadURL('data:text/html,Host');
-  const browsers = new Browsers(window, () => {}, () => {});
+  const browsers = new Browsers(window, () => {}, () => {}, () => {});
   const connection = { info: { id: 'fixture', profileId: 'fixture', status: 'connected' }, port: 1 };
 
   const counts = { accepted: 0, rejected: 0, cancelled: 0, completed: 0 };

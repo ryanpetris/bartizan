@@ -1,4 +1,4 @@
-import { Menu, clipboard, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
+import { Menu, clipboard, shell, type BrowserWindow, type ContextMenuParams, type MenuItemConstructorOptions } from 'electron';
 import { accessSync, constants } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { browserSessionName } from '../shared';
@@ -34,6 +34,48 @@ export class LinkMenus {
       submenu: this.items(connectionId, target, sessions),
     }));
     if (items.length) Menu.buildFromTemplate(items).popup({ window: this.window });
+  }
+  /**
+   * Shows a page's context menu: the items for the link, image, editable field or selection under the pointer, or else
+   * the page's own, and then Inspect Element.
+   */
+  page(workspaceId: string, tabId: string, params: ContextMenuParams) {
+    const entry = this.browsers.entries.get(workspaceId), contents = this.browsers.contents(workspaceId, tabId);
+    if (!entry || !contents) return;
+    const connectionId = entry.info.connectionId, label = this.sessions.entries.get(connectionId)?.info.label;
+    const run = (action: () => unknown) => () => { void Promise.resolve().then(action).catch(error => this.error(String(error), connectionId, label)); };
+    const act = (action: 'back' | 'forward' | 'reload' | 'print' | 'pdf') => run(() => this.browsers.action(workspaceId, action, tabId, undefined, true));
+    const web = (url: string) => { try { linkURL(url); return true; } catch { return false; } };
+    const groups: MenuItemConstructorOptions[][] = [];
+    if (web(params.linkURL)) groups.push(this.items(connectionId, params.linkURL, { current: workspaceId }));
+    if (params.mediaType === 'image') groups.push([
+      { label: 'Open Image in New Tab', enabled: web(params.srcURL), click: run(() => this.open(connectionId, params.srcURL, workspaceId)) },
+      { label: 'Save Image As…', enabled: web(params.srcURL), click: run(() => { this.browsers.allowPrompts(tabId); contents.downloadURL(params.srcURL); }) },
+      { label: 'Copy Image', click: run(() => contents.copyImageAt(params.x, params.y)) },
+      { label: 'Copy Image Address', enabled: web(params.srcURL), click: run(() => clipboard.writeText(params.srcURL)) },
+    ]);
+    const flags = params.editFlags;
+    if (params.isEditable) groups.push([
+      { label: 'Undo', enabled: flags.canUndo, click: run(() => contents.undo()) },
+      { label: 'Redo', enabled: flags.canRedo, click: run(() => contents.redo()) },
+      { type: 'separator' },
+      { label: 'Cut', enabled: flags.canCut, click: run(() => contents.cut()) },
+      { label: 'Copy', enabled: flags.canCopy, click: run(() => contents.copy()) },
+      { label: 'Paste', enabled: flags.canPaste, click: run(() => contents.paste()) },
+      { label: 'Select All', enabled: flags.canSelectAll, click: run(() => contents.selectAll()) },
+    ]);
+    else if (params.selectionText.trim()) groups.push([{ label: 'Copy', click: run(() => contents.copy()) }]);
+    if (!groups.some(group => group.length)) groups.push([
+      { label: 'Back', enabled: contents.navigationHistory.canGoBack(), click: act('back') },
+      { label: 'Forward', enabled: contents.navigationHistory.canGoForward(), click: act('forward') },
+      { label: 'Reload', click: act('reload') },
+    ], [
+      { label: 'Save as PDF…', click: act('pdf') },
+      { label: 'Print…', click: act('print') },
+    ]);
+    groups.push([{ label: 'Inspect Element', click: run(() => this.browsers.inspect(workspaceId, tabId, params.x, params.y)) }]);
+    const items = groups.filter(group => group.length).flatMap((group, index): MenuItemConstructorOptions[] => index ? [{ type: 'separator' }, ...group] : group);
+    Menu.buildFromTemplate(items).popup({ window: this.window });
   }
   /** Opens a link in a browser session of the connection and shows it; see `Browsers.open` for `session` and `fallback`. */
   open(connectionId: string, url: string, session?: string, fallback = false) {

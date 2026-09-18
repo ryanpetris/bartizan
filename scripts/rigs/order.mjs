@@ -76,7 +76,7 @@ await withDirectory('order', async (directory, cleanup) => {
   await expect.poll(() => tabOrder(sessionId)).toEqual([a, b, c]);
   await drag(tab(c), tab(a));
   await expect.poll(() => tabOrder(sessionId)).toEqual([c, a, b]);
-  await menu(rightClick(tab(c)), ['Move Up (disabled)', 'Move Down']);
+  await menu(rightClick(tab(c)), ['Mute Tab', 'Move Up (disabled)', 'Move Down']);
   await choose('Move Down');
   await expect.poll(() => tabOrder(sessionId)).toEqual([a, c, b]);
   const before = await savedOrder();

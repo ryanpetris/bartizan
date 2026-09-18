@@ -30,7 +30,10 @@ const api: API = {
   resize: (id, cols, rows, repaint) => ipcRenderer.send('resize', id, cols, rows, repaint),
   answer: (id, value) => ipcRenderer.invoke('answer', id, value),
   browser: (id, action, tab, url) => ipcRenderer.invoke('browser', id, action, tab, url),
-  showBrowser: (id, bounds) => ipcRenderer.send('show-browser', id, bounds),
+  find: (id, tab, request) => ipcRenderer.invoke('find', id, tab, request),
+  download: (id, action, download) => ipcRenderer.invoke('download', id, action, download),
+  showBrowser: (id, bounds, tools) => ipcRenderer.send('show-browser', id, bounds, tools),
+  overlay: (name, bounds) => ipcRenderer.send('overlay', name, bounds),
   onEvent: callback => { const listener = (_: unknown, event: Event) => callback(event); ipcRenderer.on('event', listener); return () => ipcRenderer.removeListener('event', listener); },
 };
 contextBridge.exposeInMainWorld('bartizan', api);

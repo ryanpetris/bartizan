@@ -181,9 +181,9 @@ await withDirectory('links', async (directory, cleanup) => {
     contents.sendInputEvent({ type: 'mouseDown', x, y, button: 'right', clickCount: 1 });
     contents.sendInputEvent({ type: 'mouseUp', x, y, button: 'right', clickCount: 1 });
   });
-  await menu(rightClickPage, ['Open Link', 'Open in New Browser Session', 'Open in Browser 1', 'Open in External Browser', '-', 'Copy Link']);
+  await menu(rightClickPage, ['Open Link', 'Open in New Browser Session', 'Open in Browser 1', 'Open in External Browser', '-', 'Copy Link', '-', 'Inspect Element']);
   await copied(pageLink);
-  await menu(rightClickPage, ['Open Link', 'Open in New Browser Session', 'Open in Browser 1', 'Open in External Browser', '-', 'Copy Link']);
+  await menu(rightClickPage, ['Open Link', 'Open in New Browser Session', 'Open in Browser 1', 'Open in External Browser', '-', 'Copy Link', '-', 'Inspect Element']);
   await choose('Open Link');
   state = await waitState(s => s.workspaces.find(w => w.id === second.id).tabs.length === 3, 'page link in Browser 2');
   assert.equal(state.workspaces.find(w => w.id === second.id).tabs[2].url, pageLink);

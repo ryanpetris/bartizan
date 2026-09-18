@@ -11,7 +11,8 @@ import { Errors } from './errors';
 import { graphicsLog, observeGraphics } from './graphics';
 import { Browsers } from './browser';
 import { LinkMenus } from './link-menu';
-import { defaultSettings, type State, type Event } from '../shared';
+import { Overlays } from './overlays';
+import { defaultSettings, browserActions, overlayNames, pageShortcuts, type PageShortcut, type State, type Event } from '../shared';
 import { profileDraft, profileChangesSchema, profileSaveSchema, prepareProfile, saveProfile, saveSettings, resolveDraft, type Draft } from '../core/profiles';
 
 if (process.env.ELECTRON_DISABLE_SANDBOX || ['no-sandbox', 'disable-seccomp-filter-sandbox', 'disable-namespace-sandbox', 'disable-setuid-sandbox', 'single-process', 'no-zygote'].some(flag => app.commandLine.hasSwitch(flag))) {
@@ -64,7 +65,15 @@ else void app.whenReady().then(async () => {
   const askpass = new Askpass(changed, changed, (message, id) => reportError('credentials', message, id));
   await askpass.start();
   const sessions = new Sessions(join(app.getPath('userData'), 'ssh'), askpass, join(__dirname, 'askpass.cjs'), changed, (id, data) => send({ type: 'data', id, data }), (message, id, label) => reportError('ssh', message, id, label));
-  const browsers = new Browsers(window, changed, (id, action) => send({ type: 'browser-shortcut', id, action }));
+  const browsers = new Browsers(window, changed, (id, action) => send({ type: 'browser-shortcut', id, action }), send);
+  const overlays = new Overlays(window);
+  browsers.added = () => overlays.raise();
+  // A menu's accelerators receive only the keys that a page, or the application's own page, leaves alone. The menu bar stays hidden.
+  const pageShortcut = (name: PageShortcut) => {
+    const target = browsers.target();
+    if (target) browsers.pageShortcut(name, target).catch(error => reportError('browser', String(error), target.connectionId));
+  };
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Page', submenu: (Object.keys(pageShortcuts) as PageShortcut[]).flatMap(name => pageShortcuts[name].map(accelerator => ({ label: name, accelerator, click: () => pageShortcut(name) }))) }]));
   const trusted = (event: IpcMainInvokeEvent | IpcMainEvent) => event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame && event.senderFrame?.url === origin;
   const graphicsSchema = z.strictObject({ event: z.enum(['started', 'lost', 'restored', 'fallback']), backend: z.string().max(256).optional() });
   ipcMain.on('graphics', (event, value) => {
@@ -77,10 +86,7 @@ else void app.whenReady().then(async () => {
     const result = connecting.then(work); connecting = result.then(() => {}, () => {}); return result;
   };
   const linkMenus = new LinkMenus(window, sessions, browsers, serialize, id => send({ type: 'select-browser', id }), (message, id, label) => reportError('link', message, id, label));
-  browsers.linkMenu = (id, url) => {
-    const entry = browsers.entries.get(id);
-    if (entry) { try { linkMenus.show(entry.info.connectionId, url, { current: id }); } catch {} }
-  };
+  browsers.pageMenu = (id, tabId, params) => { try { linkMenus.page(id, tabId, params); } catch {} };
   const terminalConnection = (id: unknown) => {
     const terminal = sessions.terminals.get(z.string().parse(id));
     if (!terminal) throw new Error('Terminal is closed');
@@ -204,38 +210,48 @@ else void app.whenReady().then(async () => {
   });
   handle('browser', async (id: unknown, action: unknown, tab: unknown, url: unknown) => {
     const workspaceId = z.string().parse(id);
-    const operation = z.enum(['new', 'close', 'select', 'navigate', 'back', 'forward', 'reload', 'stop', 'close-workspace', 'devtools']).parse(action);
-    if (operation === 'devtools') return browsers.action(workspaceId, operation, z.string().optional().parse(tab));
+    const operation = z.enum(browserActions).parse(action);
+    // Developer tools, sound, zoom and printing leave connections and sessions as they are, so they do not wait their turn.
+    if (['devtools', 'mute', 'zoom-in', 'zoom-out', 'zoom-reset', 'print', 'pdf'].includes(operation)) return browsers.action(workspaceId, operation, z.string().optional().parse(tab));
     return serialize(async () => {
       const entry = browsers.entries.get(workspaceId);
       if (!entry) throw new Error('Browser session is closed');
       await browsers.action(workspaceId, operation, z.string().optional().parse(tab), z.string().max(8192).optional().parse(url), true);
     });
   });
+  const findSchema = z.strictObject({ text: z.string().max(4096), forward: z.boolean(), next: z.boolean() }).nullable();
+  handle('find', (id: unknown, tab: unknown, request: unknown) => browsers.find(z.string().parse(id), z.string().parse(tab), findSchema.parse(request)));
+  handle('download', (id: unknown, action: unknown, download: unknown) => browsers.download(z.string().parse(id), z.enum(['cancel', 'show', 'clear']).parse(action), z.string().optional().parse(download)));
   ipcMain.on('input', (event, id, data) => { if (trusted(event) && typeof id === 'string' && typeof data === 'string' && data.length <= 1024 * 1024) sessions.input(id, data); });
   ipcMain.on('resize', (event, id, cols, rows, repaint) => { if (trusted(event) && typeof id === 'string' && Number.isInteger(cols) && Number.isInteger(rows) && cols > 0 && rows > 0 && cols <= 1000 && rows <= 1000) sessions.resize(id, cols, rows, repaint === true); });
-  const menuItems = z.array(z.strictObject({ label: z.string().max(256), enabled: z.boolean() })).max(16);
+  const menuItems = z.array(z.union([z.strictObject({ label: z.string().max(256), enabled: z.boolean() }), z.strictObject({ separator: z.literal(true) })])).max(24);
   ipcMain.on('menu', (event, items, x, y) => {
     const parsed = menuItems.safeParse(items);
     if (!trusted(event) || !parsed.success || !Number.isFinite(x) || !Number.isFinite(y)) return;
     const zoom = window.webContents.getZoomFactor();
-    Menu.buildFromTemplate(parsed.data.map(({ label, enabled }, index) => ({ label, enabled, click: () => send({ type: 'menu', index }) })))
+    Menu.buildFromTemplate(parsed.data.map((item, index) => 'separator' in item ? { type: 'separator' as const } : { label: item.label, enabled: item.enabled, click: () => send({ type: 'menu', index }) }))
       .popup({ window, x: Math.round(x * zoom), y: Math.round(y * zoom) });
   });
-  ipcMain.on('show-browser', (event, id, bounds) => {
+  const boundsSchema = z.object({ x: z.number().int().min(0), y: z.number().int().min(0), width: z.number().int().min(0).max(10000), height: z.number().int().min(0).max(10000) });
+  ipcMain.on('show-browser', (event, id, bounds, tools) => {
     if (!trusted(event)) return;
-    const parsed = z.object({ x: z.number().int().min(0), y: z.number().int().min(0), width: z.number().int().min(0).max(10000), height: z.number().int().min(0).max(10000) }).optional().safeParse(bounds);
-    if (parsed.success && (id === null || typeof id === 'string')) browsers.show(id, parsed.data);
+    const parsed = boundsSchema.optional().safeParse(bounds), parsedTools = boundsSchema.optional().safeParse(tools);
+    if (parsed.success && parsedTools.success && (id === null || typeof id === 'string')) browsers.show(id, parsed.data, parsedTools.data);
+  });
+  ipcMain.on('overlay', (event, name, bounds) => {
+    if (!trusted(event)) return;
+    const parsedName = z.enum(overlayNames).safeParse(name), parsed = boundsSchema.nullable().safeParse(bounds);
+    if (parsedName.success && parsed.success) overlays.show(parsedName.data, parsed.data);
   });
   window.webContents.on('will-navigate', event => event.preventDefault());
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.setWindowOpenHandler(overlays.open);
   const recoveries: number[] = [];
   let recoveryTimer: ReturnType<typeof setTimeout> | undefined;
-  window.webContents.on('did-navigate', () => browsers.show(null));
+  window.webContents.on('did-navigate', () => { browsers.show(null); overlays.close(); });
   window.webContents.on('render-process-gone', (_event, details) => {
     graphicsLog('renderer-process-gone', { reason: details.reason, exitCode: details.exitCode });
     if (window.isDestroyed()) return;
-    browsers.show(null);
+    browsers.show(null); overlays.close(); browsers.forgetFavicons();
     if (!['crashed', 'killed', 'oom', 'abnormal-exit'].includes(details.reason)) return;
     const now = Date.now();
     while (recoveries.length && now - recoveries[0]! >= 30000) recoveries.shift();
@@ -245,8 +261,8 @@ else void app.whenReady().then(async () => {
     clearTimeout(recoveryTimer);
     recoveryTimer = setTimeout(() => { if (!window.isDestroyed()) window.webContents.reload(); }, delay);
   });
-  window.webContents.on('did-finish-load', () => { changed(); send({ type: 'errors', log: errors.snapshot(), initial: true }); });
-  window.on('close', () => { clearTimeout(recoveryTimer); void sessions.close(); askpass.close(); browsers.shutdown(); });
+  window.webContents.on('did-finish-load', () => { changed(); browsers.replay(); send({ type: 'errors', log: errors.snapshot(), initial: true }); });
+  window.on('close', () => { clearTimeout(recoveryTimer); void sessions.close(); askpass.close(); browsers.shutdown(); overlays.close(); });
   onInstance = () => {
     if (window.isDestroyed()) return;
     if (window.isMinimized()) window.restore();

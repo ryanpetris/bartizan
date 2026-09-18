@@ -20,7 +20,7 @@ test('TLS decisions bind endpoint, leaf, error and session, with single-use pend
   const policy = new Certificates(() => {}, muted);
   t.after(() => { policy.close(); rmSync(directory, { recursive: true, force: true }); });
   const a = certificate('a'), b = certificate('b');
-  const tab: BrowserTab = { id: 'tab', title: '', url: '', loading: true, canBack: false, canForward: false };
+  const tab: BrowserTab = { id: 'tab', title: '', url: '', loading: true, canBack: false, canForward: false, audible: false, muted: false, zoom: 100, devtools: false };
   const contents = new EventEmitter();
   policy.attach(tab, contents as WebContents);
   contents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false, url: 'https://example.invalid/#fragment' });

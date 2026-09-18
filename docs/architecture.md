@@ -10,7 +10,8 @@ Bartizan has one Electron application window containing a React sidebar and eith
 | --- | --- |
 | [`src/main/main.ts`](../src/main/main.ts) | Startup, window lifecycle, IPC validation and state publication |
 | [`src/main/sessions.ts`](../src/main/sessions.ts) | SSH master processes and terminal PTYs |
-| [`src/main/browser.ts`](../src/main/browser.ts) | Browser partitions, tabs, downloads and HTTP authentication |
+| [`src/main/browser.ts`](../src/main/browser.ts) | Browser partitions, tabs, page tools, downloads and HTTP authentication |
+| [`src/main/overlays.ts`](../src/main/overlays.ts) | Views for interface drawn above pages |
 | [`src/main/certificates.ts`](../src/main/certificates.ts) | TLS warnings and temporary certificate approvals |
 | [`src/main/askpass.ts`](../src/main/askpass.ts) | OpenSSH authentication prompts and configured credentials |
 | [`src/core/`](../src/core/) | Configuration schemas, profile persistence, SSH arguments and TCP relay |
@@ -21,9 +22,11 @@ Bartizan has one Electron application window containing a React sidebar and eith
 
 The application renderer is sandboxed and context-isolated with Node integration disabled. Its [preload](../src/main/preload.ts) exposes a fixed API through `contextBridge`. The main process accepts IPC only from the application window's main frame at its bundled page URL, then validates request arguments.
 
-The main process publishes state snapshots and separate terminal data events. The renderer's [store](../src/renderer/store.ts) handles selection and sidebar order, and notifies React through `useSyncExternalStore`. Sidebar order is stored in `sessionStorage`. Terminal titles are renderer state.
+The main process publishes state snapshots and separate terminal data events. Tab icons, find results and the address of a hovered link also arrive as events of their own. The renderer's [store](../src/renderer/store.ts) handles selection and sidebar order, and notifies React through `useSyncExternalStore`. Sidebar order is stored in `sessionStorage`. Terminal titles are renderer state.
 
 Browser tabs use sandboxed `WebContentsView` instances without a preload or Node integration. The renderer reports the browser area's bounds to the main process, which positions the selected native view. Modal dialogs and overlapping Connect results hide the view so that native page content does not cover app controls.
+
+Interface that floats over a page, such as the downloads list and a hovered link's address, is drawn in an overlay: a transparent `WebContentsView` above the page views. The renderer opens each overlay as a named blank child window. The [main process](../src/main/overlays.ts) makes that window a view inside the application window and denies every other `window.open`. The child shares the renderer's process, so the [renderer](../src/renderer/overlay.tsx) copies its styles into the overlay's document and renders into it through a React portal. An overlay has no preload and cannot navigate. It is sized to its content, so the page around it keeps receiving input, and its top left corner stays fixed while it resizes, because a view that moves as it resizes shows one frame out of place.
 
 ## SSH transport
 
@@ -40,6 +43,10 @@ Pinned connections use an OpenSSH `KnownHostsCommand` helper. It validates the o
 Each browser session owns an in-memory Electron partition and a [TCP relay](../src/core/relay.ts). The partition uses that relay as a fixed SOCKS5 proxy, including loopback destinations. The relay forwards to the connection's SSH SOCKS port. Tabs in the session share the partition; other sessions receive separate partitions.
 
 Disconnecting removes the relay target, destroys its sockets and enables offline network emulation. Reconnecting points the relay at the new SSH SOCKS port and restores network access. Non-proxied WebRTC UDP is disabled. Browser permission handlers deny website permission requests.
+
+Browser shortcuts come in two kinds. The application takes its own, such as the address field's, from a page's input before the page sees the key. The rest, such as find and reload, are accelerators of a hidden application menu, which receive a key only after the page, or the application's own page, has left it alone.
+
+The main process fetches a tab's icon through the tab's session, so the request takes the same route as the page, and passes it to the renderer as a size-limited data URL. The renderer never loads a remote image. A tab's developer tools open in a second view docked beside the page. That view uses the tab's session too, so requests the tools make also pass through SSH.
 
 Closing a session cancels downloads and authentication prompts, closes its views and relay, and clears authentication, storage and cache data. Certificate approvals belong to the live session and are also cleared when the connection ends.
 

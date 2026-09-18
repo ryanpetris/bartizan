@@ -127,7 +127,7 @@ export async function testBrowserInteractions(app, httpPort, first) {
   assert.equal(await page.locator('[name="address"]').inputValue(), 'replacement');
   await page.locator('[name="address"]').press('Control+z');
   assert.equal(await page.locator('[name="address"]').inputValue(), 'editing');
-  console.log('Application fields retain selection and undo without a menu.');
+  console.log('Application fields retain selection and undo without menu roles.');
   await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1.2));
   await page.waitForTimeout(250);
   const slot = await page.locator('.browser-slot').boundingBox();

@@ -26,6 +26,14 @@ const paths: Record<string, string> = {
   profiles:
     '<rect x="2.25" y="2.25" width="11.5" height="4.75" rx="1.25"/><rect x="2.25" y="9" width="11.5" height="4.75" rx="1.25"/><path d="M5 4.63h.01M5 11.38h.01"/>',
   code: '<path d="m5.5 4.5-3.5 3.5 3.5 3.5M10.5 4.5l3.5 3.5-3.5 3.5"/>',
+  volume: '<path d="M2.75 6.25h2.5L8.5 3.5v9L5.25 9.75h-2.5Z"/><path d="M10.75 5.75a3.2 3.2 0 0 1 0 4.5M12.4 4a5.6 5.6 0 0 1 0 8"/>',
+  'volume-off': '<path d="M2.75 6.25h2.5L8.5 3.5v9L5.25 9.75h-2.5Z"/><path d="m10.75 6.25 3 3.5m0-3.5-3 3.5"/>',
+  download: '<path d="M8 2.5v7.75M4.75 7.25 8 10.5l3.25-3.25M3 13.25h10"/>',
+  folder:
+    '<path d="M1.75 4.25a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.75h5a1.5 1.5 0 0 1 1.5 1.5v5.75a1.5 1.5 0 0 1-1.5 1.5h-9.5a1.5 1.5 0 0 1-1.5-1.5Z"/>',
+  more: '<circle cx="8" cy="3.5" r=".5" fill="currentColor"/><circle cx="8" cy="8" r=".5" fill="currentColor"/><circle cx="8" cy="12.5" r=".5" fill="currentColor"/>',
+  up: '<path d="m4.5 9.75 3.5-3.5 3.5 3.5"/>',
+  down: '<path d="m4.5 6.25 3.5 3.5 3.5-3.5"/>',
   sliders:
     '<path d="M2.25 4.75h6.5m3 0h2M2.25 11.25h2m3 0h6.5"/><circle cx="10.25" cy="4.75" r="1.5"/><circle cx="5.75" cy="11.25" r="1.5"/>',
 };

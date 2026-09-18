@@ -17,6 +17,7 @@ const rigs = {
   graphics: ['sshd'],
   ligatures: ['sshd'],
   links: ['sshd'],
+  browsing: ['sshd', 'openbox', 'xdotool', 'xprop'],
   order: ['sshd'],
   profiles: ['sshd'],
   tls: ['sshd', 'openssl'],

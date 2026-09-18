@@ -71,7 +71,10 @@ await withDirectory('integration', async (directory, cleanup) => {
   await expect(page.getByRole('listbox', { name: 'Profiles', exact: true })).toBeHidden();
   await testProfileLaunch(app, config, url('autoclose'));
   await testHostKeyPins(app, config, sshd.hostKey);
-  assert.equal(await application.evaluate(({ Menu }) => Menu.getApplicationMenu()), null);
+  // The application menu stays hidden and holds only the accelerators of the shortcuts a page sees first: no roles, and nothing to choose.
+  const menu = await application.evaluate(({ Menu, BrowserWindow }) => ({ visible: BrowserWindow.getAllWindows()[0].isMenuBarVisible(), items: Menu.getApplicationMenu().items.flatMap(item => item.submenu.items.map(entry => ({ role: entry.role ?? null, accelerator: entry.accelerator }))) }));
+  assert.equal(menu.visible, false);
+  assert.ok(menu.items.length > 0 && menu.items.every(item => item.role === null && item.accelerator));
   assert.equal(await application.evaluate(({ app }) => {
     let prevented = false; let selected = 'unanswered';
     app.emit('select-client-certificate', { preventDefault() { prevented = true; } }, null, 'https://example.invalid', [], certificate => { selected = certificate; });

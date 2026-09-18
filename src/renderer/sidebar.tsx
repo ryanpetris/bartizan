@@ -29,6 +29,7 @@ import {
   type Group,
 } from './store';
 import { openMenu, type MenuItem } from './menu';
+import { faviconOf, dropFavicon } from './tab-state';
 import { Connect } from './connect';
 import { openConnection } from './connection-form';
 import { Toasts, ErrorsButton, hasCurrent } from './errors';
@@ -123,6 +124,7 @@ function Row({
   meta = '',
   icon,
   actions,
+  persistent,
   onSelect,
   tag: Tag = 'li',
   className = '',
@@ -135,7 +137,9 @@ function Row({
   current?: 'page' | 'true';
   meta?: string;
   icon: ReactNode;
+  /** Buttons shown beside the row while it is hovered, focused or current; ones with the `persistent` class always show. */
   actions: ReactNode[];
+  persistent?: boolean;
   onSelect(): void;
   tag?: 'li' | 'div';
   className?: string;
@@ -147,9 +151,9 @@ function Row({
 }) {
   return (
     <Tag
-      className={`row ${current ? 'current' : ''} ${className}`.trim()}
+      className={`row ${current ? 'current' : ''} ${persistent ? 'has-persistent' : ''} ${className}`.replace(/\s+/g, ' ').trim()}
       {...outer}
-      style={{ ...actionsStyle(actions.length), ...outer.style }}
+      style={{ ...actionsStyle(actions.filter(Boolean).length), ...outer.style }}
     >
       <button
         type="button"
@@ -197,6 +201,8 @@ function TerminalRow({ terminal }: { terminal: TerminalSession }) {
     />
   );
 }
+const toggleMute = (workspace: Workspace, tab: BrowserTab) =>
+  void run('browser', api.browser(workspace.id, 'mute', tab.id), workspace.connectionId);
 function TabRow({
   workspace,
   tab,
@@ -208,6 +214,8 @@ function TabRow({
 }) {
   const title = tabTitle(tab),
     state = tab.certificate ? 'certificate' : tab.loading ? 'loading' : tab.error ? 'error' : 'idle';
+  const favicon = state === 'idle' ? faviconOf(tab.id) : undefined;
+  const sound = tab.audible || tab.muted;
   return (
     <Row
       outer={outer}
@@ -227,12 +235,26 @@ function TabRow({
       icon={
         state === 'loading' ? (
           <span className="spinner" />
+        ) : favicon ? (
+          <img className="favicon" src={favicon} alt="" draggable={false} onError={() => dropFavicon(tab.id)} />
         ) : (
           <Icon name={state === 'error' || state === 'certificate' ? 'alert' : 'globe'} />
         )
       }
       onSelect={() => selectTab(workspace.id, tab.id)}
+      persistent={sound}
       actions={[
+        sound && (
+          <IconButton
+            key="mute"
+            icon={tab.muted ? 'volume-off' : 'volume'}
+            label={`${tab.muted ? 'Unmute' : 'Mute'} ${title}`}
+            title={tab.muted ? 'Unmute Tab' : 'Mute Tab'}
+            className="row-mute persistent"
+            aria-pressed={tab.muted}
+            onClick={() => toggleMute(workspace, tab)}
+          />
+        ),
         <IconButton
           key="close"
           icon="close"
@@ -324,7 +346,14 @@ function Session({ workspace }: { workspace: Workspace }) {
       />}
       <ul className="tab-items">
         {sessionTabs(workspace).map((tab) => (
-          <TabRow key={tab.id} workspace={workspace} tab={tab} outer={orderable(`tabs:${workspace.id}`, tab.id)} />
+          <TabRow
+            key={tab.id}
+            workspace={workspace}
+            tab={tab}
+            outer={orderable(`tabs:${workspace.id}`, tab.id, [
+              { label: tab.muted ? 'Unmute Tab' : 'Mute Tab', action: () => toggleMute(workspace, tab) },
+            ])}
+          />
         ))}
       </ul>
     </>

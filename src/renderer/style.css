@@ -145,7 +145,8 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 [hidden] { display: none !important; }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-.mono { font-family: var(--font-mono); font-size: 12px; }
+/* Addresses, endpoints and fingerprints show each character as it is, without the font's ligatures. */
+.mono { font-family: var(--font-mono); font-size: 12px; font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
 .icon { flex: none; display: block; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border: 2px solid transparent; border-radius: 6px; background-clip: padding-box; }
@@ -175,6 +176,12 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
 .icon-button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .icon-button:active:not(:disabled) { background: var(--control-active); }
 .icon-button:disabled { opacity: 0.35; }
+.icon-button[aria-pressed="true"] { background: var(--selected); color: var(--accent-text); }
+progress { appearance: none; display: block; height: 3px; overflow: hidden; border: 0; border-radius: 2px; background: var(--border-strong); }
+progress::-webkit-progress-bar { background: transparent; }
+progress::-webkit-progress-value { background: var(--accent); }
+progress:indeterminate { background: linear-gradient(90deg, var(--border-strong) 30%, var(--accent) 50%, var(--border-strong) 70%) 0 0 / 300% 100%; animation: sweep 1.4s linear infinite; }
+@keyframes sweep { from { background-position: 100% 0; } to { background-position: 0 0; } }
 .input {
   width: 100%; height: 30px; padding: 0 9px; border: 1px solid var(--border-control); border-radius: var(--radius);
   background: var(--field); color: var(--text);
@@ -286,9 +293,12 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 .connection-items, .tab-items { display: grid; gap: 1px; }
 
 .row { position: relative; }
-.row-actions { position: absolute; top: 50%; right: 3px; display: flex; opacity: 0; transform: translateY(-50%); }
-.row:is(:hover, :focus-within, .current) > .row-actions { opacity: 1; }
-.row:is(:hover, :focus-within, .current) > .nav-item { padding-right: calc(var(--actions) * 24px + 6px); }
+.row-actions { position: absolute; top: 50%; right: 3px; display: flex; transform: translateY(-50%); }
+.row-actions > * { opacity: 0; }
+.row:is(:hover, :focus-within, .current) > .row-actions > *, .row-actions > .persistent { opacity: 1; }
+.row:is(:hover, :focus-within, .current, .has-persistent) > .nav-item { padding-right: calc(var(--actions) * 24px + 6px); }
+.row-mute[aria-pressed="true"] { background: transparent; color: var(--text-faint); }
+.favicon { display: block; width: 16px; height: 16px; border-radius: 3px; object-fit: contain; }
 .row-actions .icon-button { width: 24px; height: 24px; border-radius: var(--radius-sm); }
 .row-actions .icon { width: 14px; height: 14px; }
 .nav-item {
@@ -342,17 +352,39 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 .terminal-surface .xterm { height: 100%; }
 .terminal-surface .xterm-viewport { background: transparent !important; }
 
-.browser-toolbar { position: relative; display: flex; align-items: center; gap: 2px; flex: none; height: 44px; padding: 0 10px 0 8px; background: var(--bg-toolbar); border-bottom: 1px solid var(--border); box-shadow: inset 0 2px 0 var(--session-color); }
+/* The session's colour runs along the top of the toolbar, and the controls centre in the room below it. */
+.browser-toolbar { position: relative; display: flex; align-items: center; gap: 2px; flex: none; height: 44px; padding: 2px 10px 0 8px; background: var(--bg-toolbar); border-bottom: 1px solid var(--border); box-shadow: inset 0 2px 0 var(--session-color); }
 .address-field { position: relative; flex: 1; min-width: 0; margin: 0 4px 0 6px; }
 .address-icon { position: absolute; top: 8px; left: 11px; color: var(--text-faint); pointer-events: none; }
 .address { width: 100%; height: 32px; padding: 0 12px 0 34px; border: 1px solid var(--border); border-radius: 16px; background: var(--field-muted); color: var(--text); }
 .address:focus { border-color: var(--focus); background: var(--field); box-shadow: 0 0 0 3px var(--focus-ring); outline: none; }
+.address-field.zoomed .address { padding-right: 62px; }
+.zoom-level { position: absolute; top: 5px; right: 5px; height: 22px; padding: 0 9px; border: 0; border-radius: 11px; background: var(--accent-soft); color: var(--accent-text); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.zoom-level:hover { background: var(--selected); }
+.downloads-button { position: relative; }
+.downloads-button progress { position: absolute; right: 6px; bottom: 2px; left: 6px; width: 16px; height: 2px; }
+.downloads-button[data-running] { color: var(--accent-text); }
+.find-bar { display: flex; align-items: center; justify-content: flex-end; gap: 2px; flex: none; height: 40px; padding: 0 10px; border-bottom: 1px solid var(--border); background: var(--bg-toolbar); }
+.find-field { position: relative; display: block; width: min(300px, 50%); }
+.find-field .icon { position: absolute; top: 50%; left: 9px; color: var(--text-faint); pointer-events: none; transform: translateY(-50%); }
+.find-input { height: 28px; padding-left: 31px; }
+.find-count { min-width: 52px; margin: 0 6px 0 8px; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
 .progress { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; overflow: hidden; }
 .progress::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--accent); animation: slide 1.1s ease-in-out infinite; }
 .browser-error { display: flex; align-items: center; gap: 10px; flex: none; padding: 6px 10px 6px 16px; border-bottom: 1px solid var(--danger-border); background: var(--danger-soft); color: var(--danger-text); }
 .browser-error-text { display: flex; align-items: baseline; gap: 10px; flex: 1; min-width: 0; }
 .browser-error-text .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.85; }
-.browser-slot { position: relative; flex: 1; min-height: 0; background: var(--bg-page); }
+/* The page and its developer tools are native views over these slots, so the splitter between them has its whole width to itself. */
+.browser-body { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.browser-body[data-dock="right"] { flex-direction: row; }
+.browser-slot { position: relative; flex: 1; min-width: 0; min-height: 0; background: var(--bg-page); }
+.tools-slot { flex: none; background: var(--bg-page); }
+.browser-body[data-dock="bottom"] > .tools-slot { min-height: 120px; max-height: calc(100% - 125px); }
+.browser-body[data-dock="right"] > .tools-slot { min-width: 120px; max-width: calc(100% - 125px); }
+.tools-splitter { flex: none; background: var(--bg-toolbar); touch-action: none; }
+.browser-body[data-dock="bottom"] > .tools-splitter { height: 5px; border-block: 1px solid var(--border); cursor: row-resize; }
+.browser-body[data-dock="right"] > .tools-splitter { width: 5px; border-inline: 1px solid var(--border); cursor: col-resize; }
+.tools-splitter:is(:hover, :active) { background: var(--accent-soft); }
 .certificate-warning { position: absolute; inset: 0; display: flex; justify-content: center; align-items: flex-start; overflow: auto; padding: 48px 24px 24px; background: var(--bg-page); }
 .certificate-card { display: flex; flex-direction: column; gap: 16px; width: min(600px, 100%); }
 .certificate-card .dialog-context { white-space: normal; overflow-wrap: anywhere; }
@@ -383,6 +415,26 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 .error-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-strong); font-weight: 600; }
 .error-repeat, .error-row time { flex: none; color: var(--text-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
 .error-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Overlays: documents of their own, drawn over the pages, that hold one surface sized to its content. */
+html.overlay, html.overlay body { background: transparent; }
+.overlay-surface { position: absolute; top: 0; left: 0; width: max-content; }
+/* An overlay ends at its surface, so a popover's margin is the room its shadow has. */
+.popover { width: 340px; margin: 4px 16px 24px; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg-dialog); color: var(--text); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.2); }
+.popover-actions { display: flex; justify-content: flex-end; padding: 6px 8px; border-top: 1px solid var(--border); }
+.download-list { max-height: 320px; padding: 4px; overflow-y: auto; }
+.download { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 5px 4px 5px 10px; border-radius: var(--radius); }
+.download:hover { background: var(--hover); }
+.download-titles { display: grid; flex: 1; gap: 1px; min-width: 0; }
+.download-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-strong); font-weight: 500; }
+.download-status { color: var(--text-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.download[data-state="failed"] .download-status { color: var(--danger-text); }
+.download:is([data-state="cancelled"], [data-state="failed"]) .download-name { color: var(--text-muted); }
+.download progress { width: 100%; margin-top: 3px; }
+.link-status-box { display: flex; }
+.link-status-box[data-side="right"] { justify-content: flex-end; }
+.link-status { max-width: 100%; height: 22px; padding: 0 8px; overflow: hidden; border: 1px solid var(--border-strong); border-bottom: 0; border-left: 0; border-radius: 0 6px 0 0; background: var(--bg-dialog); color: var(--text-muted); font-size: 11px; line-height: 21px; text-overflow: ellipsis; white-space: nowrap; }
+.link-status-box[data-side="right"] > .link-status { border-right: 0; border-left: 1px solid var(--border-strong); border-radius: 6px 0 0; }
 
 /* Dialogs */
 dialog { top: var(--chrome-top); max-height: calc(100vh - var(--chrome-top) - 2em - 6px); padding: 0; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg-dialog); color: var(--text); box-shadow: var(--shadow); }

@@ -94,17 +94,19 @@ await withDirectory('tls', async (directory, cleanup) => {
   await expect(warningView.locator('.dialog-context')).toHaveText(`https://localhost:${port}`);
   assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).length), 0);
 
-  const toolsOpen = () => application.evaluate(({ webContents }, id) => webContents.fromId(id).isDevToolsOpened(), firstGuest);
-  const toolsId = () => application.evaluate(({ webContents }, id) => webContents.fromId(id).devToolsWebContents?.id, firstGuest);
+  // Developer tools open in a view docked beside the page, and the same control or key closes them again.
+  const toolsOpen = async () => (await app.state()).workspaces.find(w => w.id === session).tabs.find(t => t.id === first).devtools;
+  const toolsViews = () => application.evaluate(({ webContents }) => webContents.getAllWebContents().filter(contents => contents.getURL().startsWith('devtools://')).length);
   const closeTools = async () => {
-    await application.evaluate(({ webContents }, id) => webContents.fromId(id).closeDevTools(), firstGuest);
+    await api('browser', session, 'devtools', first);
     await expect.poll(toolsOpen).toBe(false);
+    await expect.poll(toolsViews).toBe(0);
   };
   await page.getByRole('button', { name: 'Developer Tools', exact: true }).click();
   await expect.poll(toolsOpen).toBe(true);
-  const tools = await toolsId();
-  await api('browser', session, 'devtools', first);
-  assert.equal(await toolsId(), tools);
+  await expect(page.getByRole('button', { name: 'Developer Tools', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(toolsViews).toBe(1);
+  assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
   assert.equal((await warning(first)).id, challenge.id);
   await closeTools();
   await page.getByRole('textbox', { name: 'Address', exact: true }).focus();
