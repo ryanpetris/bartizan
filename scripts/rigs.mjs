@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 /** Each rig and the commands it needs besides node and xvfb-run. */
 const rigs = {
   smoke: [],
+  web: ['sshd', 'chromium'],
   sandbox: [],
   integration: ['sshd', 'vim', 'python3'],
   appearance: [],

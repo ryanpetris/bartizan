@@ -217,8 +217,8 @@ const themes: Record<'dark' | 'light', ITheme> = {
     brightWhite: '#3a414a',
   },
 };
-const theme = () => themes[dark.matches ? 'dark' : 'light'];
-function applyTheme() {
+const theme = () => themes[store.state.settings.appearance === 'system' ? (dark.matches ? 'dark' : 'light') : store.state.settings.appearance];
+export function applyTheme() {
   host.style.backgroundColor = theme().background!;
   for (const entry of entries.values()) entry.terminal.options.theme = theme();
 }

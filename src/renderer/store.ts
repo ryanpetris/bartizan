@@ -8,7 +8,8 @@ import {
 } from '../shared';
 import type { PublicProfile as Profile } from '../core/config';
 
-export const api = window.bartizan;
+import { createWebAPI } from './web-api';
+export const api = (window.bartizan ??= createWebAPI());
 export type Selection = { kind: 'terminal' | 'browser' | 'connection'; id: string } | undefined;
 /** A terminal or a browser session, keyed as in the sidebar order. */
 type Entry = { key: string; terminal?: TerminalSession; workspace?: Workspace };
@@ -16,6 +17,7 @@ export type Group = { connection: Connection; entries: Entry[]; profile?: Profil
 
 export const store = {
   state: {
+    capabilities: { embeddedBrowser: false, nativeFilePicker: false },
     settings: defaultSettings,
     profiles: [],
     defaults: {},

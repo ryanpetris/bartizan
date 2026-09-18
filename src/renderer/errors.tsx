@@ -24,6 +24,10 @@ const signature = (entry: ErrorEntry) => `${entry.count}\n${entry.message}`;
  * snapshot arrived stays in history only. Once the initial snapshot has been applied, any other entry that is new or
  * whose count or message changed arrives as a toast.
  */
+export function transportError(message: string) {
+  const time = Date.now();
+  receive({ ...log, history: [...log.history, { id: -time, source: 'transport', kind: 'event', label: 'App', message, time, lastTime: time, count: 1 }] }, !seen);
+}
 export function receive(next: ErrorLog, initial = false) {
   log = next;
   const current = new Set(next.current.map((entry) => entry.id));

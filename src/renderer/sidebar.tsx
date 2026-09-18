@@ -362,6 +362,7 @@ function Session({ workspace }: { workspace: Workspace }) {
 function Connection({ group: { connection, entries, profile } }: { group: Group }) {
   const id = connection.id;
   const control = (label: string) => `${label} ${connection.label}`;
+  const embeddedBrowser = store.state.capabilities.embeddedBrowser;
   return (
     <li
       className="connection"
@@ -397,16 +398,16 @@ function Connection({ group: { connection, entries, profile } }: { group: Group 
         <span className="connection-tools">
           <IconButton
             icon="plus"
-            label={control('Add')}
-            title="Add"
+            label={control(embeddedBrowser ? 'Add' : 'New Terminal')}
+            title={embeddedBrowser ? 'Add' : 'New Terminal'}
             className="connection-add"
             hidden={connection.status !== 'connected'}
-            aria-haspopup="menu"
-            onClick={(event) =>
+            aria-haspopup={embeddedBrowser ? 'menu' : undefined}
+            onClick={(event) => embeddedBrowser ?
               openMenu(event.currentTarget, [
                 { label: 'Terminal', action: () => void openTerminal(id) },
                 { label: 'Browser Session', action: () => void openBrowser(id) },
-              ])
+              ]) : void openTerminal(id)
             }
           />
           <IconButton

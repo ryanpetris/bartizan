@@ -16,7 +16,11 @@ await withDirectory('fonts', async (directory, cleanup) => {
   // Terminal sizes the renderer reports, by terminal.
   await application.evaluate(({ ipcMain }) => {
     globalThis.rigSizes = {};
-    ipcMain.on('resize', (_, id, cols, rows) => { globalThis.rigSizes[id] = { cols, rows }; });
+    const request = ipcMain._invokeHandlers.get('request');
+    ipcMain._invokeHandlers.set('request', (event, message) => {
+      if (message.method === 'resize') { const [id, cols, rows] = message.args; globalThis.rigSizes[id] = { cols, rows }; }
+      return request(event, message);
+    });
   });
   const size = id => application.evaluate((_, id) => globalThis.rigSizes[id], id);
   // The bundled terminal font loads only once the rig releases it.

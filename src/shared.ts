@@ -82,8 +82,10 @@ export const browserSessionName = (workspace: Workspace) => workspace.name || `B
 export type BrowserChallenge = { id: string; workspaceId: string; tabId: string; origin: string; realm: string; scheme: string };
 export type AuthChallenge = Challenge | BrowserChallenge;
 export type AuthAnswer = string | null | { username: string; password: string };
-export type State = { settings: Settings; configError?: string; profiles: PublicProfile[]; defaults: PublicSpec; file: string; connections: Connection[]; terminals: TerminalSession[]; workspaces: Workspace[]; challenges: AuthChallenge[] };
-export type Event = { type: 'menu'; index: number } | { type: 'select-browser'; id: string } | { type: 'state'; state: State } | { type: 'data'; id: string; data: string } | { type: 'errors'; log: ErrorLog; initial?: boolean } | { type: 'browser-shortcut'; id: string; action: 'focus-address' | 'new-connection' | 'find' }
+export type Capabilities = { embeddedBrowser: boolean; nativeFilePicker: boolean };
+export type State = {
+  capabilities: Capabilities; settings: Settings; configError?: string; profiles: PublicProfile[]; defaults: PublicSpec; file: string; connections: Connection[]; terminals: TerminalSession[]; workspaces: Workspace[]; challenges: AuthChallenge[] };
+export type Event = { type: 'transport-error'; message: string } | { type: 'menu'; index: number } | { type: 'select-browser'; id: string } | { type: 'state'; state: State } | { type: 'data'; id: string; data: string } | { type: 'errors'; log: ErrorLog; initial?: boolean } | { type: 'browser-shortcut'; id: string; action: 'focus-address' | 'new-connection' | 'find' }
   /** A tab's icon as a data URL, its find-in-page result, and the address of the link under the pointer. */
   | { type: 'favicon'; tabId: string; data?: string } | { type: 'found'; tabId: string; active: number; matches: number } | { type: 'target-url'; tabId: string; url: string };
 export type ErrorEntry = { id: number; source: string; kind: 'current' | 'event'; message: string; connectionId?: string; label: string; time: number; lastTime: number; count: number; resolvedAt?: number };
@@ -102,6 +104,7 @@ export type OverlayName = (typeof overlayNames)[number];
 export const browserActions = ['new', 'close', 'select', 'navigate', 'back', 'forward', 'reload', 'hard-reload', 'stop', 'close-workspace', 'devtools', 'mute', 'zoom-in', 'zoom-out', 'zoom-reset', 'print', 'pdf'] as const;
 export type BrowserAction = (typeof browserActions)[number];
 export interface API {
+  capabilities(): Promise<Capabilities>;
   graphics(event: { event: 'started' | 'lost' | 'restored' | 'fallback'; backend?: string }): void;
   reportError(input: ErrorReport): Promise<void>;
   clearErrors(): Promise<void>;

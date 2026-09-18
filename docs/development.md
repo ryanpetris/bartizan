@@ -39,7 +39,7 @@ npm run rigs -- connect profiles order
 npm run rigs -- --docker integration
 ```
 
-Rigs run under Xvfb and drive Electron with Playwright. They use temporary configuration and application data directories. Some start an isolated SSH server; the network rig starts a Docker container. The runner builds the app first unless `--no-build` or `BARTIZAN_EXECUTABLE` is set.
+Rigs run under Xvfb and drive Electron with Playwright. The `web` rig starts both the Node server and Electron `serve` without a display, then drives Chromium against each, exercising the same terminal and configuration backend. It requires `chromium`; `BARTIZAN_CHROMIUM` can select its executable. They use temporary configuration and application data directories. Some start an isolated SSH server; the network rig starts a Docker container. The runner builds the app first unless `--no-build` or `BARTIZAN_EXECUTABLE` is set.
 
 Local execution requires `xvfb-run`. Each rig also checks for its own tools, such as `sshd`, Vim, OpenSSL or xdotool, and skips if they are absent. Check the runner's output for skipped rigs before treating a run as complete.
 
@@ -49,7 +49,7 @@ The runner uses software WebGL by default. Set `BARTIZAN_RIG_SOFTWARE_GL=0` to u
 
 ## Build and package
 
-`npm run build` bundles the main process, preload, SSH helpers and renderer into `dist/`. It also copies the stylesheet and bundled fonts.
+`npm run build` bundles the Electron main process, web server, preload, SSH helpers and renderer into `dist/`. It also copies the stylesheet and bundled fonts.
 
 ```sh
 npm run package

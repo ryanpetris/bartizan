@@ -258,9 +258,10 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   const saved = await readFile(config, 'utf8');
   await application.evaluate(({ ipcMain }) => {
     const handlers = ipcMain._invokeHandlers;
-    const connect = handlers.get('profile-connect');
+    const connect = handlers.get('request');
     globalThis.rigLate = { connect, done: false };
-    handlers.set('profile-connect', async (...values) => {
+    handlers.set('request', async (...values) => {
+      if (values[1].method !== 'profile-connect') return connect(...values);
       const id = await connect(...values);
       await new Promise(resolve => setTimeout(resolve, 800));
       globalThis.rigLate.done = true;
@@ -278,7 +279,7 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await page.waitForTimeout(300);
   await expect(form).toBeVisible();
   await button('Cancel').click();
-  await application.evaluate(({ ipcMain }) => ipcMain._invokeHandlers.set('profile-connect', globalThis.rigLate.connect));
+  await application.evaluate(({ ipcMain }) => ipcMain._invokeHandlers.set('request', globalThis.rigLate.connect));
   await waitState(s => s.connections.some(c => !c.profileId && c.status === 'connected'), 'unsaved connection');
   const port = form.locator('[name="port"]');
   await newConnection();

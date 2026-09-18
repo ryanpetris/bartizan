@@ -44,6 +44,10 @@ Save a profile to connect again from the sidebar search. Profiles can also inher
 
 See [Using Bartizan](docs/usage.md) for browser sessions, terminal controls and keyboard shortcuts.
 
+## Run in a browser
+
+Run `bartizan serve`, or `npm start -- serve` from a source checkout, and open the printed address. The web UI supports SSH terminals, profiles, settings and errors. Links open in ordinary browser tabs without SSH routing. See [Browser server](docs/installation.md#browser-server) for host and port options.
+
 ## Develop
 
 With Node.js 24 or newer, npm, OpenSSH, Python, make and a C++ compiler installed:

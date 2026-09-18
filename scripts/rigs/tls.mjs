@@ -87,7 +87,7 @@ await withDirectory('tls', async (directory, cleanup) => {
   const firstGuest = await newestGuest();
   assert.equal(await application.evaluate(async ({ webContents, ipcMain }, { id, guest }) => {
     const contents = webContents.fromId(guest);
-    try { await ipcMain._invokeHandlers.get('certificate-answer')({ sender: contents, senderFrame: contents.mainFrame }, id, true); return 'answered'; }
+    try { await ipcMain._invokeHandlers.get('request')({ sender: contents, senderFrame: contents.mainFrame }, { id: 1, method: 'certificate-answer', args: [id, true] }); return 'answered'; }
     catch (error) { return error.message; }
   }, { id: challenge.id, guest: firstGuest }), 'Untrusted caller');
   await expect(warningView.locator('h2')).toHaveText('Untrusted Certificate');

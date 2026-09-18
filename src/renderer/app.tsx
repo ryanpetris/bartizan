@@ -1,5 +1,5 @@
 import '@xterm/xterm/css/xterm.css';
-import { Component, useLayoutEffect, type ReactNode } from 'react';
+import { Component, useInsertionEffect, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { browserShortcut, type State } from '../shared';
@@ -54,6 +54,7 @@ connect.onToggle(() => {
 });
 onRefocusView(refocus);
 let loaded = false;
+let startupError: string | undefined;
 /** State comes only from state events, which arrive in order; the main process sends one whenever the page loads. */
 function applyState(state: State) {
   const earlier = store.state;
@@ -138,9 +139,20 @@ class FocusRecovery extends Component<{ children: ReactNode }> {
 }
 function App() {
   useStore();
+  useInsertionEffect(() => {
+    const system = matchMedia('(prefers-color-scheme: dark)');
+    const update = () => { document.documentElement.dataset.appearance = store.state.settings.appearance === 'system' ? (system.matches ? 'dark' : 'light') : store.state.settings.appearance; };
+    update(); system.addEventListener('change', update);
+    return () => system.removeEventListener('change', update);
+  }, [store.state.settings.appearance]);
+  useLayoutEffect(() => { if (loaded) terminals.applyTheme(); }, [loaded, store.state.settings.appearance]);
   useLayoutEffect(() => {
     const unsubscribe = api.onEvent((event) => {
       switch (event.type) {
+        case 'transport-error':
+          if (!loaded) { startupError = event.message; render(); }
+          else errors.transportError(event.message);
+          break;
         case 'state':
           applyState(event.state);
           break;
@@ -189,6 +201,7 @@ function App() {
       window.removeEventListener('keydown', keydown, true);
     };
   }, []);
+  if (!loaded && startupError) return <main className="startup-error" role="alert">{startupError}</main>;
   return (
     <FocusRecovery>
       <Titlebar />

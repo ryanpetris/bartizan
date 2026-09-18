@@ -2,13 +2,17 @@
 
 # Architecture
 
-Bartizan has one Electron application window containing a React sidebar and either an xterm terminal or a native browser view. The main process owns connections, PTYs, browser sessions, credentials and configuration writes.
+Bartizan has one Electron application window containing a React interface around either an xterm terminal or a native browser view. The shared backend owns connections, PTYs, credentials and configuration writes. Electron adds embedded browser sessions; a standalone Node server serves the terminal UI in an ordinary browser.
 
 ## Source map
 
 | Location | Responsibility |
 | --- | --- |
-| [`src/main/main.ts`](../src/main/main.ts) | Startup, window lifecycle, IPC validation and state publication |
+| [`src/backend/app.ts`](../src/backend/app.ts) | Shared operations, validation, configuration, SSH lifecycle and state publication |
+| [`src/transport.ts`](../src/transport.ts), [`src/client.ts`](../src/client.ts) | Request/response envelopes, transport interface and typed client API |
+| [`src/main/main.ts`](../src/main/main.ts) | Electron startup, window lifecycle, trusted IPC and platform operations |
+| [`src/web/`](../src/web/) | HTTP assets, WebSocket transport and server CLI |
+| [`src/renderer/web-api.ts`](../src/renderer/web-api.ts) | Browser transport, clipboard, menus and external links |
 | [`src/main/sessions.ts`](../src/main/sessions.ts) | SSH master processes and terminal PTYs |
 | [`src/main/browser.ts`](../src/main/browser.ts) | Browser partitions, tabs, page tools, downloads and HTTP authentication |
 | [`src/main/overlays.ts`](../src/main/overlays.ts) | Views for interface drawn above pages |
@@ -22,7 +26,13 @@ Bartizan has one Electron application window containing a React sidebar and eith
 
 The application renderer is sandboxed and context-isolated with Node integration disabled. Its [preload](../src/main/preload.ts) exposes a fixed API through `contextBridge`. The main process accepts IPC only from the application window's main frame at its bundled page URL, then validates request arguments.
 
-The main process publishes state snapshots and separate terminal data events. Tab icons, find results and the address of a hovered link also arrive as events of their own. The renderer's [store](../src/renderer/store.ts) handles selection and sidebar order, and notifies React through `useSyncExternalStore`. Sidebar order is stored in `sessionStorage`. Terminal titles are renderer state.
+Both transports carry requests with an ID, method and argument array. Responses carry the matching ID and either a result or an error; events carry state snapshots or incremental updates. IPC validates the caller before dispatch; WebSocket validates its origin and request envelope before reaching the same handlers. The shared client maps the public API onto either transport. Fire-and-forget terminal input and resize calls use the same request path.
+
+`window.bartizan.capabilities()` returns the running backend's capabilities, also included in state snapshots. `embeddedBrowser` controls browser-session actions; `nativeFilePicker` controls native file-picker buttons. Electron provides both, and the web server provides neither. Unsupported backend operations reject even if a caller bypasses the UI. This API is available to future integrations without depending on a particular transport.
+
+Web clients share one backend, while each client's profile form has its own draft. The backend serializes connection/configuration mutations. Shutdown rejects queued mutations, waits for the active one, and closes platform resources and SSH sessions.
+
+The backend publishes state snapshots and separate terminal data events. Tab icons, find results and the address of a hovered link also arrive as events of their own. The renderer's [store](../src/renderer/store.ts) handles selection and navigation order, and notifies React through `useSyncExternalStore`. Navigation order is stored in `sessionStorage`. Terminal titles are renderer state.
 
 Browser tabs use sandboxed `WebContentsView` instances without a preload or Node integration. The renderer reports the browser area's bounds to the main process, which positions the selected native view. Modal dialogs and overlapping Connect results hide the view so that native page content does not cover app controls.
 

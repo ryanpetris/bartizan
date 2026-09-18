@@ -75,8 +75,7 @@
   --session-color: var(--accent);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+:root[data-appearance="dark"] {
     color-scheme: dark;
     --bg-app: #0f1114;
     --bg-sidebar: #16191d;
@@ -132,7 +131,6 @@
     --session-7: #f07f7f;
     --session-8: #a4aeb9;
   }
-}
 
 @media (max-width: 1040px) { :root { --sidebar-width: 224px; } }
 
@@ -550,3 +548,11 @@ dialog::backdrop { top: var(--chrome-top); background: rgba(8, 10, 14, 0.42); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
+
+.web-menu { position: fixed; z-index: 10000; display: grid; max-width: min(400px, 100vw); max-height: 80vh; overflow: auto; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-dialog); box-shadow: var(--menu-shadow); }
+.web-menu button { border: 0; background: none; color: var(--text); padding: 6px 12px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.web-menu button:hover:not(:disabled), .web-menu button:focus { background: var(--selected); }
+.web-menu button:disabled { color: var(--text-faint); }
+.web-menu hr { width: 100%; border: 0; border-top: 1px solid var(--border); }
+
+.startup-error { display: grid; place-content: center; min-height: 100vh; padding: 24px; color: var(--text); }

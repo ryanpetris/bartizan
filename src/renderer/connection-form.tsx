@@ -233,7 +233,7 @@ function ItemList({
         >
           Add
         </Button>
-        {browse && (
+        {browse && store.state.capabilities.nativeFilePicker && (
           <Button
             className="browse"
             onClick={() =>
@@ -394,7 +394,7 @@ function Control({
           />
           <Button
             className="browse"
-            hidden={value.mode !== 'file'}
+            hidden={value.mode !== 'file' || !store.state.capabilities.nativeFilePicker}
             onClick={() =>
               void api.chooseFile().then((file) => {
                 if (file) update({ text: file });

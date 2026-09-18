@@ -72,7 +72,7 @@ export function Titlebar() {
           <IconButton
             icon="window"
             label="New Browser Tab"
-            hidden={owner?.status !== 'connected'}
+            hidden={!store.state.capabilities.embeddedBrowser || owner?.status !== 'connected'}
             onClick={() => owner && void openBrowserTab(owner.id, workspace?.id)}
           />
           <IconButton

@@ -23,7 +23,11 @@ await withDirectory('ligatures', async (directory, cleanup) => {
   const { application, page, api, waitState, recordOutput, output, errors } = app;
   await application.evaluate(({ ipcMain }) => {
     globalThis.rigSizes = {};
-    ipcMain.on('resize', (_, id, cols, rows) => { globalThis.rigSizes[id] = { cols, rows }; });
+    const request = ipcMain._invokeHandlers.get('request');
+    ipcMain._invokeHandlers.set('request', (event, message) => {
+      if (message.method === 'resize') { const [id, cols, rows] = message.args; globalThis.rigSizes[id] = { cols, rows }; }
+      return request(event, message);
+    });
   });
   const size = id => application.evaluate((_, id) => globalThis.rigSizes[id], id);
   await recordOutput();
@@ -86,7 +90,8 @@ await withDirectory('ligatures', async (directory, cleanup) => {
 
   await application.evaluate(({ ipcMain }) => {
     globalThis.rigInput = [];
-    ipcMain.on('input', (_, id, text) => globalThis.rigInput.push(text));
+    const request = ipcMain._invokeHandlers.get('request');
+    ipcMain._invokeHandlers.set('request', (event, message) => { if (message.method === 'input') globalThis.rigInput.push(message.args[1]); return request(event, message); });
   });
   const box = await view.boundingBox();
   const at = (column, row) => ({ x: box.x + column * box.width / cells.cols + 1, y: box.y + (row + 0.5) * box.height / cells.rows });

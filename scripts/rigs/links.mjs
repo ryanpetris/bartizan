@@ -33,7 +33,8 @@ await withDirectory('links', async (directory, cleanup) => {
     globalThis.rigMenus = [];
     Menu.prototype.popup = function () { globalThis.rigMenus.push(this); };
     globalThis.rigInputs = [];
-    ipcMain.on('input', (_event, _id, data) => globalThis.rigInputs.push(data));
+    const request = ipcMain._invokeHandlers.get('request');
+    ipcMain._invokeHandlers.set('request', (event, message) => { if (message.method === 'input') globalThis.rigInputs.push(message.args[1]); return request(event, message); });
     globalThis.rigExternal = [];
     shell.openExternal = async url => { globalThis.rigExternal.push(url); };
   });
