@@ -265,9 +265,7 @@
 :root[data-theme="rail"] .rail-panel-title .icon-button { app-region: no-drag; }
 /* The narrower panel sets the label a size down, which keeps an ordinary one whole beside the connection's commands. */
 @media (max-width: 1040px) { :root[data-theme="rail"] .rail-panel-title .connection-label { font-size: 14px; } }
-:root[data-theme="rail"] .rail-panel-meta { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; margin: 9px 9px 1px; padding: 8px 9px 9px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--card); }
 :root[data-theme="rail"] .rail-panel-head[data-status="closed"] .connection-label { color: var(--text-muted); }
-:root[data-theme="rail"] .rail-panel-meta .tag-list { gap: 5px; height: auto; margin-top: 0; overflow: visible; }
 :root[data-theme="rail"] .rail-panel-scroll { flex: 1; min-height: 0; padding: 8px 0 12px 9px; overflow-y: auto; scrollbar-gutter: stable; scroll-padding-block: 10px; container-type: scroll-state; }
 /* Rows scrolled out of the list fade into the panel under its head and over its foot. */
 :root[data-theme="rail"] .rail-panel-scroll::before, :root[data-theme="rail"] .rail-panel-scroll::after { content: ""; position: sticky; z-index: 2; display: block; height: 14px; opacity: 0; pointer-events: none; transition: opacity 0.16s ease; }
@@ -277,7 +275,7 @@
 @container scroll-state(scrollable: bottom) { :root[data-theme="rail"] .rail-panel-scroll::after { opacity: 1; } }
 /* A thin panel: the button that widens it over a column of its items' icons, each named in its title. */
 :root[data-theme="rail"] .rail-panel.thin :is(.rail-panel-title .connection-name, .nav-label, .nav-meta) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-:root[data-theme="rail"] .rail-panel.thin :is(.connection-tools, .rail-panel-meta, .row-actions) { display: none; }
+:root[data-theme="rail"] .rail-panel.thin :is(.connection-tools, .row-actions) { display: none; }
 :root[data-theme="rail"] .rail-panel.thin .rail-panel-title { padding-right: 0; }
 :root[data-theme="rail"] .rail-panel.thin .rail-panel-scroll { padding: 8px 0 12px; scrollbar-gutter: auto; }
 :root[data-theme="rail"] .rail-panel.thin .rail-panel-scroll::-webkit-scrollbar { display: none; }

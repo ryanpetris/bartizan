@@ -28,7 +28,6 @@ export async function testProfileTags(app, config, connectionId) {
     await dialogs.keyboard.press('ArrowDown');
     await expect(dialog.locator('.profile-item').nth(1)).toBeFocused();
     await closeConnect(page);
-    await expect(connection.locator('.rail-panel-head')).toContainText('Team Blue');
     assert.deepEqual((await state()).profiles.find(p => p.id === 'rig').tags, ['Operations', 'Team Blue', '<b>literal</b>']);
     // Connect finds profiles by tag, and hides no connection while it does.
     await openConnect(page);
@@ -54,8 +53,6 @@ export async function testProfileTags(app, config, connectionId) {
       await page.evaluate(appearance => window.bartizan.settings({ appearance }), theme);
       for (const zoom of [1, 1.25]) {
         await application.evaluate(({ BrowserWindow }, zoom) => { const window = BrowserWindow.getAllWindows()[0]; window.setSize(800, 700); window.webContents.setZoomFactor(zoom); }, zoom);
-        await expect.poll(() => page.locator('.rail-panel').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
-        await expect(connection.locator('.connection-add')).toBeVisible();
         await openConnect(page);
         await expect(profile).toBeVisible();
         await expect.poll(() => dialog.locator('.connect-body').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
@@ -66,7 +63,6 @@ export async function testProfileTags(app, config, connectionId) {
     await openConnect(page);
     await expect(profile.locator('.tag')).toHaveCount(0);
     await closeConnect(page);
-    await expect(connection.locator('.rail-panel-head .tag')).toHaveCount(0);
     assert.deepEqual((await state()).profiles.find(p => p.id === 'rig').tags, []);
     const after = await state();
     assert.deepEqual(after.connections, before.connections);

@@ -14,7 +14,7 @@ export const api = (window.bartizan ??= createWebAPI());
 export type Selection = { kind: 'terminal' | 'browser' | 'connection'; id: string } | undefined;
 /** A terminal or a browser session, keyed as in the navigation order. */
 type Entry = { key: string; terminal?: TerminalSession; workspace?: Workspace };
-export type Group = { connection: Connection; entries: Entry[]; profile?: Profile };
+export type Group = { connection: Connection; entries: Entry[] };
 
 export const store = {
   state: {
@@ -316,7 +316,6 @@ export function groups(state = store.state): Group[] {
   return ordered('connections', state.connections, (connection) => connection.id).map((connection) => ({
       connection,
       entries: entries(connection, state),
-      profile: state.profiles.find((p) => p.id === connection.profileId),
     }));
 }
 /** The connection's first browser session in navigation order. */

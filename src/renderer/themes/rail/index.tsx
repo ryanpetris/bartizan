@@ -3,7 +3,7 @@ import type { Theme } from '..';
 import { HomeButton, ContextTitle, ContextActions, AppActions, NewConnectionButton } from '../../chrome';
 import { NavGroup, ConnectionChips, ConnectionItems, ConnectionName, ConnectionTools, LabelTitles, renamingSession } from '../../nav';
 import { ErrorsButton } from '../../errors';
-import { Tags, IconButton } from '../../ui';
+import { IconButton } from '../../ui';
 import { groups, currentConnection, render, type Group } from '../../store';
 import './style.css';
 
@@ -77,11 +77,6 @@ function Chrome() {
                 <ConnectionName connection={connection} />
                 <ConnectionTools connection={connection} />
               </div>
-              {!!current.profile?.tags.length && (
-                <div className="rail-panel-meta">
-                  <Tags tags={current.profile.tags} />
-                </div>
-              )}
             </header>
             <div className="rail-panel-scroll">
               <LabelTitles.Provider value={narrow(current)}>
