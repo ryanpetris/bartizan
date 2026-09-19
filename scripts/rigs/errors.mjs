@@ -26,8 +26,8 @@ await withDirectory('errors', async (directory, cleanup) => {
 
   await expect(page.locator('.rail-actions').getByRole('button', { name: 'Errors', exact: true })).toBeVisible();
   const errorBounds = await button().boundingBox();
-  const connectBounds = await page.getByRole('combobox', { name: 'Connect', exact: true }).boundingBox();
-  assert.ok(errorBounds.x + errorBounds.width <= connectBounds.x, 'Errors sits on the rail beside Connect');
+  const homeBounds = await page.locator('.home-view').boundingBox();
+  assert.ok(errorBounds.x + errorBounds.width <= homeBounds.x, 'Errors sits on the rail beside the home page');
   await expect(page.locator('#error-count')).toHaveText('1');
   await button().click();
   await expect(panel()).toHaveJSProperty('open', true);

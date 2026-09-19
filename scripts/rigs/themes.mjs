@@ -10,7 +10,7 @@ import { parse } from 'yaml';
 import { withDirectory, startSshd, sshProfile, launch, waitFor } from './lib/harness.mjs';
 import { openSettings, closeSettings } from './lib/settings.mjs';
 
-const controls = ['New Connection', 'Errors', 'Profiles', 'Settings', 'Connection Details'];
+const controls = ['New Connection', 'Errors', 'Settings', 'Connection Details'];
 
 await withDirectory('themes', async (directory, cleanup) => {
   const manifestFile = join(directory, 'themes.mjs');
@@ -30,7 +30,7 @@ await withDirectory('themes', async (directory, cleanup) => {
   const app = await launch(directory, config);
   cleanup(app.close);
   const { application, page, api, waitState, recordOutput, output, errors } = app;
-  await expect(page.getByRole('combobox', { name: 'Connect', exact: true })).toBeFocused();
+  await expect(page.locator('.home-view')).toBeVisible();
   application.on('window', child => child.on('pageerror', error => errors.push(error.message)));
   await page.addInitScript(() => {
     window.rigPaintedThemes = [];
@@ -74,16 +74,28 @@ await withDirectory('themes', async (directory, cleanup) => {
     await expect(dialog).toBeHidden();
     await expect.poll(() => page.evaluate(() => navigator.windowControlsOverlay.getTitlebarAreaRect().height), `${id}: the window controls take the theme's height`).toBe(theme.controls.height);
 
-    // Home shows the home page, with Connect focused and none of what belongs to a connection.
+    // Home shows the home page, keeping focus, with none of what belongs to a connection.
     const home = page.getByRole('button', { name: 'Home', exact: true });
     await home.click();
     await expect(page.locator('.home-view')).toBeVisible();
     await expect(home).toHaveAttribute('aria-current', 'page');
-    await expect(page.locator('.home-view').getByRole('combobox', { name: 'Connect', exact: true })).toBeFocused();
+    await expect(home).toBeFocused();
     await expect(page.locator('.rail-panel, .tabs-tier, .console-windows:not([hidden])')).toHaveCount(0);
     await expect(page.locator('h1#home-title')).toBeVisible();
-    await expect(page.locator('.connect-tile .identicon')).toBeVisible();
-    const profilePattern = await page.locator('.connect-tile .identicon').innerHTML();
+    // The brand centres on the page, and in Rail, whose bar reads as part of the page at home, on the bar and page together.
+    const centres = await page.evaluate(() => {
+      const brand = document.querySelector('.home-brand').getBoundingClientRect(), main = document.querySelector('.main').getBoundingClientRect();
+      return { brand: (brand.top + brand.bottom) / 2, page: (main.top + main.bottom) / 2, window: main.bottom / 2 };
+    });
+    assert.ok(Math.abs(centres.brand - (id === 'rail' ? centres.window : centres.page)) <= 1, `${id}: the home page's brand is centred`);
+    // The theme's New Connection opens Connect, whose profile icon is the connection's badge.
+    await page.getByRole('button', { name: 'New Connection', exact: true }).click();
+    const connect = (await app.modal()).locator('#connect-dialog');
+    await expect(connect.locator('.profile-item .identicon')).toBeVisible();
+    const profilePattern = await connect.locator('.profile-item .identicon').innerHTML();
+    await connect.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(connect).toBeHidden();
+    await expect(page.getByRole('button', { name: 'New Connection', exact: true })).toBeFocused();
     const badgeIcon = chip.locator('.identicon');
     assert.equal(await badgeIcon.innerHTML(), profilePattern, `${id}: the badge matches the profile icon`);
     if (id === 'rail') await expect(badgeIcon).toBeVisible();

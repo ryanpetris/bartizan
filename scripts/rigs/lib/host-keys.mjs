@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse, stringify } from 'yaml';
-import { openProfiles } from './profile-launch.mjs';
+import { openConnect } from './profile-launch.mjs';
 
 export async function testHostKeyPins(app, config, publicKey, otherPublicKey) {
   const { application, page, state, api } = app;
@@ -60,7 +60,7 @@ export async function testHostKeyPins(app, config, publicKey, otherPublicKey) {
       document.defaults = { host_keys: { [path]: [value] } };
       await writeFile(config, stringify(document));
       await api('reloadConfig');
-      const edit = async () => (await openProfiles(page)).locator('.profile-row[data-id="rig"] .profile-edit').click();
+      const edit = async () => (await openConnect(page)).locator('.profile-row[data-id="rig"] .profile-edit').click();
       const dialogs = await app.modal();
       await edit();
       await dialogs.locator('#tab-host-keys').click();

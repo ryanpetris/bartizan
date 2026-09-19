@@ -38,7 +38,27 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   const page = await browser.newPage();
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(url);
-  await expect(page.getByRole('combobox', { name: 'Connect', exact: true })).toBeVisible();
+  // Connect draws in the page, where there is no overlay, and hands focus back to New Connection as it closes.
+  const start = page.getByRole('button', { name: 'New Connection', exact: true });
+  await start.click();
+  const connectSearch = page.locator('#connect-dialog').getByRole('combobox', { name: 'Profile or Host', exact: true });
+  await expect(connectSearch).toBeFocused();
+  await expect(page.locator('#connect-dialog .profile-row[data-id="fixture"]')).toBeVisible();
+  // With nothing highlighted, Tab takes focus from the search to the first result; Right moves to its Edit, and Escape
+  // back to the search, from where Tab returns to the result itself.
+  const fixture = page.locator('#connect-dialog .profile-row[data-id="fixture"] .profile-item');
+  await connectSearch.press('Tab');
+  await expect(fixture).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('#connect-dialog .profile-row[data-id="fixture"] .profile-edit')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(connectSearch).toBeFocused();
+  await connectSearch.press('Tab');
+  await expect(fixture).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(connectSearch).toBeFocused();
+  await page.locator('#connect-dialog').getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(start).toBeFocused();
   const api = (name, ...args) => page.evaluate(({ name, args }) => window.bartizan[name](...args), { name, args });
   assert.deepEqual(await api('capabilities'), { embeddedBrowser: false, nativeFilePicker: false });
   await assert.rejects(api('newBrowser', 'missing'), /Unsupported operation/);
@@ -49,10 +69,13 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
     try { await window.bartizan.copy('Browser clipboard fallback'); }
     finally { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: clipboard }); }
   });
-  const connection = await api('connect', { profileId: 'fixture' });
+  // Choosing a profile in Connect connects it, and its terminal takes focus.
+  await start.click();
+  await page.locator('#connect-dialog .profile-row[data-id="fixture"] .profile-item').click();
   await page.waitForFunction(() => window.rigState?.terminals[0]?.status === 'connected');
+  const connection = await page.evaluate(() => window.rigState.connections[0].id);
   const terminal = await page.evaluate(() => window.rigState.terminals[0].id);
-  // A connection made through the API is chosen from the rail, which brings its items into view.
+  await expect(page.locator('.terminal-surface:not([hidden]) .xterm-helper-textarea')).toBeFocused();
   await page.locator(`.connection-chip[data-id="${connection}"] .connection-titles`).click();
   await page.locator(`[data-kind="terminal"][data-id="${terminal}"]`).click();
   await api('input', terminal, "printf 'WEB_%s\\n' READY\n");

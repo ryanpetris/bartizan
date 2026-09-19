@@ -172,8 +172,6 @@ export function ModalLayer({ children }: { children: ReactNode }) {
     </>
   );
 }
-/** Whether the modal overlay has opened, or there is none. */
-export const modalReady = () => modalDocument !== undefined;
 /** Draws a dialog in the modal overlay, or in this page where there is none. */
 export function Modal({ children }: { children: ReactNode }) {
   return modalDocument ? createPortal(children, modalDocument.body) : <>{children}</>;

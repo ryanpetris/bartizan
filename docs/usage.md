@@ -4,11 +4,11 @@
 
 ## Connect and Save Profiles
 
-Bartizan opens on its home page: the Connect field over a list of your profiles. Click a profile to connect to it. The home page returns whenever nothing is selected, and **Home**, the Bartizan mark at the top of the rail, goes back to it at any time.
+Bartizan opens on its home page. The home page returns whenever nothing is selected, and **Home**, the Bartizan mark at the top of the rail, goes back to it at any time.
 
-Use **New Connection** on the rail or the home page to enter a host, port and authentication settings. The form can connect without saving, save a profile, or save and connect. **Profiles** on the rail opens the saved profile list and its Edit controls; on the home page, a profile's Edit button appears when you point at it.
+**New Connection** on the rail opens Connect, which lists your profiles. Click a profile to connect to it, or use its Edit button to change its settings. **New Profile** opens the connection form to enter a host, port and authentication settings. The form can connect without saving, save a profile, or save and connect.
 
-The Connect field searches profile labels, IDs, hosts, usernames and tags. Use the arrow keys to choose a result and Enter to connect. A hostname or `user@host` also offers a direct connection using your configured defaults. Direct connections do not create profiles. Set a custom port in the connection form or configuration.
+Connect's search matches profile labels, IDs, hosts, usernames and tags. Once the search has text, its first result is highlighted and Enter connects it; Up and Down move the highlight. Tab moves to the highlighted result, where Up and Down move through the results, Right and Left move between a profile and its Edit button, and Escape returns to the search. A hostname or `user@host` also offers a direct connection, listed after the profiles, using your configured defaults. Direct connections do not create profiles. Set a custom port in the connection form or configuration.
 
 A connection with no terminals or browser sessions open shows **Nothing Open**; open one from the connection's add menu.
 
@@ -105,4 +105,4 @@ A theme is a layout of the window with its own colours, terminal colours and scr
 
 Rail is the default theme; this guide names controls as Rail places them. **Collapse Sidebar** at the top of Rail's panel narrows it to the icons of the items, each named when the pointer rests on it, and **Expand Sidebar** brings back their names and commands. On the home page, Rail hides its panel, Tabs its tab strip and Console its line of items; in Tabs and Console, **Home** is the Bartizan mark at the start of the title bar. In Tabs, the connection's Add menu opens terminals and browser sessions; the add button on a session row opens a tab in that session. Console uses the terminal font throughout its interface, so its Settings has no Interface Font control. In Rail, Tabs and Console, choosing a connection returns to what it last showed. Where the lists run across the window, the row menus offer **Move Left** and **Move Right** and the Left and Right arrow keys move along them. Inter and JetBrains Mono are bundled. System Default uses the system font. Settings apply immediately and save to the configuration file. A connection's terminal overrides take priority over global settings.
 
-**Errors** at the bottom of the rail shows current configuration problems and the error history. New failures also appear as short notifications. If a configuration edit fails, fix the file and use **Reload Configuration** in Profiles. See the [configuration reference](configuration.md) for accepted fields.
+**Errors** at the bottom of the rail shows current configuration problems and the error history. New failures also appear as short notifications. If a configuration edit fails, fix the file and use **Reload Configuration** in Connect. See the [configuration reference](configuration.md) for accepted fields.

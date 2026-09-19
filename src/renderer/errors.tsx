@@ -63,11 +63,16 @@ export function receive(next: ErrorLog, initial = false) {
 function show(entry: ErrorEntry) {
   for (const item of shown) if (item.entry.id === entry.id) hide(item);
   if (obscured()) { defer(entry); return; }
-  const key = `error-toast-${++keys}`;
+  const item = { key: `error-toast-${++keys}`, entry };
+  shown.push(item);
+  issue(item);
+  while (shown.length > visible) hide(shown[0]);
+}
+/** Gives sonner a shown item's toast; for a toast already on show, sonner updates it and measures it again. */
+function issue({ key, entry }: Shown) {
   const forget = () => {
     shown = shown.filter((item) => item.key !== key);
   };
-  shown.push({ key, entry });
   toast.error(<button className="error-toast-title" type="button" aria-haspopup="dialog" onClick={openToastErrors}>
     {entry.count > 1 ? `${entry.label} ×${entry.count}` : entry.label}
   </button>, {
@@ -77,7 +82,6 @@ function show(entry: ErrorEntry) {
     onDismiss: forget,
     onAutoClose: forget,
   });
-  while (shown.length > visible) hide(shown[0]);
 }
 /** Removes a toast; focus inside it moves to the newest toast left, or to the Errors button. */
 function hide(item: Shown) {
@@ -131,8 +135,20 @@ function ToastSurface() {
     const root = box.current!.ownerDocument,
       view = root.defaultView!;
     toastRoot = root;
-    // Toasts come and go as elements, and each can grow with its text.
-    const sizes = new view.ResizeObserver(() => measure());
+    // Toasts come and go as elements, and each can grow with its text. Sonner places each toast by the height it measured
+    // as the toast mounted, so a toast mounted before its styles settled, or one that later becomes compact, is issued
+    // again to be measured anew: once it is first seen and whenever its height changes.
+    const heights = new WeakMap<Element, number>();
+    const sizes = new view.ResizeObserver((entries) => {
+      for (const { target } of entries) {
+        const height = (target as HTMLElement).offsetHeight;
+        if (heights.get(target) === height) continue;
+        heights.set(target, height);
+        const item = shown.find((other) => target.classList.contains(other.key));
+        if (item) issue(item);
+      }
+      measure();
+    });
     const measure = () => {
       const toasts = [...root.querySelectorAll<HTMLElement>('[data-sonner-toast]')];
       setHeight(toasts.length ? toasts.reduce((sum, toast) => sum + toast.offsetHeight, 0) + toastGap * (toasts.length - 1) + toastInset * 2 : 0);

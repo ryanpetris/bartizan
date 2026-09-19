@@ -1,24 +1,37 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { PublicProfile as Profile } from '../core/config';
 import { parseDestination } from '../shared';
-import { Icon, IconButton, Tags } from './ui';
-import { api, run, matchProfiles, focusConnection, store, profileName, profileEndpoint, activeConnection } from './store';
-import { connectProfile, openConnection } from './connection-form';
-import { profileDescription } from './profiles';
+import { Icon, IconButton, Button, Tags } from './ui';
+import {
+  api,
+  store,
+  render,
+  run,
+  describeError,
+  statusText,
+  profileName,
+  profileEndpoint,
+  activeConnection,
+  matchProfiles,
+  focusConnection,
+} from './store';
+import { openModal } from './dialogs';
+import { openConnection, connectProfile } from './connection-form';
 import { Identicon, destinationSeed } from './identicon';
 
-type Destination = NonNullable<ReturnType<typeof parseDestination>>;
-type Result = { kind: 'profile'; profile: Profile } | { kind: 'destination'; destination: Destination };
-let input: HTMLInputElement | null = null;
-export const focus = () => input?.focus();
-const optionId = (result: Result) =>
-  result.kind === 'profile' ? `connect-profile-${result.profile.id}` : 'connect-destination';
-const target = ({ host, username }: Destination) => (username ? `${username}@${host}` : host);
-
-/** A profile row with its identicon and status, its name and tags over its endpoint, and Edit. */
-function ListedProfile({ profile }: { profile: Profile }) {
-  const active = activeConnection(profile.id),
-    name = profileName(profile);
+let opened = false;
+export function openConnect() {
+  if (!opened) {
+    opened = true;
+    render();
+  }
+}
+export function Connect() {
+  return opened ? <ConnectDialog /> : <dialog id="connect-dialog" className="connect-dialog" />;
+}
+/** A profile's identicon and status, its name and tags over its endpoint. */
+function ProfileSummary({ profile }: { profile: Profile }) {
+  const active = activeConnection(profile.id);
   return (
     <>
       <span className="connect-tile" aria-hidden="true">
@@ -26,187 +39,271 @@ function ListedProfile({ profile }: { profile: Profile }) {
         <span className="status-dot" hidden={!active} data-status={active?.status} />
       </span>
       <span className="profile-titles">
-        <span className="profile-label">{name}</span>
+        <span className="profile-label">{profileName(profile)}</span>
         <Tags tags={profile.tags} />
         <span className="profile-endpoint mono">{profileEndpoint(profile)}</span>
       </span>
-      {/* The pointer's way to a profile's settings; Profiles offers Edit to the keyboard. */}
-      <IconButton
-        icon="sliders"
-        label={`Edit ${name}`}
-        title="Edit"
-        className="connect-edit"
-        tabIndex={-1}
-        aria-hidden="true"
-        onPointerDown={(event) => event.preventDefault()}
-        onClick={(event) => {
-          event.stopPropagation();
-          openConnection(profile.id);
-        }}
-      />
     </>
   );
 }
-
+type Result = { kind: 'profile'; profile: Profile } | { kind: 'destination'; destination: NonNullable<ReturnType<typeof parseDestination>> };
+const resultKey = (result: Result) => (result.kind === 'profile' ? `profile:${result.profile.id}` : 'destination');
+const cellId = (result: Result) => (result.kind === 'profile' ? `connect-profile-${result.profile.id}` : 'connect-destination');
 /**
- * The home page's Connect field over its results: the profiles that match its text, every profile while it is empty,
- * then a direct connection when the text names a destination. Nothing is chosen while the field is empty until the
- * arrow keys or the pointer choose a result.
+ * The profiles that match the search, each with Edit, then a direct connection when the search names a destination, as
+ * a grid. One result is current: the first once the search has text, until Up and Down in the search or a moving pointer
+ * choose another. Tab takes focus to the current result, and in the grid Up and Down move through the results and Right
+ * and Left between a profile and its Edit. Enter in the search connects the current result.
  */
-export function Connect() {
+function ConnectDialog() {
+  const dialog = useRef<HTMLDialogElement>(null),
+    search = useRef<HTMLInputElement>(null),
+    body = useRef<HTMLDivElement>(null),
+    list = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState(''),
-    [active, setActive] = useState(-1);
-  const reveal = useRef(true),
-    revealed = useRef<string | undefined>(undefined),
-    launching = useRef(false),
-    currentQuery = useRef(query);
+    [current, setCurrent] = useState<{ key: string; edit: boolean }>(),
+    [pointing, setPointing] = useState(false),
+    [failure, setFailure] = useState<unknown>();
   const destination = parseDestination(query);
   const results: Result[] = [
     ...matchProfiles(query).map((profile): Result => ({ kind: 'profile', profile })),
     ...(destination ? [{ kind: 'destination' as const, destination }] : []),
   ];
-  const unmatched = !results.length && !!query.trim();
-  const previous = useRef<string | undefined>(undefined);
-  /** The first result is chosen while there is text; an empty field chooses none. */
-  const least = (text: string) => (text.trim() ? 0 : -1);
-  const selected = Math.max(least(query), Math.min(active, results.length - 1));
-  function clear() {
-    currentQuery.current = '';
-    setQuery('');
-    setActive(-1);
-  }
-  function choose(result: Result) {
-    if (result.kind === 'profile') {
-      clear();
-      connectProfile(result.profile.id);
-      return;
-    }
-    if (launching.current) return;
-    launching.current = true;
-    const original = currentQuery.current;
-    void run('session', api.connect(result.destination)).then((id) => {
-      launching.current = false;
-      if (!id) return;
-      if (currentQuery.current === original) clear();
-      focusConnection(id);
-    });
-  }
-  function change(value: string) {
-    reveal.current = true;
-    revealed.current = undefined;
-    currentQuery.current = value;
-    setQuery(value);
-    setActive(least(value));
-  }
-  // The results scroll in a box of their own; the chosen one is brought into view only when it changes.
+  // The result made current, while it remains; otherwise the first once the search has text.
+  const found = current ? results.findIndex((result) => resultKey(result) === current.key) : -1;
+  const chosen = found >= 0 ? found : query.trim() && results.length ? 0 : -1;
+  // Tab reaches the current result, or its Edit if that had focus last; with none, the first result.
+  const stop = Math.max(chosen, 0),
+    stopEdit = found >= 0 && current!.edit;
+  const message = failure || store.state.configError ? describeError(failure || store.state.configError).message : '';
   useLayoutEffect(() => {
-    const id = results[selected] && optionId(results[selected]);
-    if (reveal.current && id && id !== revealed.current) document.getElementById(id)?.scrollIntoView({ block: 'nearest' });
-    revealed.current = id;
-  });
+    openModal(dialog.current!, search.current!);
+  }, []);
+  // The first result is current as the search changes, so each search shows the results from the top.
   useLayoutEffect(() => {
-    const key = previous.current;
-    if (key) {
-      const index = results.findIndex((r) => optionId(r) === key);
-      const kept = Math.max(least(query), index);
-      if (kept !== active) setActive(kept);
-    }
-  }, [store.state.profiles, store.state.connections]);
+    body.current!.scrollTop = 0;
+  }, [query]);
+  // A result that becomes current comes into view, unless the pointer chose it where it is.
+  const chosenKey = results[chosen] && resultKey(results[chosen]);
+  const pointed = useRef(false);
   useLayoutEffect(() => {
-    previous.current = results[selected] && optionId(results[selected]);
-  });
-  const empty = (text: string, id?: string) => (
-    <div className="section-empty" id={id} role="option" aria-disabled="true" onPointerDown={(e) => e.preventDefault()}>
-      {text}
-    </div>
-  );
+    if (pointed.current) pointed.current = false;
+    else list.current!.querySelector('[data-chosen]')?.scrollIntoView({ block: 'nearest' });
+  }, [chosenKey]);
+  const close = () => dialog.current!.close();
+  /** Closes the dialog, then does `next` once the page has taken focus back from it. */
+  const closeThen = (next: () => void) => {
+    dialog.current!.addEventListener('close', next, { once: true });
+    close();
+  };
+  const choose = (result: Result) => {
+    if (result.kind === 'profile') closeThen(() => connectProfile(result.profile.id));
+    else closeThen(() => void run('session', api.connect(result.destination)).then((id) => id && focusConnection(id)));
+  };
+  /** The button of a row's result, or of its Edit where it has one. */
+  const button = (row: Element | undefined, edit: boolean) =>
+    (edit && row?.querySelector<HTMLElement>('.profile-edit')) || row?.querySelector<HTMLElement>('.profile-item, .destination-item');
   return (
-    <>
-      <label className="connect">
-        <Icon name="search" />
-        <input
-          ref={(node) => {
-            input = node;
-          }}
-          className="connect-input"
-          type="text"
-          role="combobox"
-          aria-label="Connect"
-          placeholder="Connect"
-          aria-autocomplete="list"
-          aria-expanded
-          aria-controls="connect-results"
-          aria-activedescendant={results[selected] ? optionId(results[selected]) : undefined}
-          autoComplete="off"
-          spellCheck={false}
-          value={query}
-          onInput={(e) => change(e.currentTarget.value)}
-          onChange={() => {}}
-          onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-              reveal.current = true;
+    <dialog
+      ref={dialog}
+      id="connect-dialog"
+      className="connect-dialog"
+      aria-labelledby="connect-title"
+      onClose={() => {
+        opened = false;
+        render();
+      }}
+      onKeyDown={(event) => {
+        if (pointing) setPointing(false);
+        if (event.key !== 'Escape' || event.nativeEvent.isComposing || event.keyCode === 229) return;
+        // Escape returns from the results to the search, then clears it, then closes the dialog.
+        if (list.current!.contains(event.target as Node)) search.current!.focus();
+        else if (query) {
+          setQuery('');
+          setCurrent(undefined);
+          search.current!.focus();
+        } else return;
+        event.preventDefault();
+      }}
+    >
+      <div className="connect" data-focus-group="connect" data-focus-items=".connect-search .input, .profile-item, .destination-item">
+        <header className="dialog-header">
+          <span className="dialog-icon">
+            <Icon name="plus" />
+          </span>
+          <div className="dialog-titles">
+            <h2 id="connect-title">Connect</h2>
+          </div>
+          <span className="spacer" />
+          <IconButton
+            icon="reload"
+            label="Reload Configuration"
+            onClick={() => void api.reloadConfig().then(() => setFailure(undefined), setFailure)}
+          />
+        </header>
+        <label className="connect-search">
+          <Icon name="search" />
+          <input
+            ref={search}
+            className="input"
+            type="text"
+            role="combobox"
+            aria-label="Profile or Host"
+            aria-haspopup="grid"
+            aria-expanded={results.length > 0}
+            aria-controls="connect-results"
+            aria-autocomplete="list"
+            aria-activedescendant={results[chosen] && cellId(results[chosen])}
+            placeholder="Search"
+            autoComplete="off"
+            spellCheck={false}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setCurrent(undefined);
+            }}
+            // Back in the search, Tab returns to the current result itself.
+            onFocus={() => current?.edit && setCurrent({ ...current, edit: false })}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+              if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+              const last = results.length - 1;
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                if (last < 0) return;
+                const down = event.key === 'ArrowDown';
+                const next = chosen < 0 ? (down ? 0 : last) : Math.min(last, Math.max(0, chosen + (down ? 1 : -1)));
+                setCurrent({ key: resultKey(results[next]!), edit: false });
+              } else if (event.key === 'Enter') {
+                if (results[chosen]) choose(results[chosen]);
+              } else return;
               event.preventDefault();
-              const last = results.length - 1,
-                down = event.key === 'ArrowDown';
-              setActive(selected < 0 ? (down ? 0 : last) : Math.min(last, Math.max(0, selected + (down ? 1 : -1))));
-            } else if (event.key === 'Enter') {
-              event.preventDefault();
-              const result = results[selected];
-              if (result) choose(result);
-            } else if (event.key === 'Escape') {
-              if (query) {
-                event.preventDefault();
-                clear();
-              } else if (selected >= 0) {
-                event.preventDefault();
-                setActive(-1);
-              }
-            }
-          }}
-        />
-      </label>
-      <div
-        className="connect-list"
-        id="connect-results"
-        role="listbox"
-        aria-label="Profiles"
-        // The box keeps room for every profile and a destination, however many it shows.
-        style={{ '--connect-rows': store.state.profiles.length + 1 } as CSSProperties}
-      >
-        {results.map((result, index) => (
+            }}
+          />
+        </label>
+        <div ref={body} className="connect-body">
           <div
-            key={optionId(result)}
-            className={`connect-option ${result.kind === 'profile' ? 'profile-item' : 'connect-destination'}`}
-            role="option"
-            id={optionId(result)}
-            aria-selected={index === selected}
-            aria-description={result.kind === 'profile' ? profileDescription(result.profile) : undefined}
-            aria-label={result.kind === 'destination' ? `Connect to ${target(result.destination)}` : undefined}
-            onPointerDown={(e) => e.preventDefault()}
+            ref={list}
+            className="connect-list"
+            id="connect-results"
+            role="grid"
+            aria-labelledby="connect-title"
+            hidden={!results.length}
+            // The pointer hides the focus ring until a key is pressed.
+            data-pointing={pointing || undefined}
+            onPointerDown={() => setPointing(true)}
             onPointerMove={(event) => {
               // Rows that appear under a still pointer get a move with no movement; only a moving pointer chooses.
               if (!event.movementX && !event.movementY) return;
-              reveal.current = false;
-              setActive(index);
+              const row = (event.target as Element).closest<HTMLElement>('[role="row"]');
+              if (!row) return;
+              setPointing(true);
+              if (row.dataset.key !== chosenKey) pointed.current = true;
+              if (current?.key !== row.dataset.key) setCurrent({ key: row.dataset.key!, edit: false });
+              // Focus in the results follows the pointer to the result or Edit under it, so keys act on what it chose.
+              const focused = list.current!.ownerDocument.activeElement,
+                target = button(row, !!(event.target as Element).closest('.row-actions'));
+              if (list.current!.contains(focused) && target !== focused) target?.focus({ preventScroll: true });
             }}
-            onClick={() => choose(result)}
+            // The result or Edit that takes focus becomes current.
+            onFocus={(event) => {
+              const row = (event.target as Element).closest<HTMLElement>('[role="row"]');
+              if (row) setCurrent({ key: row.dataset.key!, edit: !!(event.target as Element).closest('.row-actions') });
+            }}
+            onKeyDown={(event) => {
+              if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+              const rows = [...list.current!.querySelectorAll(':scope > [role="row"]')];
+              const row = (event.target as Element).closest('[role="row"]')!,
+                index = rows.indexOf(row),
+                edit = !!(event.target as Element).closest('.row-actions');
+              const to = { ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: rows.length - 1 }[event.key];
+              let target: HTMLElement | null | undefined;
+              if (to !== undefined) target = button(rows[Math.min(rows.length - 1, Math.max(0, to))], edit);
+              else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') target = button(row, event.key === 'ArrowRight');
+              else return;
+              event.preventDefault();
+              target?.focus();
+            }}
           >
-            {result.kind === 'profile' ? (
-              <ListedProfile profile={result.profile} />
-            ) : (
-              <>
-                <span className="connect-tile" aria-hidden="true">
-                  <Identicon seed={destinationSeed(result.destination.host, result.destination.username ?? store.state.defaults.username)} />
-                </span>
-                <span className="connect-target mono">{target(result.destination)}</span>
-              </>
-            )}
+            {results.map((result, index) => {
+              const shown = index === chosen,
+                key = resultKey(result);
+              if (result.kind === 'destination') {
+                const { host, username } = result.destination;
+                return (
+                  <div key={key} role="row" className="row destination-row" data-key={key}>
+                    <div role="gridcell" id={cellId(result)} aria-selected={shown || undefined}>
+                      <button
+                        type="button"
+                        className="destination-item"
+                        data-chosen={shown || undefined}
+                        tabIndex={index === stop ? 0 : -1}
+                        onClick={() => choose(result)}
+                      >
+                        <span className="connect-tile" aria-hidden="true">
+                          <Identicon seed={destinationSeed(host, username ?? store.state.defaults.username)} />
+                        </span>
+                        <span className="destination-label">
+                          Connect to <span className="destination-target mono">{username ? `${username}@${host}` : host}</span>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+              const { profile } = result,
+                connection = activeConnection(profile.id);
+              return (
+                <div
+                  key={key}
+                  role="row"
+                  className="row profile-row"
+                  data-id={profile.id}
+                  data-key={key}
+                  style={{ '--actions': 1 } as React.CSSProperties}
+                >
+                  <div role="gridcell" id={cellId(result)} aria-selected={shown || undefined}>
+                    <button
+                      type="button"
+                      className="profile-item"
+                      data-chosen={shown || undefined}
+                      aria-description={connection && statusText(connection)}
+                      tabIndex={index === stop && !stopEdit ? 0 : -1}
+                      onClick={() => choose(result)}
+                    >
+                      <ProfileSummary profile={profile} />
+                    </button>
+                  </div>
+                  <span role="gridcell" className="row-actions">
+                    <IconButton
+                      icon="sliders"
+                      label={`Edit ${profileName(profile)}`}
+                      title="Edit"
+                      className="profile-edit"
+                      tabIndex={index === stop && stopEdit ? 0 : -1}
+                      onClick={() => closeThen(() => openConnection(profile.id))}
+                    />
+                  </span>
+                </div>
+              );
+            })}
           </div>
-        ))}
-        {unmatched && empty('No Results Found', 'connect-no-results')}
-        {!store.state.profiles.length && !query.trim() && empty('No Profiles')}
+          <p className="section-empty" hidden={!!store.state.profiles.length || !!query.trim()}>
+            No Profiles
+          </p>
+          <p className="section-empty" hidden={!query.trim() || !!results.length}>
+            No Results Found
+          </p>
+        </div>
+        <footer className="dialog-actions">
+          <Button icon="plus" onClick={() => closeThen(() => openConnection())}>
+            New Profile
+          </Button>
+          <p className="dialog-error" role="alert" hidden={!message}>
+            {message}
+          </p>
+          <Button onClick={close}>Close</Button>
+        </footer>
       </div>
-    </>
+    </dialog>
   );
 }

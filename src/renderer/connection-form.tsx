@@ -672,7 +672,7 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
             <Icon name="terminal" />
           </span>
           <div className="dialog-titles">
-            <h2 id="connection-title">{source ? profileName(source) : (draft.id ?? 'New Connection')}</h2>
+            <h2 id="connection-title">{source ? profileName(source) : (draft.id ?? 'New Profile')}</h2>
             {editing && <p className="dialog-context">{draft.id}</p>}
           </div>
         </header>

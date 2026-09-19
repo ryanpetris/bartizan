@@ -80,19 +80,18 @@ await withDirectory('titlebar', async (directory, cleanup) => {
   for (const zoom of [1, 1.25, 0.8]) {
     await application.evaluate(({ BrowserWindow }, zoom) => { const window = BrowserWindow.getAllWindows()[0]; window.setSize(800, 600); window.webContents.setZoomFactor(zoom); }, zoom);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
+    const add = page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true });
+    await add.click();
     const dialogs = await app.modal();
+    await dialogs.locator('#connect-dialog').getByRole('button', { name: 'New Profile', exact: true }).click();
     await expect(dialogs.locator('#connection-dialog')).toBeVisible();
     await dialogs.getByRole('button', { name: 'Cancel', exact: true }).click();
-    for (const control of [page.getByRole('button', { name: 'Profiles', exact: true }), settings]) {
+    for (const control of [add, settings]) {
       assert.equal(await control.evaluate(node => {
         const bounds = node.getBoundingClientRect(), area = navigator.windowControlsOverlay.getTitlebarAreaRect();
         return bounds.left >= 0 && bounds.top >= 0 && bounds.right <= innerWidth && bounds.bottom <= innerHeight && (bounds.top >= area.bottom || bounds.right <= area.right);
       }), true, `Application controls stay clear of the native controls at ${zoom}x`);
     }
-    await page.getByRole('button', { name: 'Profiles', exact: true }).click();
-    await expect(dialogs.locator('#profiles-dialog')).toBeVisible();
-    await dialogs.locator('#profiles-dialog').getByRole('button', { name: 'Close', exact: true }).click();
     await openSettings(page);
     await closeSettings(page);
     await expect(settings).toBeFocused();

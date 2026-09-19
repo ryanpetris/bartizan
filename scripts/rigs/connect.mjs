@@ -17,23 +17,35 @@ await withDirectory('connect', async (directory, cleanup) => {
   await writeFile(config, source);
   const app = await launch(directory, config);
   cleanup(app.close);
-  const { application, page, api, waitState, recordOutput, output, errors } = app;
-  const search = page.getByRole('combobox', { name: 'Connect', exact: true });
-  const results = page.locator('#connect-results');
-  const options = results.locator('.connect-option');
+  const { page, api, waitState, recordOutput, output, errors } = app;
+  const dialogs = await app.modal();
+  const dialog = dialogs.locator('#connect-dialog');
+  const search = dialog.getByRole('combobox', { name: 'Profile or Host', exact: true });
+  const options = dialog.locator('.connect-list').locator('.profile-item, .destination-item');
   const add = page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true });
+  const openConnect = async () => {
+    await add.click();
+    await expect(search).toBeFocused();
+  };
+  /** Closes Connect, which hands focus back to New Connection. */
+  const closeConnect = async () => {
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(add).toBeFocused();
+  };
   const home = page.getByRole('button', { name: 'Home', exact: true });
   const nothingOpen = page.getByRole('region', { name: 'Nothing Open', exact: true });
   await recordOutput();
 
-  // The home page has no panel: Connect is on it, over every profile, and Home is current.
-  await expect(search).toBeFocused();
+  // The home page has no panel and no controls; New Connection opens Connect over every profile.
   await expect(page.locator('.home-view')).toBeVisible();
+  await expect(page.locator('.home-view').getByRole('button')).toHaveCount(0);
+  await expect(page.locator('.home-view').getByRole('textbox')).toHaveCount(0);
   await expect(page.locator('.rail-panel')).toHaveCount(0);
   await expect(home).toHaveAttribute('aria-current', 'page');
+  await openConnect();
   await expect(options).toHaveCount(1);
   await expect(options.first()).toContainText('IPv6 profile');
-  await expect(options.first()).toHaveAttribute('aria-selected', 'false');
   const profileIcon = options.first().locator('.identicon');
   await expect(profileIcon).toBeVisible();
   const profilePattern = await profileIcon.innerHTML();
@@ -44,78 +56,59 @@ await withDirectory('connect', async (directory, cleanup) => {
   await writeFile(config, source);
   await api('reloadConfig');
   await expect(options.first()).toContainText('IPv6 profile');
-  const checkHome = async width => {
-    const field = await search.boundingBox(), list = await results.boundingBox(), row = await options.first().boundingBox(), rail = await page.locator('.rail').boundingBox();
-    assert.ok(field.x >= rail.x + rail.width, 'Connect sits on the home page beside the rail');
-    assert.ok(list.y >= field.y + field.height, 'Connect lists its results below the field');
-    assert.ok(Math.abs(row.x - field.x) < 2 && Math.abs(row.width - field.width) < 2, 'Connect results align with the field');
-    assert.ok(list.x + list.width <= width, 'Connect results fit the window');
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'The home page fits the window');
-  };
-  const original = await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
-  // A resize finishes once the page has its new size and a frame has passed.
-  const resize = async bounds => {
-    await application.evaluate(({ BrowserWindow }, bounds) => BrowserWindow.getAllWindows()[0].setBounds(bounds), bounds);
-    await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([bounds.width, bounds.height]);
-    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  };
-  const box = () => page.evaluate(() => {
-    const list = document.querySelector('.connect-list'), view = document.querySelector('.home-view');
-    return { height: list.getBoundingClientRect().height, scrolls: list.scrollHeight > list.clientHeight, page: view.scrollHeight > view.clientHeight };
-  });
-  // A long list scrolls in a box of its own, whose height stays put while filtering and follows the window while filtered.
-  await writeFile(config, source + Array.from({ length: 30 }, (_, i) => `  s${i}:\n    label: Server ${i + 1}\n    host: s${i}.example.test\n`).join(''));
-  await api('reloadConfig');
-  await expect(options).toHaveCount(31);
-  const full = await box();
-  assert.ok(full.scrolls && !full.page, 'A long list scrolls in its box and the page does not');
-  for (const query of ['Server 30', 's5.example.test', 'nothing matches']) {
-    await search.fill(query);
-    assert.equal((await box()).height, full.height, `The box keeps its height for "${query}"`);
-  }
-  // Far fewer results than fit, so a box sized to what it shows would shrink.
-  await search.fill('Server 30');
-  await resize({ width: 950, height: 650 });
-  const filtered = await box();
+  await search.fill('::1');
+  await expect(options).toHaveCount(2);
+  await expect(options.first()).toContainText('IPv6 profile');
+  await expect(options.last()).toHaveAccessibleName('Connect to ::1');
+  await expect(dialog.locator('.profile-row + .destination-row')).toHaveCount(1);
+  // The first result is chosen, and shows it while the search has focus.
+  await expect(options.first()).toHaveAttribute('data-chosen');
+  await expect(options.last()).not.toHaveAttribute('data-chosen');
+  const background = locator => locator.evaluate(node => getComputedStyle(node).backgroundColor);
+  const highlighted = await background(options.first());
+  assert.notEqual(highlighted, await background(options.last()), 'The chosen result is highlighted');
+  // A pointer press that leaves a result without choosing it highlights nothing.
+  const pressed = await options.last().boundingBox();
+  await dialogs.mouse.move(pressed.x + 20, pressed.y + pressed.height / 2);
+  await dialogs.mouse.down();
+  await dialogs.mouse.move(5, 5);
+  await dialogs.mouse.up();
+  await page.waitForTimeout(100);
+  await expect(dialog).toBeVisible();
+  assert.notEqual(await background(options.last()), highlighted, 'A pressed result is not highlighted');
+  // A moving pointer chooses the result under it, with the same highlight, while the search keeps focus.
   await search.fill('');
-  assert.equal((await box()).height, filtered.height, 'A box resized while filtered has its unfiltered height');
-  // A row the arrow keys choose comes clear of the fades at the box's edges.
-  const chosenClear = () => page.evaluate(() => {
-    const list = document.querySelector('.connect-list'), chosen = list.querySelector('[aria-selected="true"]').getBoundingClientRect(), bounds = list.getBoundingClientRect();
-    return chosen.top >= bounds.top + 15.5 && chosen.bottom <= bounds.bottom - 15.5;
-  });
-  for (let i = 0; i < 9; i++) await search.press('ArrowDown');
-  await expect.poll(chosenClear, 'a row chosen past the bottom edge is clear of the fade').toBe(true);
-  for (let i = 0; i < 4; i++) await search.press('ArrowUp');
-  await expect.poll(chosenClear, 'a row chosen past the top edge is clear of the fade').toBe(true);
-  await search.press('Escape');
-  await search.press('ArrowUp');
-  await expect.poll(() => page.evaluate(() => {
-    const list = document.querySelector('.connect-list'), last = [...list.querySelectorAll('.connect-option')].at(-1).getBoundingClientRect(), bounds = list.getBoundingClientRect();
-    return last.top >= bounds.top - 0.5 && last.bottom <= bounds.bottom + 0.5;
-  }), 'the last profile scrolls into the box').toBe(true);
-  assert.equal(await page.evaluate(() => document.querySelector('.home-view').scrollTop), 0, 'Choosing the last profile leaves the page where it is');
-  await search.press('Escape');
-  await resize(original);
-  await writeFile(config, source);
-  await api('reloadConfig');
+  await search.fill('::1');
+  const under = async locator => {
+    const box = await locator.boundingBox();
+    await dialogs.mouse.move(box.x + 20, box.y + box.height / 2, { steps: 4 });
+  };
+  await under(options.last());
+  await expect(options.last()).toHaveAttribute('data-chosen');
+  await expect(search).toBeFocused();
+  assert.equal(await background(options.last()), highlighted, 'The result under the pointer has the highlight');
+  // With focus in the results, focus follows the pointer, and its ring shows only once a key is pressed.
+  await dialogs.mouse.move(5, 5);
+  await search.fill('');
+  await search.fill('::1');
+  await search.press('Tab');
+  await expect(options.first()).toBeFocused();
+  await under(options.last());
+  await expect(options.last()).toBeFocused();
+  await expect(options.last()).toHaveCSS('outline-style', 'none');
+  await dialogs.keyboard.press('ArrowUp');
+  await expect(options.first()).toBeFocused();
+  await expect(options.first()).toHaveAttribute('data-chosen');
+  await expect(options.first()).not.toHaveCSS('outline-style', 'none');
+  await dialogs.mouse.move(5, 5);
+  await search.fill('[::1]');
   await expect(options).toHaveCount(1);
-  console.log('A long profile list scrolls in its own box, which keeps its height while filtering and after a resize while filtered.');
-  for (const bounds of [{ width: 950, height: 650 }, { width: 800, height: 500 }]) {
-    await resize(bounds);
-    await search.fill('');
-    const unfiltered = (await box()).height;
-    await search.fill('::1');
-    assert.equal((await box()).height, unfiltered, 'The box keeps room for the destination row');
-    await expect(results).toBeVisible();
-    await expect(options).toHaveCount(2);
-    await expect(options.first()).toContainText('IPv6 profile');
-    await expect(options.last()).toHaveAttribute('aria-label', 'Connect to ::1');
-    await checkHome(bounds.width);
-  }
-  await search.fill('');
-  await resize(original);
-  console.log('At home, Connect lists its results below it, aligned and inside the window, at two window sizes; profiles are listed before the destination.');
+  await expect(options.first()).toHaveAttribute('data-chosen');
+  await closeConnect();
+  await page.keyboard.press('Control+Shift+N');
+  await expect(search).toBeFocused();
+  await closeConnect();
+  console.log('Connect lists every profile, then a direct connection when the search names a destination, and highlights the first result once there is text; Ctrl+Shift+N opens it.');
 
   // A connection made through the interface is shown; one made through the API is chosen from the rail.
   const directPatterns = new Map();
@@ -125,7 +118,7 @@ await withDirectory('connect', async (directory, cleanup) => {
     const icon = page.locator(`.connection-chip[data-id="${connection.id}"] .identicon`);
     await expect(icon).toBeVisible();
     const pattern = await icon.innerHTML();
-    if (preview) assert.equal(pattern, preview, 'The quick-connect preview matches the connected badge');
+    if (preview) assert.equal(pattern, preview, 'The destination row matches the connected badge');
     if (profileId) assert.equal(pattern, profilePattern, 'The profile list and connected badge share an icon');
     else {
       const target = JSON.stringify([host, username]);
@@ -133,7 +126,8 @@ await withDirectory('connect', async (directory, cleanup) => {
       directPatterns.set(target, pattern);
     }
     assert.deepEqual({ host: connection.host, profileId: connection.profileId, username: connection.username }, { host, profileId, username });
-    await expect((await app.modal()).locator('#connection-dialog')).toBeHidden();
+    await expect(dialog).toBeHidden();
+    await expect(dialogs.locator('#connection-dialog')).toBeHidden();
     if (choose) await page.locator(`.connection-chip[data-id="${connection.id}"] .connection-titles`).click();
     // The terminal comes into view with focus; New Connection stays in the rail beside the panel.
     await expect(page.locator(`[data-kind="terminal"][data-id="${terminal.id}"]`)).toHaveAttribute('aria-current', 'page');
@@ -154,33 +148,52 @@ await withDirectory('connect', async (directory, cleanup) => {
     await expect(nothingOpen).toBeHidden();
     await expect(page.locator('.rail-panel')).toHaveCount(0);
     await expect(home).toHaveAttribute('aria-current', 'page');
-    await expect(search).toBeFocused();
+    await expect(home).toBeFocused();
+    await openConnect();
     await search.fill('::1');
-    const destinationIcon = results.locator('.connect-destination .identicon');
+    const destinationIcon = dialog.locator('.destination-item .identicon');
     await expect(destinationIcon).toBeVisible();
     if (!profileId && !username && host === '::1') assert.equal(await destinationIcon.innerHTML(), pattern, 'The destination row shows the same icon');
-    await search.fill('');
+    await closeConnect();
     await home.focus();
     await page.keyboard.press('ArrowDown');
     await expect(page.locator(`.connection-chip[data-id="${connection.id}"] .connection-titles`)).toBeFocused();
+    // Removing the connection in view from its panel returns to the home page, with focus on Home.
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.rail-panel')).toHaveCount(1);
+    // Choosing a connection moves focus into it on the next frame.
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await api('disconnect', connection.id);
-    await api('removeConnection', connection.id);
+    const remove = page.locator('.rail-panel .connection-remove');
+    await expect(remove).toBeVisible();
+    await remove.focus();
+    await page.keyboard.press('Enter');
     await waitState(s => !s.connections.length, 'connection removed');
+    await expect(page.locator('.home-view')).toBeVisible();
+    await expect(home).toBeFocused();
   };
+  await openConnect();
   await search.fill('::1');
   await search.press('Enter');
   await verify('::1', 'loopback', undefined);
-  await expect(search).toHaveValue('');
+  // Enter connects the result the arrows highlight.
+  await openConnect();
+  await search.fill('::1');
+  await search.press('ArrowDown');
+  await expect(options.last()).toHaveAttribute('data-chosen');
+  await search.press('Enter');
+  await verify('::1', undefined, undefined);
   for (const destination of ['[::1]', `${userInfo().username}@[::1]`]) {
+    await openConnect();
     await search.fill(destination);
     await expect(options).toHaveCount(1);
     const preview = await options.first().locator('.identicon').innerHTML();
     await search.press('Enter');
     await verify('::1', undefined, destination.includes('@') ? userInfo().username : undefined, { preview });
-    await expect(search).toHaveValue('');
   }
   console.log('Enter connects the first result: an IPv6 profile, or a bracketed IPv6 destination with or without a username, using the configured defaults.');
   if (scoped) {
+    await openConnect();
     await search.fill(scoped);
     await expect(options).toHaveCount(1);
     await search.press('Enter');
@@ -188,17 +201,21 @@ await withDirectory('connect', async (directory, cleanup) => {
     console.log('A scoped link-local IPv6 destination connects.');
   } else console.log('No link-local IPv6 interface is available; the scoped destination was not tried.');
 
-  await add.click();
-  const form = (await app.modal()).locator('#connection-dialog');
+  await openConnect();
+  await dialog.getByRole('button', { name: 'New Profile', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const form = dialogs.locator('#connection-dialog');
+  await expect(form.locator('#connection-title')).toHaveText('New Profile');
   await form.locator('#field-host').fill('[::1]');
   await form.getByRole('button', { name: 'Connect', exact: true }).click();
   await verify('::1', undefined, undefined);
   await api('connect', { host: '[::1]' });
   await verify('::1', undefined, undefined, { choose: true });
-  console.log('The New Connection form and a host target connect to a bracketed IPv6 address.');
+  console.log('The New Profile form and a host target connect to a bracketed IPv6 address.');
 
   await writeFile(config, source.replace('defaults:\n', `defaults:\n  username: ${JSON.stringify(userInfo().username)}\n`));
   await api('reloadConfig');
+  await openConnect();
   await search.fill('[::1]');
   const defaultUserPreview = await options.first().locator('.identicon').innerHTML();
   await search.press('Enter');
@@ -207,13 +224,16 @@ await withDirectory('connect', async (directory, cleanup) => {
   await api('reloadConfig');
   console.log('Quick-connect icons match their connection badges with explicit, default and omitted usernames.');
 
+  await openConnect();
   for (const invalid of ['@host', 'host:22', '[::1', '999.1.1.1']) {
     await search.fill(invalid);
     await expect(options).toHaveCount(0);
+    await expect(dialog.getByText('No Results Found', { exact: true })).toBeVisible();
     await search.press('Enter');
     await page.waitForTimeout(200);
     assert.equal((await app.state()).connections.length, 0, invalid);
   }
+  await closeConnect();
   assert.equal(await readFile(config, 'utf8'), source);
   assert.deepEqual(errors, []);
   console.log('Invalid destinations offer nothing to connect, and connecting never writes the configuration.');

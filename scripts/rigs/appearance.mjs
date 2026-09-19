@@ -50,6 +50,9 @@ await withDirectory('appearance', async (directory, cleanup) => {
     await expect(dialog).toHaveJSProperty('open', true);
     await closeSettings(page);
     await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
+    const connect = (await app.modal()).locator('#connect-dialog');
+    await expect(connect).toHaveCSS('background-color', dialogBackground[mode]);
+    await connect.getByRole('button', { name: 'New Profile', exact: true }).click();
     const form = (await app.modal()).locator('#connection-dialog');
     await expect(form).toHaveCSS('background-color', dialogBackground[mode]);
     await form.getByRole('tab', { name: 'Authentication', exact: true }).click();

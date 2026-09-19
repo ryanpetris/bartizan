@@ -59,7 +59,7 @@ export function normalizeHost(input: string): string | undefined {
   if (name.length > 253 || !name.split('.').every(label => /^[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?$/.test(label))) return;
   return host;
 }
-/** Parses the Connect field without DNS lookup or shell interpretation. */
+/** Parses Connect's search as a destination, without DNS lookup or shell interpretation. */
 export function parseDestination(input: string): { host: string; username?: string } | undefined {
   if (input.length > 8193 || /[\x00-\x1f\x7f-\x9f]/.test(input)) return;
   const value = input.trim();

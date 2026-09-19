@@ -38,7 +38,7 @@ Profiles inherit built-in defaults, then `defaults`, then their own fields. Nest
 
 Profile IDs use letters, digits, `_` and `-`; `__proto__` is not allowed. Tags belong to profiles, not defaults. Tags are trimmed and deduplicated without regard to case.
 
-After editing the file, choose **Reload Configuration** in Profiles. Connection settings take effect on subsequent connections. App settings apply on reload. Saving through the UI edits the YAML document and retains comments, though formatting may change. If the file changed after a profile form opened, reopen the form before saving.
+After editing the file, choose **Reload Configuration** in Connect. Connection settings take effect on subsequent connections. App settings apply on reload. Saving through the UI edits the YAML document and retains comments, though formatting may change. If the file changed after a profile form opened, reopen the form before saving.
 
 ## App Settings
 
