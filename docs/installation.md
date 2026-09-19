@@ -13,7 +13,7 @@ Bartizan runs on Linux x86-64. Download a package from the [releases page](https
 
 OpenSSH must be installed. Chromium's sandbox needs working user namespaces, or the setuid `chrome-sandbox` helper that the Debian and Arch packages install. Bartizan refuses to start with the sandbox turned off.
 
-## First connection
+## First Connection
 
 1. Open Bartizan and choose **New Connection** on the rail.
 2. Enter the host, username and authentication details. Connect once, or save a profile to use again.
@@ -26,7 +26,7 @@ Bartizan uses its own SSH settings and trust store. It does not read your existi
 
 For terminal controls, browser sessions and shortcuts, see [Using Bartizan](usage.md).
 
-## Browser server
+## Browser Server
 
 Run `bartizan serve` and open the printed address. The web UI supports SSH terminals, profiles, settings and errors.
 

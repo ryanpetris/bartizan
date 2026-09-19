@@ -2,7 +2,7 @@
 
 # Development
 
-## Run from source
+## Run From Source
 
 Use Linux with Node.js 24 or newer, npm and OpenSSH. Building the native `node-pty` dependency also needs Python, make and a C++ compiler. Electron needs the desktop libraries listed in [the rig image](../packaging/rig.Dockerfile) and a working Chromium sandbox.
 
@@ -55,7 +55,7 @@ npm run screenshots
 
 This regenerates `docs/images/bartizan.png`, the animated screenshot in the README, which shows the Rail, Tabs and Console themes in turn. It builds the app, rebuilds `node-pty` for the rig image and captures inside that image, so it needs Docker. The workspace is synthetic: an SSH server in the container whose shell prints canned output, and a small web app served there for the browser sessions. Nothing of the machine running the script appears in the image. `npm run screenshots -- --no-build` skips the two build steps; it needs an earlier full run, and `npm install` undoes the `node-pty` rebuild.
 
-## Build and package
+## Build and Package
 
 `npm run build` bundles the Electron main process, web server, preload, SSH helpers and renderer into `dist/`. It also copies the stylesheet and bundled fonts.
 

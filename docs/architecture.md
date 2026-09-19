@@ -4,7 +4,7 @@
 
 Bartizan has one Electron application window containing a React interface around either an xterm terminal or a native browser view. The shared backend owns connections, PTYs, credentials and configuration writes. Electron adds embedded browser sessions; a standalone Node server serves the terminal UI in an ordinary browser.
 
-## Source map
+## Source Map
 
 | Location | Responsibility |
 | --- | --- |
@@ -24,7 +24,7 @@ Bartizan has one Electron application window containing a React interface around
 | [`src/renderer/themes/`](../src/renderer/themes/) | Each theme's layout, styles, terminal colours and preview |
 | [`src/shared.ts`](../src/shared.ts) | Shared state, events and preload API types |
 
-## State and process boundaries
+## State and Process Boundaries
 
 The application renderer is sandboxed and context-isolated with Node integration disabled. Its [preload](../src/main/preload.ts) exposes a fixed API through `contextBridge`. The main process accepts IPC only from the application window's main frame at its bundled page URL, then validates request arguments.
 
@@ -48,7 +48,7 @@ The theme's elements and the view are children of the application root. The docu
 
 A theme places error notifications inside the application page only beside a corner that no page view covers. Otherwise they are drawn in an overlay over the view. Web clients draw all notifications inside the application page, using the top-right corner for themes that use native overlays in Electron.
 
-## SSH transport
+## SSH Transport
 
 Each connection starts one OpenSSH master with `-M -N` and a private control socket. The master opens a SOCKS forward on a loopback port. A successful `ssh -O check` probe marks the connection ready.
 
@@ -58,7 +58,7 @@ Each terminal runs another `ssh` process in a `node-pty` pseudo-terminal and use
 
 Pinned connections use an OpenSSH `KnownHostsCommand` helper. It validates the offered public host key against the configured SHA-256 fingerprints and fingerprints derived from configured public keys and rejects host certificates.
 
-## Browser routing and storage
+## Browser Routing and Storage
 
 Each browser session owns an in-memory Electron partition and a [TCP relay](../src/core/relay.ts). The partition uses that relay as a fixed SOCKS5 proxy, including loopback destinations. The relay forwards to the connection's SSH SOCKS port. Tabs in the session share the partition; other sessions receive separate partitions.
 
@@ -70,7 +70,7 @@ The main process fetches a tab's icon through the tab's session, so the request 
 
 Closing a session cancels downloads and authentication prompts, closes its views and relay, and clears authentication, storage and cache data. Certificate approvals belong to the live session and are also cleared when the connection ends.
 
-## Configuration writes
+## Configuration Writes
 
 [Configuration parsing](../src/core/config.ts) uses `yaml` and strict Zod schemas. Effective connection settings merge built-ins, shared defaults and profile values. Relative file paths resolve against the configuration file.
 
@@ -78,7 +78,7 @@ Closing a session cancels downloads and authentication prompts, closes its views
 
 Literal passwords and passphrases are redacted from state sent to the renderer. Credential files are read by the main process when needed for a prompt.
 
-## Terminal rendering and shutdown
+## Terminal Rendering and Shutdown
 
 [Terminals](../src/renderer/terminals.tsx) use xterm with font loading, a fit addon, web links and a ligature joiner. WebGL is preferred; initialization failure or unrecoverable context loss falls back to DOM rendering.
 

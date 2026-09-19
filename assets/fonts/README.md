@@ -1,4 +1,4 @@
-# Bundled fonts
+# Bundled Fonts
 
 Unmodified upstream font files, licensed under SIL Open Font License 1.1. Copyright and license notices accompany each family.
 

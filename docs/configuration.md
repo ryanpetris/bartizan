@@ -6,7 +6,7 @@ Bartizan reads `config.yaml` from its application data directory, normally `~/.c
 
 A second launch focuses the existing instance. Quit the running instance before starting with a different configuration.
 
-## File structure
+## File Structure
 
 The file has four top-level fields: `version`, `settings`, `defaults` and `profiles`. Only `version` is required. Unknown fields are rejected.
 
@@ -40,7 +40,7 @@ Profile IDs use letters, digits, `_` and `-`; `__proto__` is not allowed. Tags b
 
 After editing the file, choose **Reload Configuration** in Profiles. Connection settings take effect on subsequent connections. App settings apply on reload. Saving through the UI edits the YAML document and retains comments, though formatting may change. If the file changed after a profile form opened, reopen the form before saving.
 
-## App settings
+## App Settings
 
 | Setting | Default | Accepted values |
 | --- | --- | --- |
@@ -53,7 +53,7 @@ After editing the file, choose **Reload Configuration** in Profiles. Connection 
 
 Console uses `terminalFont` for its interface as well; `interfaceFont` applies to the other themes.
 
-## Connection fields
+## Connection Fields
 
 The fields below work in `defaults` or an individual profile, except `tags`.
 
@@ -87,7 +87,7 @@ Set `auth.method` to choose how OpenSSH authenticates:
 
 `auth.agent` selects an agent socket. Omit it or use `SSH_AUTH_SOCK` for the environment's agent, provide a socket path, or use `none` to disable it. The `agent` method cannot use `none`.
 
-### Passwords and passphrases
+### Passwords and Passphrases
 
 `auth.password` and `auth.passphrase` each accept one of these mappings:
 
@@ -107,7 +107,7 @@ Prompting is the default. File sources must contain a single UTF-8 line; one tra
 
 Bartizan supplies a configured password or passphrase once per connection for its matching OpenSSH prompt. Retries and other prompts come to you. Keyboard-interactive prompts are answered interactively. Literal credentials are plain text in your YAML file, but are redacted from renderer state, the form and command preview.
 
-## Host keys
+## Host Keys
 
 `host_keys.policy` controls unpinned connections:
 
@@ -141,7 +141,7 @@ Read `/etc/ssh/ssh_host_ed25519_key.pub` on the server to obtain its public key.
 
 Pins support plain public host keys, not host certificates. If the server offers several key types, `ssh.HostKeyAlgorithms` can select the type you pinned.
 
-## OpenSSH options
+## OpenSSH Options
 
 Bartizan starts OpenSSH with `-F none`, so neither user nor system SSH configuration applies. The `ssh` mapping accepts only these options:
 
