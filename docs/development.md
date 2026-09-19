@@ -19,6 +19,16 @@ npm start
 npm start -- --config ./demo.yaml
 ```
 
+For development with automatic updates:
+
+```sh
+npm run dev
+```
+
+Vite serves the renderer on loopback with React Fast Refresh and CSS updates, including styles in overlays. Component edits can preserve React state; edits outside refresh boundaries reload the renderer. Preload edits also reload the renderer. Main-process and backend edits restart Electron and disconnect live sessions. Renderer reloads keep the backend running.
+
+Pass application arguments after an extra separator, for example `npm run dev -- -- --config ./demo.yaml`. `npm start`, `npm run build` and packaging use the production build.
+
 The app uses one instance per application data directory. For an isolated development instance, set `BARTIZAN_DATA_DIR` to a separate directory before launching. `--config` selects only the YAML file; it does not isolate the trust store or running instance.
 
 ## Checks
@@ -40,6 +50,8 @@ npm run rigs -- --docker integration
 ```
 
 Rigs run under Xvfb and drive Electron with Playwright. The `web` rig starts both the Node server and Electron `serve` without a display, then drives Chromium against each, exercising the same terminal and configuration backend. It requires `chromium`; `BARTIZAN_CHROMIUM` can select its executable. They use temporary configuration and application data directories. Some start an isolated SSH server; the network rig starts a Docker container. The runner builds the app first unless `--no-build` or `BARTIZAN_EXECUTABLE` is set.
+
+The `dev` rig runs `npm run dev` in a temporary source copy and edits that copy to check component and CSS updates, font loading, renderer reloads and Electron restarts.
 
 Local execution requires `xvfb-run`. Each rig also checks for its own tools, such as `sshd`, Vim, OpenSSL or xdotool, and skips if they are absent. Check the runner's output for skipped rigs before treating a run as complete.
 

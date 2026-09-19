@@ -42,7 +42,9 @@ export function installedFonts(): Promise<Installed> {
     const all = [...families.keys()].sort((a, b) => a.localeCompare(b)), monospace: string[] = [];
     let worker: Worker | undefined;
     try {
-      worker = new Worker(new URL('font-worker.js', location.href));
+      worker = process.env.NODE_ENV === 'development'
+        ? new Worker(new URL('./font-worker.ts', import.meta.url), { type: 'module' })
+        : new Worker(new URL('font-worker.js', location.href));
       let failed = false;
       // Read one font at a time so font files do not accumulate in memory.
       for (const family of all) {

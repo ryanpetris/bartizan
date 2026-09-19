@@ -37,6 +37,13 @@ async function prepare(target: Document, name: OverlayName) {
     target.head.append(copy);
   }
   await Promise.all(loaded);
+  if (process.env.NODE_ENV === 'development') {
+    // Vite updates styles in the opener; the overlay uses its own copies.
+    new MutationObserver(() => {
+      target.head.querySelectorAll('link[rel="stylesheet"], style').forEach(node => node.remove());
+      for (const node of document.querySelectorAll('link[rel="stylesheet"], style')) target.head.append(target.importNode(node, true));
+    }).observe(document.head, { childList: true, subtree: true, attributes: true, characterData: true });
+  }
   return target;
 }
 

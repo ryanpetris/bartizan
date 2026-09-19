@@ -43,7 +43,8 @@ else void app.whenReady().then(async () => {
   window.once('closed', () => nativeTheme.off('updated', updateTitleBar));
   window.setMenuBarVisibility(false);
   const html = join(__dirname, 'index.html');
-  const origin = pathToFileURL(html).href;
+  const developmentURL = !app.isPackaged && process.env.ELECTRON_RENDERER_URL;
+  const origin = developmentURL ? new URL(developmentURL).href : pathToFileURL(html).href;
   window.webContents.session.setPermissionCheckHandler((contents, permission, _origin, details) => contents === window.webContents && permission === 'local-fonts' && details.isMainFrame && details.requestingUrl === origin);
   window.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) => callback(contents === window.webContents && permission === 'local-fonts' && details.isMainFrame && details.requestingUrl === origin));
   const send = (event: Event) => { if (!window.isDestroyed()) window.webContents.send('event', event); };
@@ -119,7 +120,7 @@ else void app.whenReady().then(async () => {
     const parsedName = z.enum(overlayNames).safeParse(name), parsed = boundsSchema.nullable().safeParse(bounds);
     if (parsedName.success && parsed.success) overlays.show(parsedName.data, parsed.data);
   });
-  window.webContents.on('will-navigate', event => event.preventDefault());
+  window.webContents.on('will-navigate', event => { if (!developmentURL || event.url !== origin) event.preventDefault(); });
   window.webContents.setWindowOpenHandler(overlays.open);
   const recoveries: number[] = [];
   let recoveryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -182,7 +183,8 @@ else void app.whenReady().then(async () => {
   onInstance = () => {
     if (!window.isDestroyed()) reveal();
   };
-  await window.loadFile(html);
+  if (developmentURL) await window.loadURL(origin);
+  else await window.loadFile(html);
 });
 app.on('window-all-closed', () => app.quit());
 app.on('select-client-certificate', (event, _contents, _url, _certificates, callback) => { event.preventDefault(); callback(); });
