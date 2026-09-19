@@ -47,6 +47,14 @@ Local execution requires `xvfb-run`. Each rig also checks for its own tools, suc
 
 The runner uses software WebGL by default. Set `BARTIZAN_RIG_SOFTWARE_GL=0` to use the normal graphics backend.
 
+## Screenshots
+
+```sh
+npm run screenshots
+```
+
+This regenerates `docs/images/bartizan.png`, the animated screenshot in the README, which shows the Rail, Tabs and Console themes in turn. It builds the app, rebuilds `node-pty` for the rig image and captures inside that image, so it needs Docker. The workspace is synthetic: an SSH server in the container whose shell prints canned output, and a small web app served there for the browser sessions. Nothing of the machine running the script appears in the image. `npm run screenshots -- --no-build` skips the two build steps; it needs an earlier full run, and `npm install` undoes the `node-pty` rebuild.
+
 ## Build and package
 
 `npm run build` bundles the Electron main process, web server, preload, SSH helpers and renderer into `dist/`. It also copies the stylesheet and bundled fonts.

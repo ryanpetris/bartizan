@@ -9,7 +9,7 @@
   <a href="docs/development.md">Development</a>
 </p>
 
-![Bartizan with four SSH terminals and two browser sessions, showing a synthetic development workspace](docs/images/bartizan.png)
+![Bartizan in its Rail, Tabs and Console themes in turn, each showing a synthetic development workspace with four SSH terminals and two browser sessions](docs/images/bartizan.png)
 
 Keep a shell, build output, logs and browser tabs together for each remote connection. Bartizan is an open source Linux desktop app built on your installed OpenSSH client.
 

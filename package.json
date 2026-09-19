@@ -16,7 +16,8 @@
     "start": "npm run build && electron .",
     "postinstall": "electron-builder install-app-deps",
     "package": "npm run build && node scripts/native-linux.mjs && electron-builder --linux --publish never",
-    "web": "npm run build && node dist/server.cjs"
+    "web": "npm run build && node dist/server.cjs",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "build": {
     "appId": "app.bartizan.desktop",
