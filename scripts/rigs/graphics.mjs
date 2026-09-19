@@ -28,6 +28,47 @@ await withDirectory('graphics', async (directory, cleanup) => {
   const canvas = page.locator(canvasSelector);
   await select(first);
   await expect(canvas, 'WebGL is required; set BARTIZAN_RIG_SOFTWARE_GL=1 without a graphics driver').toHaveCount(1);
+  // A full screen exercises character measurement when switching renderers, including styled and wide characters.
+  await api('input', first, "printf '\\033[2J\\033[H'; printf '%30000s' '' | tr ' ' X; printf '\\033[1;3mλ界\\033[0m\\033]2;GRAPHICS_FULL_SCREEN\\007'; sleep 600\n");
+  await expect(page.locator(`[data-kind="terminal"][data-id="${first}"]`)).toContainText('GRAPHICS_FULL_SCREEN');
+  const browser = await api('newBrowser', connection);
+  await page.evaluate(() => {
+    window.widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    window.hiddenMeasurements = 0;
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', {
+      ...window.widthDescriptor,
+      get() {
+        const width = window.widthDescriptor.get.call(this);
+        if (this.classList.contains('xterm-char-measure-element') && this.closest('.terminal-surface') && !width)
+          window.hiddenMeasurements++;
+        return width;
+      },
+    });
+  });
+  try {
+    for (const programmatic of [false, true]) for (const target of [
+      page.locator(`[data-kind="terminal"][data-id="${second}"]`),
+      page.locator(`[data-kind="browser"][data-id="${browser}"]`),
+      page.locator('.home-button'),
+    ]) {
+      await app.chooseConnection(connection);
+      await select(first);
+      await page.locator('.terminal-surface:not([hidden]) textarea').focus();
+      if (programmatic) await target.evaluate(node => node.click());
+      else await target.click();
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      assert.equal(await page.evaluate(() => window.hiddenMeasurements), 0, 'Renderer switches measure characters while visible');
+    }
+  } finally {
+    await page.evaluate(() => {
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', window.widthDescriptor);
+      delete window.widthDescriptor;
+    });
+  }
+  await app.chooseConnection(connection);
+  await select(first);
+  await api('input', first, '\u0003');
+  console.log('Full terminals switch to terminals, browser sessions and Home without measuring hidden characters.');
   // Holding these references makes teardown observable independently of garbage collection.
   await page.evaluate(() => { window.contexts = []; });
   for (let index = 0; index < 48; index++) {

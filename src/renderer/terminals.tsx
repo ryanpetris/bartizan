@@ -418,19 +418,20 @@ const host = document.createElement('div');
 host.className = 'terminal-host';
 applyTheme();
 export function Terminals() {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
     ref.current!.append(host);
     return () => {
       host.remove();
     };
   }, []);
-  useLayoutEffect(update);
   const session = current();
+  useLayoutEffect(() => {
+    update();
+    ref.current!.hidden = !session;
+  });
   return (
-    <section className="view terminal-view" hidden={!session} aria-labelledby="view-title">
-      <div ref={ref} style={{ display: 'contents' }} />
-    </section>
+    <section ref={ref} className="view terminal-view" aria-labelledby="view-title" />
   );
 }
 
@@ -482,13 +483,14 @@ function update() {
   const session = current();
   for (const [id, entry] of entries) {
     const shown = id === session?.id;
-    entry.element.hidden = !shown;
     if (!shown) {
+      // Addon disposal measures the replacement DOM renderer while the terminal is still visible.
       stopGraphics(entry);
       entry.rendererAttempted = false;
       entry.link = undefined;
       entry.focusPending = undefined;
     }
+    entry.element.hidden = !shown;
   }
   if (session) requestAnimationFrame(fitVisible);
 }
