@@ -5,6 +5,7 @@ import { Button, Icon } from './ui';
 import { api, render, run, activeManifest, dialogOpen, store } from './store';
 import { Overlay } from './overlay';
 import { openModal } from './dialogs';
+import { activeTheme } from './themes';
 
 const visible = 3;
 
@@ -17,7 +18,7 @@ type Shown = { key: string; entry: ErrorEntry };
 let shown: Shown[] = [];
 const pending = new Map<number, ErrorEntry>();
 const toastPlacement = () => {
-  const placement = activeManifest().toasts;
+  const placement = activeTheme().toasts?.() ?? activeManifest().toasts;
   return placement.overlay && !store.state.capabilities.embeddedBrowser
     ? { overlay: false as const, position: 'top-right' as const, offset: { top: 64, right: 16 }, width: '356px' }
     : placement;
@@ -187,14 +188,12 @@ export function Toasts() {
       for (const entry of entries) show(entry);
     }
   });
-  // Toasts on show belong to the toaster that showed them.
-  useLayoutEffect(
-    () => () => {
-      for (const item of shown) toast.dismiss(item.key);
-      shown = [];
-    },
-    [placement.overlay],
-  );
+  // A toaster takes the toasts sonner counts as on show as it mounts, so they move with the placement. Sonner counts a
+  // closed toast as gone only once it has faded, through the toaster that showed it; one closed just before the placement
+  // changed is let go before the new toaster mounts.
+  useLayoutEffect(() => {
+    for (const { id } of toast.getToasts()) if (!shown.some((item) => item.key === id)) toast.dismiss(id);
+  }, [placement.overlay]);
   if (placement.overlay)
     return (
       <Overlay

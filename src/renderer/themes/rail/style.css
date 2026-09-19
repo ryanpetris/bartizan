@@ -7,6 +7,7 @@
   --field-radius: 10px;
   --rail-width: 60px;
   --panel-width: 248px;
+  --panel-thin-width: 56px;
   --titlebar-height: env(titlebar-area-height, 44px);
   --chrome-top: calc(var(--titlebar-height) + 1px);
 
@@ -165,9 +166,10 @@
 :root[data-theme="rail"] ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 
 /* Layout: the rail and the panel run the window's height; the bar over the view is the row the window controls share.
-   The home page has no panel. */
+   The home page has no panel, and a thin panel shows each item by its icon alone. */
 :root[data-theme="rail"] #app { grid-template-columns: var(--rail-width) var(--panel-width) minmax(0, 1fr); grid-template-rows: var(--chrome-top) minmax(0, 1fr); }
 :root[data-theme="rail"] #app:not(:has(> .rail-panel)) { grid-template-columns: var(--rail-width) 0 minmax(0, 1fr); }
+:root[data-theme="rail"] #app:has(> .rail-panel.thin) { grid-template-columns: var(--rail-width) var(--panel-thin-width) minmax(0, 1fr); }
 :root[data-theme="rail"] .rail { grid-column: 1; grid-row: 1 / 3; }
 :root[data-theme="rail"] .rail-panel { grid-column: 2; grid-row: 1 / 3; }
 :root[data-theme="rail"] .rail-topbar { grid-column: 3; grid-row: 1; }
@@ -269,6 +271,24 @@
 :root[data-theme="rail"] .rail-panel-scroll::after { bottom: -12px; margin: -2px 0 -12px -9px; background: linear-gradient(transparent, var(--bg-panel) 85%); }
 @container scroll-state(scrollable: top) { :root[data-theme="rail"] .rail-panel-scroll::before { opacity: 1; } }
 @container scroll-state(scrollable: bottom) { :root[data-theme="rail"] .rail-panel-scroll::after { opacity: 1; } }
+/* The panel's foot holds the button that makes it thin, level with Settings on the rail. */
+:root[data-theme="rail"] .rail-panel-foot { display: flex; flex: none; padding: 0 10px 10px; }
+:root[data-theme="rail"] .rail-panel-foot .icon-button { width: 36px; height: 36px; border-radius: 10px; }
+:root[data-theme="rail"] .rail-panel-foot .icon { width: 18px; height: 18px; }
+
+/* A thin panel: the connection's status over a column of its items' icons, each named in its title. */
+:root[data-theme="rail"] .rail-panel.thin :is(.connection-label, .nav-label, .nav-meta) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+:root[data-theme="rail"] .rail-panel.thin :is(.connection-tools, .rail-panel-meta, .row-actions) { display: none; }
+:root[data-theme="rail"] .rail-panel.thin .rail-panel-title { justify-content: center; padding: 0; }
+:root[data-theme="rail"] .rail-panel.thin .rail-panel-title .connection-name { flex: none; }
+:root[data-theme="rail"] .rail-panel.thin .rail-panel-scroll { padding: 8px 0 12px; scrollbar-gutter: auto; }
+:root[data-theme="rail"] .rail-panel.thin .rail-panel-scroll::-webkit-scrollbar { display: none; }
+:root[data-theme="rail"] .rail-panel.thin .rail-panel-scroll::before, :root[data-theme="rail"] .rail-panel.thin .rail-panel-scroll::after { margin-left: 0; }
+:root[data-theme="rail"] .rail-panel.thin .row > .nav-item { justify-content: center; width: 36px; margin: 0 auto; padding: 0; }
+:root[data-theme="rail"] .rail-panel.thin .tab-items { margin: 2px 0 0; padding-left: 0; }
+:root[data-theme="rail"] .rail-panel.thin .tab-items::before { left: 4px; }
+:root[data-theme="rail"] .rail-panel.thin .tab-items .nav-item[aria-current="page"]::before { left: -6px; }
+:root[data-theme="rail"] .rail-panel.thin .rail-panel-foot { justify-content: center; padding: 0 0 10px; }
 
 :root[data-theme="rail"] .nav-item, :root[data-theme="rail"] .icon-button, :root[data-theme="rail"] .button, :root[data-theme="rail"] .section-tab, :root[data-theme="rail"] .theme-option { transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease; }
 :root[data-theme="rail"] .connection-items { gap: 2px; }
@@ -325,10 +345,12 @@
 :root[data-theme="rail"] .rail-topbar-context { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 :root[data-theme="rail"] .titlebar-titles { flex-direction: row; align-items: center; gap: 12px; }
 :root[data-theme="rail"] .titlebar-heading { flex: 0 1 auto; font-size: 14px; font-weight: 650; line-height: 20px; letter-spacing: -0.005em; }
-/* The panel names the connection, so the heading shows the item alone; a connection in view by itself keeps its label. */
-:root[data-theme="rail"] .titlebar-heading:has(> .titlebar-item:not([hidden])) > .titlebar-group { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); }
-:root[data-theme="rail"] .titlebar-item { flex: 0 1 auto; color: var(--text-strong); font-weight: 650; }
-:root[data-theme="rail"] .titlebar-item::before { content: none; }
+/* The panel names the connection, so beside it the heading shows the item alone; a connection in view by itself keeps its
+   label, and beside a thin panel the heading names the connection before the item. */
+:root[data-theme="rail"] #app:has(> .rail-panel:not(.thin)) .titlebar-heading:has(> .titlebar-item:not([hidden])) > .titlebar-group { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); }
+:root[data-theme="rail"] .titlebar-item { flex: 0 1 auto; }
+:root[data-theme="rail"] #app:has(> .rail-panel:not(.thin)) .titlebar-item { color: var(--text-strong); font-weight: 650; }
+:root[data-theme="rail"] #app:has(> .rail-panel:not(.thin)) .titlebar-item::before { content: none; }
 :root[data-theme="rail"] .titlebar-actions { gap: 2px; }
 :root[data-theme="rail"] .rail-topbar .icon-button { width: 30px; height: 30px; app-region: no-drag; }
 
@@ -365,15 +387,18 @@
 :root[data-theme="rail"] .popover { border-radius: var(--radius-lg); }
 :root[data-theme="rail"] .download-list { padding: 6px; }
 
-/* Errors: toasts and their shadows end inside the panel, short of the view. */
-:root[data-theme="rail"] .error-toaster[data-sonner-toaster] { --border-radius: 12px; clip-path: inset(-100vh -9px -12px -69px); }
+/* Errors: toasts at the panel's foot, and their shadows, end inside the panel, short of the view. */
+:root[data-theme="rail"] .error-toaster[data-sonner-toaster] { --border-radius: 12px; }
+:root[data-theme="rail"] .error-toaster[data-sonner-toaster][data-y-position="bottom"] { clip-path: inset(-100vh -9px -12px -69px); }
 :root[data-theme="rail"] .error-toaster [data-sonner-toast] { box-shadow: var(--toast-shadow); }
 /* The mark stands beside the title, and the message is set small enough for a host name to stay whole in the panel's width. */
 :root[data-theme="rail"] .error-toaster [data-sonner-toast][data-styled="true"] { align-items: flex-start; gap: 8px; padding: 12px 14px 13px 12px; }
 :root[data-theme="rail"] .error-toaster [data-sonner-toast][data-styled="true"] [data-icon] { margin: 2px 0 0; }
 :root[data-theme="rail"] .error-toaster[data-sonner-toaster] [data-sonner-toast] [data-description] { font-size: 12px; line-height: 17px; max-height: 68px; }
-/* A short window keeps a message to two lines, which leaves the list above it in view. */
-@media (max-height: 560px) { :root[data-theme="rail"] .error-toaster[data-sonner-toaster] [data-sonner-toast] [data-description] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; } }
+/* A short window keeps a message to two lines, which leaves the list above it in view; an overlay's document is only as
+   tall as its toasts, so there the window's height arrives as `data-compact`. */
+:root[data-theme="rail"] [data-compact] .error-toaster[data-sonner-toaster] [data-sonner-toast] [data-description] { max-height: 34px; }
+@media (max-height: 560px) { :root[data-theme="rail"]:not(.overlay) .error-toaster[data-sonner-toaster] [data-sonner-toast] [data-description] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; } }
 
 /* Dialogs */
 :root[data-theme="rail"] dialog::backdrop { background: var(--backdrop); }

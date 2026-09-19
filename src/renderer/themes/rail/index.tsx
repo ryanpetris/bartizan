@@ -1,10 +1,11 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { Theme } from '..';
 import { HomeButton, ContextTitle, ContextActions, AppActions, NewConnectionButton } from '../../chrome';
-import { NavGroup, ConnectionChips, ConnectionItems, ConnectionName, ConnectionTools } from '../../nav';
+import { NavGroup, ConnectionChips, ConnectionItems, ConnectionName, ConnectionTools, LabelTitles, renamingSession } from '../../nav';
 import { ErrorsButton } from '../../errors';
-import { Tags } from '../../ui';
-import { groups, currentConnection } from '../../store';
+import { Tags, IconButton } from '../../ui';
+import { groups, currentConnection, render, type Group } from '../../store';
+import { themes } from '../../../themes';
 import './style.css';
 
 /** Brings the entry a list marks as current into view whenever another entry becomes the current one or the list is new. */
@@ -19,12 +20,33 @@ function useReveal(selector: string) {
   });
   return list;
 }
+/** Whether the panel is thin; this lasts for the application launch. */
+let thin = (() => {
+  try {
+    return sessionStorage.getItem('rail-panel') === 'thin';
+  } catch {
+    return false;
+  }
+})();
+function toggleThin() {
+  thin = !thin;
+  try {
+    sessionStorage.setItem('rail-panel', thin ? 'thin' : 'wide');
+  } catch {
+    /* The panel keeps its width until the page reloads. */
+  }
+  render();
+}
+const shownGroup = () => groups().find(({ connection }) => connection.id === currentConnection());
+/** Whether a group's panel shows thin: renaming one of its browser sessions needs the panel's width. */
+const narrow = (group: Group) => thin && !group.entries.some(({ workspace }) => workspace && workspace.id === renamingSession());
 /**
  * A rail down the window's left edge of Home and every connection, a panel beside it for the connection in view, and a
- * slim bar over the view that names what it shows. The home page has no panel.
+ * slim bar over the view that names what it shows. The home page has no panel. A thin panel shows each of the
+ * connection's items by its icon alone.
  */
 function Chrome() {
-  const current = groups().find(({ connection }) => connection.id === currentConnection());
+  const current = shownGroup();
   const connection = current?.connection;
   const rail = useReveal('.rail-connections [aria-current="true"]'),
     panel = useReveal('.rail-panel-scroll [aria-current="page"]');
@@ -48,7 +70,7 @@ function Chrome() {
         </div>
       </nav>
       {current && connection && (
-        <nav ref={panel} className="rail-panel" aria-label="Current Connection">
+        <nav ref={panel} className={narrow(current) ? 'rail-panel thin' : 'rail-panel'} aria-label="Current Connection">
           <NavGroup name="panel" className="rail-panel-nav">
             <header className="rail-panel-head" data-status={connection.status}>
               <div className="rail-panel-title">
@@ -62,9 +84,14 @@ function Chrome() {
               )}
             </header>
             <div className="rail-panel-scroll">
-              <ConnectionItems group={current} />
+              <LabelTitles.Provider value={narrow(current)}>
+                <ConnectionItems group={current} />
+              </LabelTitles.Provider>
             </div>
           </NavGroup>
+          <footer className="rail-panel-foot">
+            <IconButton icon="sidebar" label={thin ? 'Expand Sidebar' : 'Collapse Sidebar'} onClick={toggleThin} />
+          </footer>
         </nav>
       )}
       <header className="rail-topbar">
@@ -79,6 +106,14 @@ function Chrome() {
 
 export const rail: Theme = {
   Chrome,
+  toasts: () => {
+    const group = shownGroup(),
+      beside = themes.rail.toasts;
+    if (!group || beside.overlay) return undefined;
+    // A thin panel has no room for notifications at its foot, and a page view can lie where they would be, so they draw
+    // over the view. Beside a wide panel they stand above its button, which takes 46px of its foot.
+    return narrow(group) ? { overlay: true } : { ...beside, offset: { ...beside.offset, bottom: 56 } };
+  },
   Preview: () => (
     <svg viewBox="0 0 64 44" aria-hidden="true" focusable="false">
       <rect x="0.5" y="0.5" width="63" height="43" rx="4" fill="var(--preview-surface)" stroke="var(--preview-line)" />

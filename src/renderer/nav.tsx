@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type CSSProperties, type DragEvent, type HTMLAttributes, type ReactNode, type SyntheticEvent } from 'react';
+import { createContext, useContext, useLayoutEffect, useRef, type CSSProperties, type DragEvent, type HTMLAttributes, type ReactNode, type SyntheticEvent } from 'react';
 import { browserSessionName, type Workspace, type BrowserTab, type TerminalSession } from '../shared';
 import { Icon, IconButton, Tags, colorStyle, moveFocus } from './ui';
 import {
@@ -36,6 +36,8 @@ import { openDetails } from './details';
 import { Identicon, destinationSeed } from './identicon';
 
 const actionsStyle = (count: number) => ({ '--actions': count }) as CSSProperties;
+/** Whether rows show their labels as their titles, for a theme that lays the rows out without their labels in sight. */
+export const LabelTitles = createContext(false);
 /** The unit being dragged, and the unit marked where it would land with the key it would land before. */
 let dragged: { scope: string; key: string; element: HTMLElement } | undefined;
 let marked: { element: HTMLElement; before?: string } | undefined;
@@ -132,6 +134,7 @@ function Row({
   tag: Tag = 'li',
   className = '',
   outer = {},
+  title,
   ...props
 }: {
   kind: string;
@@ -152,6 +155,7 @@ function Row({
   'data-state'?: string;
   'data-workspace'?: string;
 }) {
+  const titled = useContext(LabelTitles);
   return (
     <Tag
       className={`row ${current ? 'current' : ''} ${persistent ? 'has-persistent' : ''} ${className}`.replace(/\s+/g, ' ').trim()}
@@ -166,6 +170,7 @@ function Row({
         data-id={id}
         aria-current={current}
         onClick={onSelect}
+        title={titled ? label : title}
         {...props}
       >
         <span className="nav-icon">{icon}</span>
@@ -272,6 +277,7 @@ function TabRow({
 }
 /** The browser session whose name is being edited. */
 let renaming: string | undefined;
+export const renamingSession = () => renaming;
 export function renameSession(id: string) {
   renaming = id;
   render();

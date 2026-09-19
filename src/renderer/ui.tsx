@@ -34,6 +34,7 @@ const paths: Record<string, string> = {
   more: '<circle cx="8" cy="3.5" r=".5" fill="currentColor"/><circle cx="8" cy="8" r=".5" fill="currentColor"/><circle cx="8" cy="12.5" r=".5" fill="currentColor"/>',
   up: '<path d="m4.5 9.75 3.5-3.5 3.5 3.5"/>',
   down: '<path d="m4.5 6.25 3.5 3.5 3.5-3.5"/>',
+  sidebar: '<rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.75"/><path d="M6.25 2.75v10.5"/>',
   sliders:
     '<path d="M2.25 4.75h6.5m3 0h2M2.25 11.25h2m3 0h6.5"/><circle cx="10.25" cy="4.75" r="1.5"/><circle cx="5.75" cy="11.25" r="1.5"/>',
 };

@@ -146,6 +146,73 @@ await withDirectory('themes', async (directory, cleanup) => {
       const bounds = await box(toast);
       assert.ok(bounds.right <= slot.x || bounds.x >= slot.x + slot.width || bounds.bottom <= slot.y || bounds.y >= slot.y + slot.height, `${id}: the notification is clear of the page`);
     }
+    if (id === 'rail' && !iteration) {
+      // The sidebar's foot holds the button that makes it thin, level with Settings, below the notifications.
+      const panel = page.locator('.rail-panel'), foot = panel.locator('.rail-panel-foot');
+      const collapse = foot.getByRole('button', { name: 'Collapse Sidebar', exact: true }), expand = foot.getByRole('button', { name: 'Expand Sidebar', exact: true });
+      const pageView = async () => (await pageViews()).find(view => view.url.startsWith('http:'));
+      const middle = bounds => bounds.y + bounds.height / 2;
+      assert.ok(Math.abs(middle(await box(collapse)) - middle(await box(page.locator('.rail-actions').getByRole('button', { name: 'Settings', exact: true })))) <= 1, 'The sidebar button is level with Settings');
+      await api('reportError', { source: 'rig', message: 'failure beside the wide sidebar' });
+      const wideToast = page.locator('[data-sonner-toast]').filter({ hasText: 'failure beside the wide sidebar' });
+      await expect(wideToast).toBeVisible();
+      // A toast slides up into place.
+      await expect.poll(async () => (await box(wideToast)).bottom <= (await box(collapse)).y, 'Notifications stand above the sidebar button').toBe(true);
+      const wide = await box(panel);
+
+      // A thin sidebar shows each item by its icon, named in its title, and the view takes the width it gives up.
+      await collapse.click();
+      await expect(expand).toBeFocused();
+      await expect(panel).toHaveClass(/\bthin\b/);
+      const thin = await box(panel);
+      assert.equal(thin.width, 56);
+      const narrow = await box(page.locator('.browser-slot'));
+      assert.ok(Math.abs(narrow.x - (slot.x - (wide.width - thin.width))) <= 1 && Math.abs(narrow.width - (slot.width + wide.width - thin.width)) <= 1, 'The view takes the width the sidebar gives up');
+      await expect.poll(pageView).toMatchObject({ x: narrow.x, y: narrow.y, width: narrow.width, height: narrow.height });
+      const terminalItem = panel.locator(`[data-kind="terminal"][data-id="${terminal}"]`), terminalLabel = await terminalItem.locator('.nav-label').textContent();
+      await expect(terminalItem).toHaveAttribute('title', terminalLabel);
+      await expect(panel.getByRole('button', { name: terminalLabel, exact: true })).toHaveCount(1);
+      for (const item of await panel.locator('.nav-item').all()) assert.ok((await box(item)).right <= thin.x + thin.width, 'Every item fits the thin sidebar');
+      assert.ok((await box(page.locator('#view-title .titlebar-group'))).width > 20, 'The heading names the connection');
+      await expect(page.locator('#view-title')).toContainText('Fixture');
+
+      // Beside a thin sidebar, notifications draw over the page's corner, and those on show move there with it.
+      const toasts = await overlayWith('[data-sonner-toast]');
+      const toast = message => toasts.locator('[data-sonner-toast][data-removed="false"]').filter({ hasText: message });
+      await expect(toast('failure beside the wide sidebar')).toBeVisible();
+      await api('reportError', { source: 'rig', message: 'failure beside the thin sidebar' });
+      await expect(toast('failure beside the thin sidebar')).toBeVisible();
+      assert.equal(await toasts.locator('.error-toaster').evaluate(node => getComputedStyle(node).clipPath), 'none');
+      const body = await box(page.locator('.browser-body'));
+      await expect.poll(async () => (await pageViews()).some(view => view.url === 'about:blank' && view.y === body.y && view.x + view.width === body.x + body.width - 16), 'Notifications show over the page\'s corner').toBe(true);
+      const closeToast = toasts.locator('[data-sonner-toast][data-removed="false"] [data-close-button]');
+      while (await closeToast.count()) await closeToast.first().click();
+
+      // Renaming a browser session takes the sidebar's width until the name is done.
+      await panel.locator('[data-kind="browser"]').first().click({ button: 'right' });
+      await application.evaluate(() => globalThis.rigMenus.at(-1).items.find(item => item.label === 'Rename').click());
+      const sessionName = panel.getByRole('textbox', { name: 'Session Name', exact: true });
+      await expect(sessionName).toBeFocused();
+      await expect(panel).not.toHaveClass(/\bthin\b/);
+      await sessionName.press('Escape');
+      await expect(panel).toHaveClass(/\bthin\b/);
+
+      // Its icons choose items, and it stays thin through a reload until it is expanded again.
+      await terminalItem.click();
+      await expect(terminalItem).toHaveAttribute('aria-current', 'page');
+      await page.reload();
+      await expect(page.locator('.home-view')).toBeVisible();
+      await chip.click();
+      await expect(panel).toHaveClass(/\bthin\b/);
+      await expand.click();
+      await expect(collapse).toBeFocused();
+      await expect(panel).not.toHaveClass(/\bthin\b/);
+      await expect.poll(() => box(panel)).toEqual(wide);
+      await page.locator(`[data-kind="tab"][data-id="${tab}"]`).click();
+      await expect.poll(() => box(page.locator('.browser-slot'))).toEqual(slot);
+      await expect.poll(pageView).toMatchObject({ x: slot.x, y: slot.y, width: slot.width, height: slot.height });
+      console.log('Rail makes its sidebar thin and wide again from the sidebar itself, and keeps it thin through a reload.');
+    }
     if (id === 'tabs') {
       const toasts = await overlayWith('[data-sonner-toast]');
       const dismiss = async () => {
