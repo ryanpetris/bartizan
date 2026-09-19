@@ -26,6 +26,7 @@ const rigs = {
   downloads: ['dbus-run-session', 'xdotool', 'xwininfo'],
   titlebar: ['sshd', 'openbox', 'xdotool', 'xprop'],
   quit: ['sshd'],
+  dismiss: ['sshd'],
   network: ['docker'],
 };
 const flags = new Set(process.argv.slice(2).filter(arg => arg.startsWith('--')));

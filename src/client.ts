@@ -23,6 +23,7 @@ return {
   profileSave: input => call('profile-save', input),
   reloadConfig: () => call('reload-config'),
   chooseFile: () => call('choose-file'),
+  activatedWithin: milliseconds => call('activated-within', milliseconds),
   askingToQuit: () => notify('asking-to-quit'),
   quit: () => notify('quit'),
   settings: patch => call('settings', patch),

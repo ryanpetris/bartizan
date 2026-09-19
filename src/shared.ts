@@ -118,6 +118,8 @@ export interface API {
   profileSave(input: ProfileChanges & { id?: string; connect: boolean }): Promise<ProfileSaveResult>;
   reloadConfig(): Promise<void>;
   chooseFile(): Promise<string | undefined>;
+  /** Whether the application window came to the front within the last `milliseconds`. */
+  activatedWithin(milliseconds: number): Promise<boolean>;
   /** Acknowledges a `confirm-quit` event: the user is being asked. */
   askingToQuit(): void;
   /** Closes the application window after the user has confirmed quitting. */

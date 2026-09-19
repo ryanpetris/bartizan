@@ -48,6 +48,8 @@ else void app.whenReady().then(async () => {
   window.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) => callback(contents === window.webContents && permission === 'local-fonts' && details.isMainFrame && details.requestingUrl === origin));
   const send = (event: Event) => { if (!window.isDestroyed()) window.webContents.send('event', event); };
   const reveal = () => { if (window.isMinimized()) window.restore(); window.focus(); };
+  let activatedAt = -Infinity;
+  window.on('focus', () => { activatedAt = performance.now(); });
   const trusted = (event: IpcMainInvokeEvent | IpcMainEvent) => event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame && event.senderFrame?.url === origin;
   const backend = await createBackend({
     file, directory: app.getPath('userData'), helper: join(__dirname, 'askpass.cjs'),
@@ -72,6 +74,9 @@ else void app.whenReady().then(async () => {
   handle('certificate-answer', (id: unknown, allow: unknown) => browsers.answerCertificate(z.string().uuid().parse(id), z.boolean().parse(allow)));
   handle('choose-file', async () => { const result = await dialog.showOpenDialog(window, { properties: ['openFile'] }); return result.filePaths[0]; });
   handle('copy', (text: unknown) => clipboard.writeText(z.string().parse(text)));
+  // A click that brings the window to the front also reaches the page, which learns of it from here. A window that is not
+  // in front yet is taken to be coming there, as where it learns of its activation after the click.
+  handle('activated-within', (milliseconds: unknown) => !window.isFocused() || performance.now() - activatedAt <= z.number().nonnegative().parse(milliseconds));
   handle('new-browser', (id: unknown) => serialize(async () => {
     const connection = sessions.entries.get(z.string().parse(id));
     if (!connection) throw new Error('Connection is not connected');

@@ -1,5 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { Icon, Button, colorStyle, type IconName } from './ui';
+import { Icon, Button, colorStyle, useUnsavedNotice, type IconName } from './ui';
 import { browserSessionName, type AuthChallenge as Challenge, type AuthAnswer } from '../shared';
 import { api, store, describeError, connectionOf, endpoint, sessionColor, render } from './store';
 import { openModal } from './dialogs';
@@ -23,6 +23,7 @@ function ChallengeDialog({ challenge }: { challenge: Challenge }) {
     primary = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
+  const [unsavedNotice, hold] = useUnsavedNotice();
   const pending = useRef(false),
     mounted = useRef(true);
   const website = 'workspaceId' in challenge;
@@ -89,6 +90,11 @@ function ChallengeDialog({ challenge }: { challenge: Challenge }) {
         (website || (!website && challenge.confirm && !trust)
           ? primary.current!
           : node.querySelector<HTMLButtonElement>('button')!),
+      () => {
+        if (pending.current) return;
+        if (username.current?.value || input.current?.value) hold();
+        else void answer(null);
+      },
     );
     return () => {
       mounted.current = false;
@@ -210,6 +216,7 @@ function ChallengeDialog({ challenge }: { challenge: Challenge }) {
           {error}
         </p>
         <footer className="dialog-actions">
+          {unsavedNotice}
           <Button disabled={busy} onClick={() => void answer(null)}>
             Cancel
           </Button>

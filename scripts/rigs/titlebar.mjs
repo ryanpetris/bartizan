@@ -102,10 +102,43 @@ await withDirectory('titlebar', async (directory, cleanup) => {
   assert.deepEqual(errors, []);
   console.log('Application controls stay usable beside the native controls at every zoom level and after a reload.');
 
+  // The click that brings the window to the front, and the further clicks of a run that opened the dialog, leave it open; a
+  // click straight after the first dismisses it.
+  const dialogs = await app.modal();
+  const connect = dialogs.locator('#connect-dialog');
+  const newConnection = page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true });
+  const presses = () => dialogs.evaluate(() => window.rigPresses.splice(0));
+  await dialogs.evaluate(() => { window.rigPresses = []; document.addEventListener('mousedown', event => window.rigPresses.push(event.detail), true); });
+  await newConnection.click();
+  await expect(connect).toBeVisible();
+  const main = await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].id);
+  const other = await application.evaluate(({ BrowserWindow }) => {
+    const other = new BrowserWindow({ x: 1300, y: 750, width: 200, height: 150 });
+    return { id: other.id, handle: other.getNativeWindowHandle().readUInt32LE(0) };
+  });
+  pointer('windowactivate', '--sync', other.handle);
+  pointer('mousemove', '--window', windowId, 30, 300, 'click', 1);
+  await expect.poll(() => application.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id)).toBe(main);
+  await page.waitForTimeout(150);
+  await expect(connect).toBeVisible();
+  assert.deepEqual(await presses(), [1]);
+  pointer('click', 1);
+  await expect(connect).toBeHidden();
+  assert.deepEqual(await presses(), [2]);
+  await application.evaluate(({ BrowserWindow }, id) => BrowserWindow.fromId(id).destroy(), other.id);
+  const add = await newConnection.boundingBox();
+  pointer('mousemove', '--window', windowId, Math.round(add.x + add.width / 2), Math.round(add.y + add.height / 2), 'click', '--repeat', 3, '--delay', 120, 1);
+  await expect(connect).toBeVisible();
+  await page.waitForTimeout(300);
+  await expect(connect).toBeVisible();
+  assert.deepEqual(await presses(), [2, 3]);
+  await dialogs.keyboard.press('Escape');
+  await expect(connect).toBeHidden();
+  console.log('The click that brings the window to the front, and a triple click that opens a dialog, leave the dialog open; an immediate second click dismisses it.');
+
   // Closing the minimized window with a live connection restores it, still maximized, to ask; the native close button asks as well.
   await api('connect', { profileId: 'fixture' });
   await app.waitState(s => s.connections[0]?.status === 'connected', 'connection');
-  const dialogs = await app.modal();
   const quit = dialogs.locator('#quit-dialog');
   await nativeButton(1);
   await expect.poll(windowState).toEqual({ maximized: true, minimized: false });

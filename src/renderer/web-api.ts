@@ -33,6 +33,8 @@ export function createWebAPI(): API {
       return () => { listeners.delete(callback); };
     },
   });
+  let activatedAt = -Infinity;
+  addEventListener('focus', () => { activatedAt = performance.now(); });
   const openLink = (value: string) => {
     const url = new URL(value);
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || value.length > 8192) throw new Error('Unsupported link');
@@ -50,6 +52,7 @@ export function createWebAPI(): API {
       finally { input.remove(); previous?.focus(); }
     },
     chooseFile: async () => { throw new Error('Native file selection is unavailable'); },
+    activatedWithin: async milliseconds => performance.now() - activatedAt <= milliseconds,
     openLink: async (_id, url) => openLink(url),
     linkMenu: async (_id, urls) => {
       const links = (Array.isArray(urls) ? urls : [urls]).filter(value => { try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password; } catch { return false; } });

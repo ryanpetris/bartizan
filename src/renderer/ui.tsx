@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 const paths: Record<string, string> = {
   plus: '<path d="M8 3.25v9.5M3.25 8h9.5"/>',
   close: '<path d="m4.25 4.25 7.5 7.5m0-7.5-7.5 7.5"/>',
@@ -101,4 +101,21 @@ export function moveFocus(items: HTMLElement[], key: string, wrap = false): bool
   if (index < 0 || Number.isNaN(next)) return false;
   items[wrap ? (next + items.length) % items.length : Math.min(items.length - 1, Math.max(0, next))]?.focus();
   return true;
+}
+/** A dialog's notice of unsaved changes, and `hold`, which shows it for three seconds when they keep a click outside from dismissing the dialog. */
+export function useUnsavedNotice(): [notice: ReactNode, hold: () => void] {
+  const [shown, setShown] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const hold = useCallback(() => {
+    setShown(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setShown(false), 3000);
+  }, []);
+  return [
+    <p className="unsaved-notice" role="status">
+      {shown ? 'Unsaved changes' : ''}
+    </p>,
+    hold,
+  ];
 }

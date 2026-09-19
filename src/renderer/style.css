@@ -489,6 +489,7 @@ dialog::backdrop { top: var(--chrome-top); background: rgba(8, 10, 14, 0.42); }
 .form-notice:not([hidden]) + .dialog-actions { border-top: 0; }
 .form-error { flex: 0 1 auto; min-width: 0; max-height: 3.8em; margin: 0; overflow: auto; color: var(--danger-text); white-space: pre-wrap; overflow-wrap: anywhere; }
 .spacer { flex: 1; }
+.unsaved-notice { flex: none; margin: 0 auto 0 0; color: var(--warn-text); white-space: nowrap; }
 
 .details-dialog { width: min(680px, calc(100vw - 48px)); max-height: calc(100vh - var(--chrome-top) - 48px); }
 .details { display: flex; flex-direction: column; max-height: calc(100vh - var(--chrome-top) - 50px); }

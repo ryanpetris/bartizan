@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Spec } from '../core/config';
 import type { ProfileDraft, ProfileChanges } from '../shared';
-import { Icon, IconButton, Button, moveFocus } from './ui';
+import { Icon, IconButton, Button, moveFocus, useUnsavedNotice } from './ui';
 import { api, store, render, describeError, report, profileName, activeConnection, focusConnection } from './store';
 import { openModal } from './dialogs';
 import { FontPicker, bundledTerminalFont } from './fonts';
@@ -450,6 +450,8 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
     [busy, setBusy] = useState<string>();
   const [previewOpen, setPreviewOpen] = useState(false),
     [preview, setPreview] = useState({ text: '', error: false });
+  const [unsavedNotice, hold] = useUnsavedNotice(),
+    unsaved = useRef(false);
   const inherited = (path: string) =>
     get(store.state.defaults, path) ??
     (
@@ -538,6 +540,7 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
     openModal(
       dialog.current!,
       dialog.current!.querySelector<HTMLElement>(editing ? '[type="submit"]' : '[name="host"]')!,
+      () => (unsaved.current ? hold() : dialog.current!.close()),
     );
     if (initialError !== undefined) rejected(initialError);
     return () => {
@@ -620,6 +623,12 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
   for (const [path, , section] of settings)
     if (relevant(path) && overridden(path)) counts.set(section, (counts.get(section) ?? 0) + 1);
   const { changes, errors: invalid } = collect();
+  unsaved.current =
+    Object.keys(changes.values).length > 0 ||
+    changes.reset.length > 0 ||
+    changes.tags !== undefined ||
+    invalid.length > 0 ||
+    profileId.trim() !== '';
   const retained = store.state.connections.find((connection) => connection.profileId === draft.id);
   const reconnectNotice =
     editing &&
@@ -805,6 +814,7 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
           >
             Preview Command
           </Button>
+          {unsavedNotice}
           <p className="form-error" role="alert" hidden={!general}>
             {general}
           </p>
