@@ -2,14 +2,20 @@
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { launch, waitFor, withDirectory } from './lib/harness.mjs';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { launch, sshProfile, startSshd, waitFor, withDirectory } from './lib/harness.mjs';
 import { openSettings, closeSettings } from './lib/settings.mjs';
 
 await withDirectory('titlebar', async (directory, cleanup) => {
   const wm = spawn('openbox', ['--sm-disable'], { stdio: 'ignore' });
   cleanup(() => wm.kill());
   await waitFor(() => execFileSync('xprop', ['-root', '_NET_SUPPORTING_WM_CHECK'], { encoding: 'utf8' }).includes('window id #'), 'the window manager');
-  const app = await launch(directory);
+  const sshd = await startSshd(directory);
+  cleanup(sshd.stop);
+  const config = join(directory, 'config.yaml');
+  await writeFile(config, `version: 1\nprofiles:\n  fixture:\n${sshProfile(sshd)}`);
+  const app = await launch(directory, config);
   let closed = false;
   cleanup(() => closed || app.close());
   const { application, page, api, errors } = app;
@@ -97,9 +103,25 @@ await withDirectory('titlebar', async (directory, cleanup) => {
   assert.deepEqual(errors, []);
   console.log('Application controls stay usable beside the native controls at every zoom level and after a reload.');
 
-  const exited = application.waitForEvent('close');
+  // Closing the minimized window with a live connection restores it, still maximized, to ask; the native close button asks as well.
+  await api('connect', { profileId: 'fixture' });
+  await app.waitState(s => s.connections[0]?.status === 'connected', 'connection');
+  const dialogs = await app.modal();
+  const quit = dialogs.locator('#quit-dialog');
+  await nativeButton(1);
+  await expect.poll(windowState).toEqual({ maximized: true, minimized: false });
+  await nativeButton(0);
+  await expect.poll(async () => (await windowState()).minimized).toBe(true);
+  await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+  await expect.poll(windowState).toEqual({ maximized: true, minimized: false });
+  await expect(quit).toBeVisible();
+  await dialogs.keyboard.press('Escape');
+  await expect(quit).toBeHidden();
   await nativeButton(2);
+  await expect(quit).toBeVisible();
+  const exited = application.waitForEvent('close');
+  await quit.getByRole('button', { name: 'Quit', exact: true }).click();
   await exited;
   closed = true;
-  console.log('The native close button quits the application.');
+  console.log('Closing the minimized window with a live connection restores it, still maximized, and asks to quit; the native close button asks, and Quit exits.');
 });

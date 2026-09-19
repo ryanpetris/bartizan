@@ -33,6 +33,7 @@ import { ModalLayer, Modal, modalReady } from './overlay';
 import * as connect from './connect';
 import { Profiles } from './profiles';
 import { Details } from './details';
+import { Quit, openQuit } from './quit';
 import { Home } from './home';
 import { Icon } from './ui';
 import { chooseMenuItem } from './menu';
@@ -177,6 +178,9 @@ function App() {
           if (event.action === 'new-connection') openConnection();
           else browser.shortcut(event.action);
           break;
+        case 'confirm-quit':
+          openQuit();
+          break;
         case 'favicon':
         case 'found':
         case 'target-url':
@@ -229,6 +233,7 @@ function App() {
           <Settings />
           <Profiles />
           <errors.Errors />
+          <Quit />
         </Modal>
       </FocusRecovery>
     </ModalLayer>

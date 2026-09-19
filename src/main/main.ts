@@ -47,6 +47,7 @@ else void app.whenReady().then(async () => {
   window.webContents.session.setPermissionCheckHandler((contents, permission, _origin, details) => contents === window.webContents && permission === 'local-fonts' && details.isMainFrame && details.requestingUrl === origin);
   window.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) => callback(contents === window.webContents && permission === 'local-fonts' && details.isMainFrame && details.requestingUrl === origin));
   const send = (event: Event) => { if (!window.isDestroyed()) window.webContents.send('event', event); };
+  const reveal = () => { if (window.isMinimized()) window.restore(); window.focus(); };
   const trusted = (event: IpcMainInvokeEvent | IpcMainEvent) => event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame && event.senderFrame?.url === origin;
   const backend = await createBackend({
     file, directory: app.getPath('userData'), helper: join(__dirname, 'askpass.cjs'),
@@ -131,7 +132,25 @@ else void app.whenReady().then(async () => {
     clearTimeout(recoveryTimer);
     recoveryTimer = setTimeout(() => { if (!window.isDestroyed()) window.webContents.reload(); }, delay);
   });
-  window.on('close', () => { clearTimeout(recoveryTimer); void backend.close(); });
+  // Closing the window while a connection is live asks the renderer to confirm, unless the application is quitting. A crashed
+  // renderer, or one that has left the question unacknowledged for two seconds, lets the window close.
+  let quitting = false, confirmed = false, asked = 0;
+  app.once('before-quit', () => { quitting = true; });
+  handle('asking-to-quit', () => { asked = 0; });
+  handle('quit', () => { confirmed = true; window.close(); });
+  window.on('close', event => {
+    const unanswered = asked && performance.now() - asked >= 2000;
+    if (!quitting && !confirmed && !unanswered && !window.webContents.isCrashed() && [...sessions.entries.values()].some(e => e.info.status !== 'closed')) {
+      event.preventDefault();
+      asked ||= performance.now();
+      reveal();
+      send({ type: 'confirm-quit' });
+      return;
+    }
+    clearTimeout(recoveryTimer); void backend.close();
+  });
+  // A page that loads while a question is unacknowledged, as after a crash, asks it.
+  window.webContents.on('did-finish-load', () => { if (asked) { asked = performance.now(); send({ type: 'confirm-quit' }); } });
   return {
     sync: () => browsers.sync(sessions.entries.values()),
     state: () => ({ workspaces: [...browsers.entries.values()].map(e => e.info), challenges: browsers.challenges }),
@@ -156,9 +175,7 @@ else void app.whenReady().then(async () => {
   });
   window.webContents.on('did-finish-load', () => { for (const event of backend.snapshot()) send(event); backend.replay(); });
   onInstance = () => {
-    if (window.isDestroyed()) return;
-    if (window.isMinimized()) window.restore();
-    window.focus();
+    if (!window.isDestroyed()) reveal();
   };
   await window.loadFile(html);
 });

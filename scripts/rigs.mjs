@@ -24,7 +24,8 @@ const rigs = {
   profiles: ['sshd'],
   tls: ['sshd', 'openssl'],
   downloads: ['dbus-run-session', 'xdotool', 'xwininfo'],
-  titlebar: ['openbox', 'xdotool', 'xprop'],
+  titlebar: ['sshd', 'openbox', 'xdotool', 'xprop'],
+  quit: ['sshd'],
   network: ['docker'],
 };
 const flags = new Set(process.argv.slice(2).filter(arg => arg.startsWith('--')));

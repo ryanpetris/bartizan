@@ -18,7 +18,7 @@ Selecting an already connected profile focuses its most recently viewed live ter
 
 The connection's add menu offers **Terminal** and **Browser Session**. Drag navigation items to reorder connections, terminals, sessions or tabs within their group. The row context menu also offers **Move Up** and **Move Down**. Navigation order lasts for the current app session.
 
-**Disconnect** ends the SSH transport and its shells. The connection remains in the connection list. Browser pages stay open but lose network access. **Reconnect** restores the transport and browser access; it does not resume closed shells. Use **New Terminal** for a fresh shell. Remove a disconnected connection to close its browser sessions and remove its navigation entry.
+**Disconnect** ends the SSH transport and its shells. The connection remains in the connection list. Browser pages stay open but lose network access. **Reconnect** restores the transport and browser access; it does not resume closed shells. Use **New Terminal** for a fresh shell. Remove a disconnected connection to close its browser sessions and remove its navigation entry. Closing the window while a connection is active asks before quitting.
 
 **Connection Details** shows connection state. Negotiated SSH algorithms, duration and traffic are available when the installed OpenSSH supports `ssh -O conninfo`.
 

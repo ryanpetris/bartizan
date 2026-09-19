@@ -87,6 +87,8 @@ export type Capabilities = { embeddedBrowser: boolean; nativeFilePicker: boolean
 export type State = {
   capabilities: Capabilities; settings: Settings; configError?: string; profiles: PublicProfile[]; defaults: PublicSpec; file: string; connections: Connection[]; terminals: TerminalSession[]; workspaces: Workspace[]; challenges: AuthChallenge[] };
 export type Event = { type: 'transport-error'; message: string } | { type: 'menu'; index: number } | { type: 'select-browser'; id: string } | { type: 'state'; state: State } | { type: 'data'; id: string; data: string } | { type: 'errors'; log: ErrorLog; initial?: boolean } | { type: 'browser-shortcut'; id: string; action: 'focus-address' | 'new-connection' | 'find' }
+  /** Closing the window waits for the user to confirm quitting while a connection is live. */
+  | { type: 'confirm-quit' }
   /** A tab's icon as a data URL, its find-in-page result, and the address of the link under the pointer. */
   | { type: 'favicon'; tabId: string; data?: string } | { type: 'found'; tabId: string; active: number; matches: number } | { type: 'target-url'; tabId: string; url: string };
 export type ErrorEntry = { id: number; source: string; kind: 'current' | 'event'; message: string; connectionId?: string; label: string; time: number; lastTime: number; count: number; resolvedAt?: number };
@@ -116,6 +118,10 @@ export interface API {
   profileSave(input: ProfileChanges & { id?: string; connect: boolean }): Promise<ProfileSaveResult>;
   reloadConfig(): Promise<void>;
   chooseFile(): Promise<string | undefined>;
+  /** Acknowledges a `confirm-quit` event: the user is being asked. */
+  askingToQuit(): void;
+  /** Closes the application window after the user has confirmed quitting. */
+  quit(): void;
   settings(patch: Partial<Settings>): Promise<void>;
   details(id: string): Promise<ConnectionInfo>;
   connect(target: ConnectTarget): Promise<string>;

@@ -82,6 +82,6 @@ Literal passwords and passphrases are redacted from state sent to the renderer. 
 
 [Terminals](../src/renderer/terminals.tsx) use xterm with font loading, a fit addon, web links and a ligature joiner. WebGL is preferred; initialization failure or unrecoverable context loss falls back to DOM rendering.
 
-Closing the application window stops SSH sessions, closes the askpass broker and shuts down browser sessions. A second launch focuses the existing instance. The test rig selects a separate application data directory to run independently.
+Closing the application window stops SSH sessions, closes the askpass broker and shuts down browser sessions. While a connection is connecting or connected, the main process holds the window open, brings it into view and has the renderer ask the user to confirm quitting. Quitting the application closes it without asking, as does closing it while the renderer has crashed, or closing it again once the renderer has left the question unacknowledged for two seconds. A page that loads while the question is unacknowledged asks it. A second launch focuses the existing instance. The test rig selects a separate application data directory to run independently.
 
 See [Development](development.md) for the build, test and package commands.
