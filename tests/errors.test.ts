@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Errors } from '../src/main/errors';
+import { Errors, newestErrorFirst } from '../src/core/errors';
 
 test('current errors survive history clearing and resolve on recovery', async () => {
   let time = 10, updates = 0;
@@ -66,4 +66,34 @@ test('a burst emits one bounded snapshot per turn', async () => {
   await new Promise<void>(resolve => setImmediate(resolve));
   assert.equal(updates.length, 2);
   assert.equal(updates[1].history.length, 0);
+});
+
+
+test('independent current problems resolve separately and survive config updates', () => {
+  const errors = new Errors(() => {});
+  const problem = { source: 'webgl', message: 'WebGL rendering is disabled.', connectionId: 'connection', terminalId: 'first' };
+  errors.setCurrent('first', problem);
+  errors.setCurrent('second', { ...problem, terminalId: 'second' });
+  errors.sync('bad config');
+  errors.sync(undefined);
+  errors.setCurrent('first', problem);
+  assert.equal(errors.snapshot().current.length, 2);
+  assert.equal(errors.snapshot().history.filter(entry => entry.terminalId === 'first').length, 1);
+  errors.clear();
+  assert.equal(errors.snapshot().current.length, 2);
+  errors.setCurrent('first');
+  assert.deepEqual(errors.snapshot().current.map(entry => entry.terminalId), ['second']);
+  errors.setCurrent('second');
+  errors.setCurrent('webgl', { source: 'webgl', message: problem.message });
+  assert.equal(errors.snapshot().current.length, 1);
+  assert.equal(errors.snapshot().current[0].connectionId, undefined);
+});
+
+
+test('page-local timestamp ties keep the latest notifications and history first', () => {
+  const errors = new Errors(() => {}, () => 10);
+  for (let i = 0; i < 4; i++) errors.report({ source: 'transport', message: `failure ${i}` });
+  const local = errors.snapshot().history.map(entry => ({ ...entry, id: -entry.id }));
+  assert.deepEqual([...local].sort(newestErrorFirst).map(entry => entry.id), [-4, -3, -2, -1]);
+  assert.deepEqual([...local].sort((a, b) => newestErrorFirst(b, a)).slice(-3).map(entry => entry.id), [-2, -3, -4]);
 });

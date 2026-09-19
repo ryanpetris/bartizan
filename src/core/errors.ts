@@ -1,5 +1,8 @@
 import type { ErrorEntry, ErrorLog, ErrorReport } from '../shared';
 
+/** IDs increase by magnitude within backend and page-local errors. */
+export const newestErrorFirst = (a: ErrorEntry, b: ErrorEntry) => b.lastTime - a.lastTime || Math.abs(b.id) - Math.abs(a.id);
+
 /** App-session history; active conditions remain tracked even after history is cleared or trimmed. */
 export class Errors {
   private nextId = 0;
@@ -14,7 +17,7 @@ export class Errors {
   private notify() {
     if (this.pending) return;
     this.pending = true;
-    setImmediate(() => {
+    queueMicrotask(() => {
       this.pending = false;
       this.changed(this.snapshot());
     });
@@ -34,21 +37,21 @@ export class Errors {
     } else this.add(input, 'event');
     this.notify();
   }
-  sync(configError: string | undefined) {
-    const conditions = new Map<string, ErrorReport>();
-    if (configError) conditions.set('config', { source: 'config', message: configError, label: 'App' });
-    let changed = false;
-    for (const [key, entry] of this.current) {
-      if (conditions.get(key)?.message.slice(0, 16384) === entry.message) continue;
-      entry.resolvedAt = this.now();
+  setCurrent(key: string, input?: ErrorReport) {
+    const previous = this.current.get(key);
+    if (previous && input && previous.message === input.message.slice(0, 16384) &&
+        previous.connectionId === input.connectionId && previous.terminalId === input.terminalId &&
+        previous.label === (input.label ?? (input.connectionId ? 'Connection' : 'App'))) return;
+    if (!previous && !input) return;
+    if (previous) {
+      previous.resolvedAt = this.now();
       this.current.delete(key);
-      changed = true;
     }
-    for (const [key, input] of conditions) if (!this.current.has(key)) {
-      this.current.set(key, this.add(input, 'current'));
-      changed = true;
-    }
-    if (changed) this.notify();
+    if (input) this.current.set(key, this.add(input, 'current'));
+    this.notify();
+  }
+  sync(configError: string | undefined) {
+    this.setCurrent('config', configError ? { source: 'config', message: configError, label: 'App' } : undefined);
   }
   clear() {
     this.history = [];

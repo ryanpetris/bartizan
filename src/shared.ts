@@ -91,9 +91,9 @@ export type Event = { type: 'transport-error'; message: string } | { type: 'menu
   | { type: 'confirm-quit' }
   /** A tab's icon as a data URL, its find-in-page result, and the address of the link under the pointer. */
   | { type: 'favicon'; tabId: string; data?: string } | { type: 'found'; tabId: string; active: number; matches: number } | { type: 'target-url'; tabId: string; url: string };
-export type ErrorEntry = { id: number; source: string; kind: 'current' | 'event'; message: string; connectionId?: string; label: string; time: number; lastTime: number; count: number; resolvedAt?: number };
+export type ErrorEntry = { id: number; source: string; kind: 'current' | 'event'; message: string; connectionId?: string; terminalId?: string; label: string; time: number; lastTime: number; count: number; resolvedAt?: number };
 export type ErrorLog = { current: ErrorEntry[]; history: ErrorEntry[] };
-export type ErrorReport = { source: string; message: string; connectionId?: string; label?: string };
+export type ErrorReport = { source: string; message: string; connectionId?: string; terminalId?: string; label?: string };
 export type Appearance = 'dark' | 'light' | 'system';
 export type Settings = { appearance: Appearance; theme: ThemeId; interfaceFont: string; terminalFont: string; terminalFontSize: number; terminalLigatures: boolean };
 export const defaultSettings: Settings = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true };

@@ -94,18 +94,79 @@ await withDirectory('graphics', async (directory, cleanup) => {
     extension.loseContext();
   });
   await logged('terminal-restored');
+  await expect(page.locator('#error-count')).toBeHidden();
   await expect(canvas).toHaveCount(1);
   await canvas.evaluate(node => node.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
   await expect(canvas).toHaveCount(0, { timeout: 6000 });
   await logged('terminal-lost');
   await logged('terminal-fallback');
+  await expect(page.locator('#error-count')).toHaveText('1');
+  const inspectErrors = async check => {
+    await page.getByRole('button', { name: 'Errors', exact: true }).click();
+    const panel = (await app.modal()).locator('#errors-dialog');
+    await expect(panel).toBeVisible();
+    await check(panel);
+    await panel.getByRole('button', { name: 'Close', exact: true }).click();
+  };
+  await api('reportError', { source: 'rig', message: 'Backend event' });
+  await inspectErrors(async panel => {
+    await expect(panel.locator('.error-current .error-row')).toHaveCount(1);
+    await expect(panel.locator('.error-current .error-row')).toHaveAttribute('data-terminal-id', first);
+    await expect(panel.locator('.error-current')).toContainText('WebGL rendering is disabled for');
+    await expect(panel.locator('.error-history')).toContainText('Backend event');
+    await panel.getByRole('button', { name: 'Clear History', exact: true }).click();
+    await expect(panel.locator('.error-history')).toBeHidden();
+    await expect(panel.locator('.error-current .error-row')).toHaveCount(1);
+  });
   assert.deepEqual((await state()).connections.map(item => [item.id, item.status]), [[connection, 'connected']]);
   await api('input', first, "printf '\\nGRAPHICS_RECOVERY_OK\\n'\n");
   await expect(page.locator('.terminal-surface:not([hidden]) .xterm-rows')).toContainText('GRAPHICS_RECOVERY_OK');
   await select(second);
   await select(first);
   await expect(canvas).toHaveCount(1);
+  await expect(page.locator('#error-count')).toBeHidden();
   console.log('A restored context keeps WebGL; a lost one falls back to the DOM renderer until the terminal is shown again.');
+
+  const closed = await api('newTerminal', connection);
+  await select(closed);
+  await expect(canvas).toHaveCount(1);
+  await canvas.evaluate(node => node.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+  await expect(page.locator('#error-count')).toHaveText('1');
+  await api('closeTerminal', closed);
+  await expect(page.locator('#error-count')).toBeHidden();
+  await select(first);
+  await expect(canvas).toHaveCount(1);
+  await canvas.evaluate(node => node.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+  await expect(page.locator('#error-count')).toHaveText('1');
+  await select(second);
+  await expect(canvas).toHaveCount(1);
+  await canvas.evaluate(node => node.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+  await expect(page.locator('#error-count')).toHaveText('2');
+  await page.evaluate(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (...args) {
+      if (args[0] === 'webgl2') {
+        HTMLCanvasElement.prototype.getContext = original;
+        return null;
+      }
+      return original.apply(this, args);
+    };
+  });
+  await select(first);
+  await expect(page.locator('.terminal-surface:not([hidden]) .xterm-rows')).toBeVisible();
+  await expect(page.locator('#error-count')).toHaveText('1');
+  await inspectErrors(async panel => {
+    const current = panel.locator('.error-current .error-row');
+    await expect(current).toHaveCount(1);
+    await expect(current.locator('.error-label')).toHaveText('App');
+    await expect(current.locator('.error-text')).toHaveText('WebGL rendering is disabled.');
+    assert.equal(await current.getAttribute('data-terminal-id'), null);
+  });
+  await select(second);
+  await expect(canvas).toHaveCount(0);
+  await expect(page.locator('#error-count')).toHaveText('1');
+  console.log('Graphics errors persist through backend updates and history clearing, resolve per terminal, and collapse to one global failure.');
+
 
   // A renderer crash must not end the SSH master or its remote shells. The Playwright page stays crashed after the
   // window reloads, so the rig reaches the new renderer through the main process.
@@ -130,6 +191,8 @@ await withDirectory('graphics', async (directory, cleanup) => {
   })()`);
   await waitFor(async () => (await inWindow('window.recovered')).includes('RENDERER_RECOVERY_OK'), 'terminal output after the crash');
   await waitFor(async () => await inWindow(`document.querySelectorAll('${canvasSelector}').length`) === 1, 'WebGL after the crash');
+
+  await waitFor(async () => await inWindow(`document.querySelector('#error-count').hidden`), 'graphics errors cleared after reload');
 
   const diagnostics = logs.split('\n').filter(line => line.startsWith('[graphics] ')).map(line => JSON.parse(line.slice('[graphics] '.length)));
   assert.ok(diagnostics.some(entry => entry.event === 'renderer-process-gone' && typeof entry.exitCode === 'number' && entry.reason));

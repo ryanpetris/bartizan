@@ -4,10 +4,11 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import type { TerminalSession } from '../shared';
-import { api, store, run, connectionOf, dialogOpen, onFocusRequest, setTerminalTitle, firstSession } from './store';
+import { api, store, run, connectionOf, dialogOpen, onFocusRequest, setTerminalTitle, terminalName, firstSession } from './store';
 import { terminalFontFamily, loadFontStyles } from './fonts';
 import { operatorJoiner } from './ligatures';
 import { activeTheme } from './themes';
+import { localErrors } from './errors';
 
 /**
  * `link` is the web link under the pointer; `recentLinks` holds recent OSC 8 hyperlink targets, oldest first. `font` is the
@@ -81,6 +82,15 @@ function keyboardLinks(entry: Entry): string[] {
   return found;
 }
 let webglFailed = false;
+const graphicsErrorKey = (entry: Entry) => `webgl:${entry.session.id}`;
+function reportGraphicsLoss(entry: Entry) {
+  if (webglFailed) return;
+  localErrors.setCurrent(graphicsErrorKey(entry), {
+    source: 'webgl', connectionId: entry.session.connectionId, terminalId: entry.session.id,
+    label: connectionOf(entry.session.connectionId)?.label ?? 'Connection',
+    message: `WebGL rendering is disabled for ${terminalName(entry.session)}.`,
+  });
+}
 
 /**
  * A terminal's WebGL renderer with the canvas and context the renderer itself created, kept so that disposing it can
@@ -142,6 +152,8 @@ function startGraphics(entry: Entry) {
   } catch {
     // ponytail: bound retained addon listeners to one failed constructor; full cleanup needs an upstream fix.
     webglFailed = true;
+    for (const terminal of entries.values()) localErrors.setCurrent(graphicsErrorKey(terminal));
+    localErrors.setCurrent('webgl', { source: 'webgl', label: 'App', message: 'WebGL rendering is disabled.' });
     if (addon) releaseGraphics(ownedGraphics(addon, entry.element, before));
     for (const canvas of screenCanvases(entry.element)) if (!before.has(canvas)) canvas.remove();
     api.graphics({ event: 'fallback' });
@@ -151,8 +163,11 @@ function startGraphics(entry: Entry) {
   entry.graphics = graphics;
   const { canvas } = graphics;
   // A context the browser takes away, such as when too many are live, is lost without the terminal asking for it.
-  const lost = () => api.graphics({ event: 'lost' });
-  const restored = () => api.graphics({ event: 'restored' });
+  const lost = () => { reportGraphicsLoss(entry); api.graphics({ event: 'lost' }); };
+  const restored = () => {
+    localErrors.setCurrent(graphicsErrorKey(entry));
+    api.graphics({ event: 'restored' });
+  };
   canvas?.addEventListener('webglcontextlost', lost);
   canvas?.addEventListener('webglcontextrestored', restored);
   graphics.detach = () => {
@@ -163,9 +178,11 @@ function startGraphics(entry: Entry) {
   addon.onContextLoss(() => {
     if (entry.graphics !== graphics) return;
     stopGraphics(entry);
+    reportGraphicsLoss(entry);
     api.graphics({ event: 'fallback' });
     fitVisible();
   });
+  localErrors.setCurrent(graphicsErrorKey(entry));
   api.graphics({ event: 'started', backend: backendOf(graphics.context) });
 }
 
@@ -466,6 +483,7 @@ function update() {
   for (const [id, entry] of entries)
     if (!live.has(id)) {
       // Disposing the terminal takes the renderer down with it; the context it owns is freed after that.
+      localErrors.setCurrent(graphicsErrorKey(entry));
       entry.terminal.dispose();
       stopGraphics(entry);
       entry.element.remove();

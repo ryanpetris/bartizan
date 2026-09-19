@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ComponentProps, type CSSProperties } from 'react';
 import { Toaster, toast } from 'sonner';
 import type { ErrorEntry, ErrorLog } from '../shared';
+import { Errors as ErrorStore, newestErrorFirst } from '../core/errors';
 import { Button, Icon } from './ui';
 import { api, render, run, activeManifest, dialogOpen, store } from './store';
 import { Overlay } from './overlay';
@@ -9,7 +10,10 @@ import { activeTheme } from './themes';
 
 const visible = 3;
 
-let log: ErrorLog = { current: [], history: [] };
+let remoteLog: ErrorLog = { current: [], history: [] };
+let log: ErrorLog = remoteLog;
+/** Graphics and transport problems belong to this page, independently of other backend clients. */
+export const localErrors = new ErrorStore(() => applyLog());
 /** Whether a connection has a current problem. */
 export const hasCurrent = (connectionId: string) => log.current.some((entry) => entry.connectionId === connectionId);
 
@@ -40,10 +44,20 @@ const signature = (entry: ErrorEntry) => `${entry.count}\n${entry.message}`;
  * whose count or message changed arrives as a toast.
  */
 export function transportError(message: string) {
-  const time = Date.now();
-  receive({ ...log, history: [...log.history, { id: -time, source: 'transport', kind: 'event', label: 'App', message, time, lastTime: time, count: 1 }] }, !seen);
+  localErrors.report({ source: 'transport', label: 'App', message });
 }
 export function receive(next: ErrorLog, initial = false) {
+  remoteLog = next;
+  applyLog(initial);
+}
+function applyLog(initial = false) {
+  const local = localErrors.snapshot();
+  // Backend IDs are positive; page-local IDs are negative in the combined view.
+  const entriesWithLocalIds = (entries: ErrorEntry[]) => entries.map(entry => ({ ...entry, id: -entry.id }));
+  const next = {
+    current: [...remoteLog.current, ...entriesWithLocalIds(local.current)],
+    history: [...remoteLog.history, ...entriesWithLocalIds(local.history)],
+  };
   log = next;
   const current = new Set(next.current.map((entry) => entry.id));
   const live = (entry: ErrorEntry) => entry.kind !== 'current' || current.has(entry.id);
@@ -56,7 +70,7 @@ export function receive(next: ErrorLog, initial = false) {
       ? [...entries.values()].filter((entry) => live(entry) && seen!.get(entry.id) !== signature(entry))
       : [];
   if (seen || initial) seen = new Map([...entries.values()].map((entry) => [entry.id, signature(entry)]));
-  for (const entry of arrivals.sort((a, b) => a.lastTime - b.lastTime || a.id - b.id).slice(-visible)) show(entry);
+  for (const entry of arrivals.sort((a, b) => newestErrorFirst(b, a)).slice(-visible)) show(entry);
   render();
 }
 /** Shows an entry as the newest toast, replacing its earlier showing; the oldest toast gives way. */
@@ -271,7 +285,6 @@ export function ErrorsButton() {
   );
 }
 
-const newestFirst = (a: ErrorEntry, b: ErrorEntry) => b.lastTime - a.lastTime || b.id - a.id;
 function clock(time: number) {
   const date = new Date(time);
   return date.toDateString() === new Date().toDateString()
@@ -288,7 +301,7 @@ function period(entry: ErrorEntry) {
 function ErrorRow({ entry }: { entry: ErrorEntry }) {
   const active = entry.kind === 'current' && entry.resolvedAt === undefined;
   return (
-    <li className="error-row" data-kind={entry.kind} data-active={active || undefined}>
+    <li className="error-row" data-terminal-id={entry.terminalId} data-kind={entry.kind} data-active={active || undefined}>
       <div className="error-row-head">
         {active && <Icon name="alert" />}
         <span className="error-label">{entry.label}</span>
@@ -322,13 +335,13 @@ function ErrorsDialog() {
     filter = useRef<HTMLSelectElement>(null),
     clear = useRef<HTMLButtonElement>(null);
   const connections = new Map<string, string>();
-  for (const entry of [...log.current, ...log.history].sort(newestFirst))
+  for (const entry of [...log.current, ...log.history].sort(newestErrorFirst))
     if (entry.connectionId && !connections.has(entry.connectionId)) connections.set(entry.connectionId, entry.label);
   const selected = scope === 'all' || scope === 'app' || connections.has(scope) ? scope : 'all';
   const matches = (entry: ErrorEntry) =>
     selected === 'all' || (selected === 'app' ? !entry.connectionId : entry.connectionId === selected);
-  const current = log.current.filter(matches).sort(newestFirst),
-    history = log.history.filter(matches).sort(newestFirst);
+  const current = log.current.filter(matches).sort(newestErrorFirst),
+    history = log.history.filter(matches).sort(newestErrorFirst);
   useLayoutEffect(() => {
     openModal(dialog.current!, dialog.current!);
   }, []);
@@ -385,7 +398,7 @@ function ErrorsDialog() {
             type="button"
             className="button"
             disabled={!log.history.length}
-            onClick={() => void run('errors', api.clearErrors())}
+            onClick={() => { localErrors.clear(); void run('errors', api.clearErrors()); }}
           >
             <span>Clear History</span>
           </button>

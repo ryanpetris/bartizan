@@ -5,7 +5,7 @@ import { ensureConfiguration, loadCatalog, resolveSpec, redactSpec, type Spec, t
 import { masterArgs } from '../core/ssh';
 import { Askpass } from '../main/askpass';
 import { Sessions } from '../main/sessions';
-import { Errors } from '../main/errors';
+import { Errors } from '../core/errors';
 import { defaultSettings, type Capabilities, type Settings, type State, type Event } from '../shared';
 import { profileDraft, profileChangesSchema, profileSaveSchema, prepareProfile, saveProfile, saveSettings, resolveDraft, type Draft } from '../core/profiles';
 
