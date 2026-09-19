@@ -28,7 +28,9 @@ For terminal controls, browser sessions and shortcuts, see [Using Bartizan](usag
 
 ## Browser server
 
-The existing executable can start the server with `bartizan serve`. It uses its bundled Node runtime and does not open a desktop window or need a display server. Normal launches still open the desktop app.
+Run `bartizan serve` and open the printed address. The web UI supports SSH terminals, profiles, settings and errors.
+
+The packaged executable uses its bundled Node runtime and does not open a desktop window or need a display server. Normal launches still open the desktop app.
 
 From a source checkout with the [development prerequisites](development.md#run-from-source) installed:
 
