@@ -67,3 +67,15 @@ independent review before it is considered done.
 
 Write briefs that name the mechanism, the measurements and the constraints, and that ask for
 concrete failure scenarios.
+
+### Rules
+
+1. For most changes, run targeted tests against the change; full test runs should be reserved for large
+   changes.
+2. Don't spend time trying to find blame for test failures; if they can in any way be related to the
+   current change that was made, just fix it. Reserve blame finding for fixes that appear to be not
+   related at all or would result in large changes to fix.
+3. Reviewers should not run tests; they should analyse the code only. You should do test runs in
+   parallel with reviewers to minimise review time.
+4. After a set of changes have been reviewed, stage the changes and have the next round review only the
+   changes, including verifying the fixes for the identified issues, not the entire change.
