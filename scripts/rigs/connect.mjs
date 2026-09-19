@@ -87,6 +87,29 @@ await withDirectory('connect', async (directory, cleanup) => {
   await expect(options.last()).toHaveAttribute('data-chosen');
   await expect(search).toBeFocused();
   assert.equal(await background(options.last()), highlighted, 'The result under the pointer has the highlight');
+  await dialogs.mouse.move(5, 5);
+  await expect(options.last()).toHaveAttribute('data-chosen');
+  // An unfiltered hover clears on leaving the list; keyboard selection remains.
+  for (const query of ['', '   ']) {
+    await search.fill(query);
+    await under(options.first());
+    await expect(options.first()).toHaveAttribute('data-chosen');
+    await dialogs.mouse.move(5, 5);
+    await expect(dialog.locator('[data-chosen]')).toHaveCount(0);
+    await expect(search).not.toHaveAttribute('aria-activedescendant');
+    await under(options.first());
+    await search.press('ArrowDown');
+    await dialogs.mouse.move(5, 5);
+    await expect(options.first()).toHaveAttribute('data-chosen');
+  }
+  await search.fill('');
+  await search.press('Tab');
+  await under(options.first());
+  await dialogs.mouse.move(5, 5);
+  await expect(options.first()).toBeFocused();
+  await expect(options.first()).toHaveAttribute('data-chosen');
+  await dialogs.keyboard.press('End');
+  await expect(options.first()).toHaveAttribute('data-chosen');
   // With focus in the results, focus follows the pointer, and its ring shows only once a key is pressed.
   await dialogs.mouse.move(5, 5);
   await search.fill('');

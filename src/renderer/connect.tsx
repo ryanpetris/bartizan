@@ -191,6 +191,9 @@ function ConnectDialog() {
             // The pointer hides the focus ring until a key is pressed.
             data-pointing={pointing || undefined}
             onPointerDown={() => setPointing(true)}
+            onPointerLeave={() => {
+              if (pointing && !query.trim() && !list.current!.contains(list.current!.ownerDocument.activeElement)) setCurrent(undefined);
+            }}
             onPointerMove={(event) => {
               // Rows that appear under a still pointer get a move with no movement; only a moving pointer chooses.
               if (!event.movementX && !event.movementY) return;
