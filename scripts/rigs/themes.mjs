@@ -83,6 +83,12 @@ await withDirectory('themes', async (directory, cleanup) => {
     await expect(page.locator('.home-view').getByRole('combobox', { name: 'Connect', exact: true })).toBeFocused();
     await expect(page.locator('.rail-panel, .tabs-tier, .console-windows:not([hidden])')).toHaveCount(0);
     await expect(page.locator('h1#home-title')).toBeVisible();
+    await expect(page.locator('.connect-tile .identicon')).toBeVisible();
+    const profilePattern = await page.locator('.connect-tile .identicon').innerHTML();
+    const badgeIcon = chip.locator('.identicon');
+    assert.equal(await badgeIcon.innerHTML(), profilePattern, `${id}: the badge matches the profile icon`);
+    if (id === 'rail') await expect(badgeIcon).toBeVisible();
+    else await expect(badgeIcon).toBeHidden();
     assert.equal(await page.evaluate(() => document.title), 'Bartizan', `${id}: the window is titled for the home page`);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight), true, `${id}: the home page fits the window`);
     await chip.click();

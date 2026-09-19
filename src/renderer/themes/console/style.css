@@ -299,7 +299,7 @@
   .connection-chip { position: relative; display: flex; flex: none; }
   .connection-chip .connection-titles { flex-direction: row; align-items: center; height: 100%; padding: 0 10px 0 var(--console-inset); }
   .connection-chip .connection-titles:hover { background: var(--console-hover); }
-  .connection-chip .connection-initials { display: none; }
+  .connection-chip .identicon { display: none; }
   .connection-chip .connection-name { gap: 7px; }
   .connection-chip .connection-label { max-width: calc(24ch + 1px); color: inherit; font-weight: 400; }
   .connection-chip[data-status="closed"] .connection-titles { color: var(--text-faint); }
@@ -395,7 +395,7 @@
   .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] .status-dot { background: currentColor; }
   .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] .connect-edit:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
   .connect-tile { width: 3ch; height: 36px; background: none; color: var(--accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0; }
-  /* Status stands in the gap after the initials. */
+  /* Status stands in the gap after the profile icon. */
   .connect-tile .status-dot { top: calc(50% - 3.5px); right: calc(-0.75ch - 3.5px); bottom: auto; width: 7px; height: 7px; border: 0; }
   .connect-edit { right: 1ch; }
 

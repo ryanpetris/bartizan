@@ -33,6 +33,7 @@ import { openMenu, type MenuItem } from './menu';
 import { faviconOf, dropFavicon } from './tab-state';
 import { hasCurrent } from './errors';
 import { openDetails } from './details';
+import { Identicon } from './identicon';
 
 const actionsStyle = (count: number) => ({ '--actions': count }) as CSSProperties;
 /** The unit being dragged, and the unit marked where it would land with the key it would land before. */
@@ -444,9 +445,6 @@ export function ConnectionName({ connection }: { connection: Group['connection']
     </span>
   );
 }
-/** The first letters of a label's first two words, for a connection shown without its label. */
-export const initials = (label: string) =>
-  (label.match(/[\p{L}\p{N}]+/gu) ?? [label]).slice(0, 2).map((word) => [...word][0]!.toUpperCase()).join('') || '?';
 /**
  * Every connection as a compact button, for themes that list a connection's items elsewhere. Choosing one returns to
  * what it last showed. Its menu holds the commands of a connection's entry. `current` is the connection in view.
@@ -486,9 +484,7 @@ export function ConnectionChips({ current }: { current?: string }) {
               aria-current={current === id ? 'true' : undefined}
               onClick={() => revisit(id)}
             >
-              <span className="connection-initials" aria-hidden="true">
-                {initials(connection.label)}
-              </span>
+              <Identicon seed={connection.profileId ?? JSON.stringify([connection.host, connection.username ?? ''])} />
               <ConnectionName connection={connection} />
             </button>
           </li>

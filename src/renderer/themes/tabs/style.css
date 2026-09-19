@@ -182,7 +182,7 @@
 :root[data-theme="tabs"] .connection-chip .connection-titles:hover { background: var(--hover); }
 :root[data-theme="tabs"] .connection-chip .connection-titles[aria-current="true"] { border-color: var(--border-strong); background: var(--control); box-shadow: var(--raised-shadow); }
 :root[data-theme="tabs"] .connection-chip .connection-titles:focus-visible { outline-offset: -1px; }
-:root[data-theme="tabs"] .connection-initials { display: none; }
+:root[data-theme="tabs"] .connection-chip .identicon { display: none; }
 :root[data-theme="tabs"] .connection-chip .connection-name { gap: 7px; }
 :root[data-theme="tabs"] .connection-chip .connection-label { color: var(--text-muted); font-size: 12.5px; font-weight: 500; }
 :root[data-theme="tabs"] .connection-chip .connection-titles:is(:hover, [aria-current="true"]) .connection-label { color: var(--text-strong); }

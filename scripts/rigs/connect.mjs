@@ -34,6 +34,16 @@ await withDirectory('connect', async (directory, cleanup) => {
   await expect(options).toHaveCount(1);
   await expect(options.first()).toContainText('IPv6 profile');
   await expect(options.first()).toHaveAttribute('aria-selected', 'false');
+  const profileIcon = options.first().locator('.identicon');
+  await expect(profileIcon).toBeVisible();
+  const profilePattern = await profileIcon.innerHTML();
+  await writeFile(config, source.replace('IPv6 profile', 'Renamed profile'));
+  await api('reloadConfig');
+  await expect(options.first()).toContainText('Renamed profile');
+  assert.equal(await profileIcon.innerHTML(), profilePattern, 'A display name change keeps the profile icon');
+  await writeFile(config, source);
+  await api('reloadConfig');
+  await expect(options.first()).toContainText('IPv6 profile');
   const checkHome = async width => {
     const field = await search.boundingBox(), list = await results.boundingBox(), row = await options.first().boundingBox(), rail = await page.locator('.rail').boundingBox();
     assert.ok(field.x >= rail.x + rail.width, 'Connect sits on the home page beside the rail');
@@ -117,9 +127,19 @@ await withDirectory('connect', async (directory, cleanup) => {
   console.log('At home, Connect lists its results below it, aligned and inside the window, at two window sizes; profiles are listed before the destination.');
 
   // A connection made through the interface is shown; one made through the API is chosen from the rail.
+  const directPatterns = new Map();
   const verify = async (host, profileId, username, { choose = false } = {}) => {
     const state = await waitState(s => s.connections.length === 1 && s.terminals[0]?.status === 'connected', `connection to ${host}`);
     const [connection] = state.connections, [terminal] = state.terminals;
+    const icon = page.locator(`.connection-chip[data-id="${connection.id}"] .identicon`);
+    await expect(icon).toBeVisible();
+    const pattern = await icon.innerHTML();
+    if (profileId) assert.equal(pattern, profilePattern, 'The profile list and connected badge share an icon');
+    else {
+      const target = JSON.stringify([host, username]);
+      if (directPatterns.has(target)) assert.equal(pattern, directPatterns.get(target), 'A direct connection keeps its icon across sessions');
+      directPatterns.set(target, pattern);
+    }
     assert.deepEqual({ host: connection.host, profileId: connection.profileId, username: connection.username }, { host, profileId, username });
     await expect(page.locator('#connection-dialog')).toBeHidden();
     if (choose) await page.locator(`.connection-chip[data-id="${connection.id}"] .connection-titles`).click();

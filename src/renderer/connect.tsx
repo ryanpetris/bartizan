@@ -6,7 +6,7 @@ import { Icon, IconButton, Tags } from './ui';
 import { api, run, matchProfiles, focusConnection, store, profileName, profileEndpoint, activeConnection } from './store';
 import { connectProfile, openConnection } from './connection-form';
 import { ProfileSummary, profileDescription } from './profiles';
-import { initials } from './nav';
+import { Identicon } from './identicon';
 
 type Destination = NonNullable<ReturnType<typeof parseDestination>>;
 type Result = { kind: 'profile'; profile: Profile } | { kind: 'destination'; destination: Destination };
@@ -28,14 +28,14 @@ const optionId = (result: Result) =>
   result.kind === 'profile' ? `connect-profile-${result.profile.id}` : 'connect-destination';
 const target = ({ host, username }: Destination) => (username ? `${username}@${host}` : host);
 
-/** A profile as a row of the listed results: its initials and status, its name and tags over its endpoint, and Edit. */
+/** A profile row with its identicon and status, its name and tags over its endpoint, and Edit. */
 function ListedProfile({ profile }: { profile: Profile }) {
   const active = activeConnection(profile.id),
     name = profileName(profile);
   return (
     <>
       <span className="connect-tile" aria-hidden="true">
-        {initials(name)}
+        <Identicon seed={profile.id} />
         <span className="status-dot" hidden={!active} data-status={active?.status} />
       </span>
       <span className="profile-titles">
