@@ -5,19 +5,8 @@ import { once } from 'node:events';
 import { access, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { withDirectory, launch, modalOf } from './lib/harness.mjs';
-
-async function openProfiles(page) {
-  await page.getByRole('button', { name: 'Profiles', exact: true }).click();
-  const dialog = (await modalOf(page)).locator('#profiles-dialog');
-  await expect(dialog).toBeVisible();
-  return dialog;
-}
-async function closeProfiles(page) {
-  const dialog = (await modalOf(page)).locator('#profiles-dialog');
-  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(dialog).toBeHidden();
-}
+import { withDirectory, launch } from './lib/harness.mjs';
+import { openConnect, closeConnect } from './lib/profile-launch.mjs';
 
 await withDirectory('config', async (directory, cleanup) => {
   const data = join(directory, 'state');
@@ -42,17 +31,17 @@ await withDirectory('config', async (directory, cleanup) => {
   let { page, state, waitState } = await start();
   assert.equal((await state()).file, file);
   assert.equal(await readFile(file, 'utf8'), 'version: 1\n');
-  let dialog = await openProfiles(page);
+  let dialog = await openConnect(page);
   await expect(dialog).toContainText('No Profiles');
   assert.doesNotMatch(await dialog.innerText(), /config\.yaml/);
-  await closeProfiles(page);
+  await closeConnect(page);
   await saveProfile('fixture', file);
   assert.equal(parse(await readFile(file, 'utf8')).profiles.fixture.host, 'example.invalid');
   console.log('The first launch creates the default configuration, and profiles save to it.');
 
   const source = 'version: 1\ndefaults:\n  port: 2201\nprofiles:\n  fixture:\n    host: example.invalid\n';
   await writeFile(file, source);
-  dialog = await openProfiles(page);
+  dialog = await openConnect(page);
   const reload = dialog.getByRole('button', { name: 'Reload Configuration', exact: true });
   await reload.click();
   await waitState(s => s.defaults.port === 2201, 'reloaded defaults');
@@ -66,7 +55,7 @@ await withDirectory('config', async (directory, cleanup) => {
   await reload.click();
   await expect(dialog.getByRole('alert')).toBeHidden();
   await waitState(s => !s.configError, 'recovered configuration');
-  await closeProfiles(page);
+  await closeConnect(page);
   console.log('Reloading applies a changed configuration and keeps the last valid one when the file is malformed.');
 
   const executable = await app.application.evaluate(({ app }) => ({ path: process.execPath, args: app.isPackaged ? [] : [app.getAppPath()] }));

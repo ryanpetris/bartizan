@@ -356,32 +356,12 @@
   .empty-mark { width: auto; height: auto; background: none; color: var(--border-strong); }
   .empty-mark .icon { width: 48px; height: 48px; stroke-width: 1; }
 
-  /* Home: the brand's outline over its name, a prompt, and the profiles as a menu whose chosen row is in inverse video. */
-  .home-brand { gap: 10px; margin-bottom: 32px; }
+  /* Home: the brand's outline over its name. */
+  .home-brand { gap: 10px; }
   .home-brand .brand-mark { width: 56px; height: 56px; }
   .home-brand .brand-mark rect { fill: transparent; }
   .home-brand .brand-mark path { fill: none; stroke: var(--accent-text); stroke-width: 1.5px; }
   .home-title { color: var(--accent-text); font-size: 14px; font-weight: 700; line-height: 20px; letter-spacing: 0; text-transform: lowercase; }
-  .home-head { margin-bottom: 8px; }
-  .home-heading { color: var(--accent-text); font-size: 12px; font-weight: 700; }
-  .home-heading::before { content: "# " / ""; color: var(--text-faint); font-weight: 400; }
-  /* Connect is a prompt. */
-  .connect .icon { display: none; }
-  .connect::before { content: ">" / ""; position: absolute; top: 0; bottom: 0; left: 1.5ch; display: flex; align-items: center; color: var(--accent-text); font-weight: 700; pointer-events: none; }
-  .connect-input { height: 30px; padding: 0 1ch 0 4ch; border: 1px solid var(--border-control); border-radius: 0; background: var(--field); }
-  .connect-input:focus { border-color: var(--focus); box-shadow: none; }
-  .connect-list { --connect-row: 44px; --connect-gap: 0px; margin-top: 8px; }
-  .connect-list .connect-option { gap: 1.5ch; padding: 0 5ch 0 1ch; }
-  .connect-list .connect-option:hover { background: var(--console-hover); }
-  .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
-  .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] :is(.connect-tile, .profile-label, .profile-endpoint, .connect-target, .icon, .connect-edit) { color: inherit; }
-  .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] .tag { background: transparent; box-shadow: inset 0 0 0 1px currentColor; color: inherit; }
-  .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] .status-dot { background: currentColor; }
-  .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] .connect-edit:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
-  .connect-tile { width: 3ch; height: 36px; background: none; color: var(--accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0; }
-  /* Status stands in the gap after the profile icon. */
-  .connect-tile .status-dot { top: calc(50% - 3.5px); right: calc(-0.75ch - 3.5px); bottom: auto; width: 7px; height: 7px; border: 0; }
-  .connect-edit { right: 1ch; }
 
   /* Errors */
   .error-toaster[data-sonner-toaster][data-sonner-theme] { --border-radius: 0px; font-family: var(--font-mono); }
@@ -399,7 +379,7 @@
   dialog { bottom: var(--console-bottom); max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 24px); }
   dialog::backdrop { background: var(--console-backdrop); }
   .form-dialog { height: min(700px, calc(100vh - var(--chrome-top) - var(--console-bottom) - 24px)); max-height: none; }
-  .details, .settings, .profiles, .errors { max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 26px); }
+  .details, .settings, .connect, .errors { max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 26px); }
   .dialog-icon { width: 26px; height: 26px; border: 1px solid var(--border-strong); border-radius: 0; background: transparent; }
   .dialog-icon.warning { border-color: var(--warn); background: transparent; }
   .dialog-icon.session-badge { border-color: var(--session-color); background: transparent; }
@@ -410,8 +390,8 @@
   .dialog-form { gap: 12px; padding: 16px; }
   .prompt { padding: 8px 10px; }
   .facts { gap: 6px 2ch; padding: 10px 12px; }
-  .connection-form > .dialog-header, .details > .dialog-header, .settings > .dialog-header, .profiles > .dialog-header, .errors > .dialog-header { align-items: center; padding: 10px 16px; }
-  .connection-form > .dialog-actions, .details > .dialog-actions, .settings > .dialog-actions, .profiles > .dialog-actions, .errors > .dialog-actions { padding: 10px 16px; }
+  .connection-form > .dialog-header, .details > .dialog-header, .settings > .dialog-header, .connect > .dialog-header, .errors > .dialog-header { align-items: center; padding: 10px 16px; }
+  .connection-form > .dialog-actions, .details > .dialog-actions, .settings > .dialog-actions, .connect > .dialog-actions, .errors > .dialog-actions { padding: 10px 16px; }
   .form-layout { grid-template-columns: 22ch minmax(0, 1fr); }
   .section-nav { gap: 0; padding: 8px 0; }
   .section-tab { min-height: 26px; padding: 0 1.5ch; }
@@ -438,13 +418,24 @@
   .details-list { margin-top: 0; border-top: 0; }
   .details-list dt, .details-list dd { padding: 5px 0; }
   .details-row:last-child > * { border-bottom: 0; }
-  .profiles > .dialog-header { padding-right: 12px; }
-  .profiles-search { margin: 10px 16px 0; }
-  .profiles-search .icon { left: 8px; width: 14px; height: 14px; }
-  .profiles-search .input { padding-left: 29px; }
-  .profiles-body { padding: 8px 16px 14px; }
-  .profile-list { gap: 0; }
-  .profile-item { padding: 4px 8px; }
+  .connect > .dialog-header { padding-right: 12px; }
+  .connect-search { margin: 10px 16px 0; }
+  .connect-search .icon { left: 8px; width: 14px; height: 14px; }
+  .connect-search .input { padding-left: 29px; }
+  .connect-body { padding: 8px 16px 14px; }
+  .connect-list { gap: 0; }
+  :is(.profile-item, .destination-item) { gap: 1.5ch; padding: 4px 1ch; }
+  /* A profile's identicon stands bare, with its status in the gap after it. */
+  .connect-tile { width: 3ch; height: 36px; background: none; color: var(--accent-text); }
+  .connect-tile .status-dot { top: calc(50% - 3.5px); right: calc(-0.75ch - 3.5px); bottom: auto; width: 7px; height: 7px; border: 0; }
+  .destination-item .connect-tile { border: 0; color: var(--text-faint); }
+  /* The chosen result is in inverse video. */
+  .connect:has(.connect-search .input:focus) [data-chosen] { background: var(--accent); color: var(--on-accent); }
+  .connect:has(.connect-search .input:focus) [data-chosen] :is(.connect-tile, .profile-label, .profile-endpoint, .destination-label, .destination-target) { color: inherit; }
+  .connect:has(.connect-search .input:focus) [data-chosen] .tag { background: transparent; box-shadow: inset 0 0 0 1px currentColor; color: inherit; }
+  .connect:has(.connect-search .input:focus) [data-chosen] .status-dot { background: currentColor; }
+  .connect:has(.connect-search .input:focus) .row:has(> [data-chosen]) .profile-edit { color: var(--on-accent); }
+  .connect:has(.connect-search .input:focus) .row:has(> [data-chosen]) .profile-edit:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
   .errors h3 { margin: 10px 16px 2px; }
   .error-row { padding: 6px 16px; }
   .theme-option { gap: 5px; padding: 6px 6px 5px; font-size: 11px; font-weight: 400; }

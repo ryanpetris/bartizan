@@ -38,7 +38,7 @@ You need OpenSSH and a working Chromium sandbox. See the [installation guide](do
 
 ## Get Connected
 
-Open **New Connection**, enter your SSH details and connect. Use the connection's add menu for more terminals or a browser session. Each browser session can hold several tabs, and its traffic goes through that connection.
+Open **New Connection**, choose **New Profile**, enter your SSH details and connect. Use the connection's add menu for more terminals or a browser session. Each browser session can hold several tabs, and its traffic goes through that connection.
 
 Save a profile to connect again from Connect. Profiles can also inherit shared defaults in a [YAML configuration file](docs/configuration.md).
 

@@ -15,12 +15,12 @@ OpenSSH must be installed. Chromium's sandbox needs working user namespaces, or 
 
 ## First Connection
 
-1. Open Bartizan and choose **New Connection** on the rail.
+1. Open Bartizan, choose **New Connection**, then **New Profile**.
 2. Enter the host, username and authentication details. Connect once, or save a profile to use again.
 3. Check the host key fingerprint when prompted, then accept it if it matches the server's key.
 4. Use the connection's add menu to open more terminals or a browser session.
 
-You can also type a hostname or `user@host` into Connect for a one-off connection using your configured defaults. Saved profiles appear in the same search.
+You can also type a hostname or `user@host` into the search in Connect for a one-off connection using your configured defaults. Saved profiles appear in the same search.
 
 Bartizan uses its own SSH settings and trust store. It does not read your existing SSH configuration. Add connection details in the app or in the [configuration file](configuration.md).
 

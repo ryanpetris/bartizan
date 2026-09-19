@@ -82,9 +82,9 @@ await withDirectory('fonts', async (directory, cleanup) => {
   await settings.getByRole('button', { name: 'Close', exact: true }).click();
   await expect.poll(() => page.locator('body').evaluate(e => getComputedStyle(e).fontFamily)).toMatch(/Bartizan Inter/);
 
-  await page.getByRole('button', { name: 'Profiles', exact: true }).click();
+  await page.getByRole('button', { name: 'New Connection', exact: true }).click();
   const dialogs = settings.page();
-  await dialogs.locator('#profiles-dialog .profile-row[data-id="alpha"] .profile-edit').click();
+  await dialogs.locator('#connect-dialog .profile-row[data-id="alpha"] .profile-edit').click();
   const form = dialogs.locator('#connection-dialog');
   await form.getByRole('tab', { name: /^Terminal/ }).click();
   await expect(form.locator('[name="terminal.font"] option:checked')).toHaveText('System Default');

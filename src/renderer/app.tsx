@@ -29,19 +29,19 @@ import { activeTheme } from './themes';
 import { windowTitle } from './chrome';
 import { Challenges } from './challenges';
 import { Settings } from './settings';
-import { ModalLayer, Modal, modalReady } from './overlay';
-import * as connect from './connect';
-import { Profiles } from './profiles';
+import { ModalLayer, Modal } from './overlay';
+import { Connect, openConnect } from './connect';
 import { Details } from './details';
 import { Quit, openQuit } from './quit';
 import { Home } from './home';
 import { Icon } from './ui';
 import { chooseMenuItem } from './menu';
-import { ConnectionForm, openConnection } from './connection-form';
+import { ConnectionForm } from './connection-form';
 import { onDialogChange, onRefocusView } from './dialogs';
+// With nothing selected, Home is current and takes the focus.
 const refocus = () => {
   if (store.selection) focusView();
-  else connect.focus();
+  else document.querySelector<HTMLElement>('.home-button')?.focus();
 };
 // Interface drawn over the pages gives way to a dialog.
 onDialogChange(render);
@@ -146,10 +146,6 @@ function App() {
   useLayoutEffect(() => {
     document.title = windowTitle();
   });
-  const ready = loaded && modalReady();
-  useLayoutEffect(() => {
-    if (ready && !dialogOpen() && document.activeElement === document.body) connect.focus();
-  }, [ready]);
   useLayoutEffect(() => {
     const unsubscribe = api.onEvent((event) => {
       switch (event.type) {
@@ -175,7 +171,7 @@ function App() {
           break;
         case 'browser-shortcut':
           if (store.selection?.kind !== 'browser' || store.selection.id !== event.id || dialogOpen()) break;
-          if (event.action === 'new-connection') openConnection();
+          if (event.action === 'new-connection') openConnect();
           else browser.shortcut(event.action);
           break;
         case 'confirm-quit':
@@ -195,7 +191,7 @@ function App() {
       if (shortcut === 'new-connection') {
         event.preventDefault();
         event.stopPropagation();
-        if (!dialogOpen()) openConnection();
+        if (!dialogOpen()) openConnect();
       } else if (shortcut && store.selection?.kind === 'browser' && !dialogOpen()) {
         event.preventDefault();
         event.stopPropagation();
@@ -231,7 +227,7 @@ function App() {
           <Challenges />
           <Details />
           <Settings />
-          <Profiles />
+          <Connect />
           <errors.Errors />
           <Quit />
         </Modal>

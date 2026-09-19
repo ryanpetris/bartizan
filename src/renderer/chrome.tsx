@@ -3,9 +3,8 @@ import { browserSessionName } from '../shared';
 import { Icon, IconButton, colorStyle } from './ui';
 import { store, select, connectionOf, terminalName, sessionColor, statusText, openTerminal, openBrowserTab, reconnect } from './store';
 import { openSettings } from './settings';
-import { openProfiles } from './profiles';
+import { openConnect } from './connect';
 import { openDetails } from './details';
-import { openConnection } from './connection-form';
 
 /** What is in view: the selected terminal or browser session, the connection that owns it, and the item whose status describes it. */
 export function viewContext() {
@@ -104,13 +103,8 @@ export function ContextActions() {
   );
 }
 export function AppActions() {
-  return (
-    <>
-      <IconButton icon="profiles" label="Profiles" aria-haspopup="dialog" onClick={openProfiles} />
-      <IconButton icon="settings" label="Settings" aria-haspopup="dialog" onClick={openSettings} />
-    </>
-  );
+  return <IconButton icon="settings" label="Settings" aria-haspopup="dialog" onClick={openSettings} />;
 }
 export function NewConnectionButton() {
-  return <IconButton icon="plus" label="New Connection" aria-haspopup="dialog" onClick={() => openConnection()} />;
+  return <IconButton icon="plus" label="New Connection" aria-haspopup="dialog" onClick={openConnect} />;
 }

@@ -313,23 +313,19 @@
 :root[data-theme="rail"] .tab-items .nav-item[aria-current="page"]::before { content: ""; top: 3px; bottom: 3px; left: -9px; }
 :root[data-theme="rail"] .favicon { border-radius: 4px; }
 
-/* Connect is a well. */
-:root[data-theme="rail"] .connect-input { height: 38px; padding-left: 33px; border-color: var(--border-field); border-radius: var(--field-radius); background: var(--field); }
-:root[data-theme="rail"] .connect-input:hover:not(:focus) { border-color: var(--border-field-hover); }
-:root[data-theme="rail"] .connect .icon { left: 10px; }
-
 @supports (corner-shape: squircle) {
   :root[data-theme="rail"] :is(.connection-chip > .connection-titles, .rail-new .icon-button, .home-button) { border-radius: 20px; corner-shape: squircle; }
   :root[data-theme="rail"] :is(.connection-chip > .connection-titles, .home-button):focus-visible::after { border-radius: 26px; corner-shape: squircle; }
   :root[data-theme="rail"] .empty-mark { border-radius: 28px; corner-shape: squircle; }
-  :root[data-theme="rail"] .connect-tile { border-radius: 18px; corner-shape: squircle; }
+  :root[data-theme="rail"] .connect-tile { corner-shape: squircle; }
 }
-:root[data-theme="rail"] .connect-input:focus { border-color: var(--focus); }
 
-/* Home: the rows are badges beside their names, and the bar over the view draws no rule. */
+/* Home: the bar over the view draws no rule, so it reads as part of the page, and the brand centres on both. */
 :root[data-theme="rail"] #app:not(:has(> .rail-panel)) > .rail-topbar { border-bottom-color: transparent; }
-:root[data-theme="rail"] .connect-tile { border-radius: 12px; background: var(--badge); box-shadow: var(--badge-shadow); color: var(--badge-text); }
-:root[data-theme="rail"] .connect-list .connect-option { border-radius: 12px; }
+:root[data-theme="rail"] .home-view { padding-bottom: var(--chrome-top); }
+/* Connect */
+:root[data-theme="rail"] .connect-tile { border-radius: 12px; }
+:root[data-theme="rail"] :is(.profile-item, .destination-item) { border-radius: 12px; }
 
 /* The bar over the view: what it shows on the left, the connection's commands beside the window controls. */
 :root[data-theme="rail"] .rail-topbar {

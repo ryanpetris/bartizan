@@ -50,11 +50,11 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   const { application, page, api, state, waitState, errors } = app;
   const profiles = async () => parse(await readFile(config, 'utf8')).profiles;
   const dialogs = await app.modal();
-  const dialog = dialogs.locator('#profiles-dialog');
-  const search = dialog.getByRole('textbox', { name: 'Search Profiles' });
+  const dialog = dialogs.locator('#connect-dialog');
+  const search = dialog.getByRole('textbox', { name: 'Profile or Host', exact: true });
   const rows = dialog.locator('.profile-item');
-  const profilesButton = page.getByRole('button', { name: 'Profiles', exact: true });
-  const openProfiles = async () => { await profilesButton.click(); await expect(search).toBeFocused(); };
+  const add = page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true });
+  const openConnect = async () => { await add.click(); await expect(search).toBeFocused(); };
   const form = dialogs.locator('#connection-dialog');
   const notice = form.locator('.form-notice');
   const button = name => form.getByRole('button', { name, exact: true });
@@ -65,23 +65,28 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
     await expect(form.locator(`[name="${name}"]`)).toBeFocused();
   };
   const edit = async id => {
-    await profilesButton.click();
+    await add.click();
     await dialog.locator(`.profile-row[data-id="${id}"] .profile-edit`).click();
     await expect(form).toBeVisible();
   };
-  const newConnection = async () => {
-    await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
+  const newProfile = async () => {
+    await add.click();
+    await dialog.getByRole('button', { name: 'New Profile', exact: true }).click();
     await expect(form).toBeVisible();
   };
 
-  await openProfiles();
+  await openConnect();
   await expect(rows).toHaveCount(153);
+  // Each search shows its results from the top, where the chosen one is.
+  await dialog.locator('.connect-body').evaluate(node => { node.scrollTop = node.scrollHeight; });
+  await search.fill('item');
+  await expect(dialog.locator('[data-chosen]')).toBeInViewport();
   for (const [query, id] of [['ALPHA', 'alpha'], ['database', 'alpha'], ['template-user', 'incomplete'], ['127.0.0.1', 'beta'], ['item-149', 'item-149']]) {
     await search.fill(query);
     await expect(rows).toHaveCount(1);
     await expect(rows).toHaveAttribute('data-id', id);
   }
-  await search.fill('new-destination.invalid');
+  await search.fill('no such profile');
   await expect(rows).toHaveCount(0);
   await expect(dialog.getByText('No Results Found', { exact: true })).toBeVisible();
   await search.press('Enter');
@@ -105,16 +110,16 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await expect(form).toBeVisible();
   await button('Cancel').click();
   assert.deepEqual((await state()).connections, []);
-  console.log('Profiles search matches labels, IDs, tags, usernames and endpoints; arrows, Home, End and Tab move through the results, and Edit opens the form without connecting.');
+  console.log('Connect search matches labels, IDs, tags, usernames and endpoints; arrows, Home, End and Tab move through the results, and Edit opens the form without connecting.');
 
-  await openProfiles();
+  await openConnect();
   await search.fill('template-user');
   await search.press('ArrowDown');
   await writeFile(config, catalog(false));
   await api('reloadConfig');
-  await expect(dialog.getByRole('button', { name: 'New Connection', exact: true })).toBeFocused();
+  await expect(dialog.locator('.destination-item')).toBeFocused();
   await expect(search).toHaveValue('template-user');
-  await expect(dialog.getByText('No Results Found', { exact: true })).toBeVisible();
+  await expect(rows).toHaveCount(0);
   await search.fill('node');
   await api('reloadConfig');
   await expect(search).toBeFocused();
@@ -122,8 +127,8 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await search.press('Escape');
   await search.press('Escape');
   await expect(dialog).toBeHidden();
-  await expect(profilesButton).toBeFocused();
-  await openProfiles();
+  await expect(add).toBeFocused();
+  await openConnect();
   await search.fill('beta');
   await search.press('Enter');
   await expect(dialog).toBeHidden();
@@ -223,8 +228,8 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await button('Cancel').click();
   console.log('A configuration changed on disk after the form opened is not overwritten.');
 
-  await newConnection();
-  await expect(form.locator('#connection-title')).toHaveText('New Connection');
+  await newProfile();
+  await expect(form.locator('#connection-title')).toHaveText('New Profile');
   for (const name of ['Save', 'Save and Connect', 'Connect']) await expect(button(name)).toBeVisible();
   await form.locator('#field-profile-id').fill('template');
   await form.locator('[name="label"]').fill('Template');
@@ -232,10 +237,10 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await expect(form).toBeHidden();
   assert.deepEqual((await profiles()).template, { label: 'Template' });
   assert.equal((await state()).connections.length, 1);
-  await profilesButton.click();
+  await add.click();
   await expect(dialog.locator('.profile-row[data-id="template"]')).toBeVisible();
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-  await newConnection();
+  await newProfile();
   await form.locator('[name="label"]').fill('Gamma Server');
   await expect(form.locator('#field-profile-id')).toHaveAttribute('placeholder', 'gamma-server');
   await form.locator('[name="host"]').fill('127.0.0.1');
@@ -243,7 +248,7 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await expect(form).toBeHidden();
   await waitState(s => s.connections.some(c => c.profileId === 'gamma-server' && c.status === 'connected'), 'gamma connected');
   assert.deepEqual((await profiles())['gamma-server'], { label: 'Gamma Server', host: '127.0.0.1' });
-  await newConnection();
+  await newProfile();
   await form.locator('#field-profile-id').fill('broken');
   await form.locator('[name="host"]').fill('127.0.0.1');
   await section('Algorithms');
@@ -269,12 +274,12 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
       return id;
     });
   });
-  await newConnection();
+  await newProfile();
   await form.locator('[name="host"]').fill('127.0.0.1');
   await button('Connect').click();
   await button('Cancel').click();
   await expect(form).toBeHidden();
-  await newConnection();
+  await newProfile();
   await expect(form.locator('[name="host"]')).toHaveValue('');
   await expect.poll(() => application.evaluate(() => globalThis.rigLate.done)).toBe(true);
   await page.waitForTimeout(300);
@@ -283,7 +288,7 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await application.evaluate(({ ipcMain }) => ipcMain._invokeHandlers.set('request', globalThis.rigLate.connect));
   await waitState(s => s.connections.some(c => !c.profileId && c.status === 'connected'), 'unsaved connection');
   const port = form.locator('[name="port"]');
-  await newConnection();
+  await newProfile();
   await form.locator('[name="host"]').fill('127.0.0.1');
   await port.fill('2');
   await port.press('e');
@@ -298,7 +303,7 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
 
   await writeFile(config, 'version: 1\n');
   await api('reloadConfig');
-  await openProfiles();
+  await openConnect();
   await expect(dialog.getByText('No Profiles', { exact: true })).toBeVisible();
   assert.deepEqual(errors, []);
   console.log('An empty configuration shows No Profiles.');
