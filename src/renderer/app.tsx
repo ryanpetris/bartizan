@@ -41,17 +41,8 @@ const refocus = () => {
   else connect.focus();
 };
 onDialogChange(() => {
-  if (dialogOpen()) connect.close();
   browser.syncNativeView();
   // Interface drawn over the pages gives way to a dialog.
-  render();
-});
-// Connect reports on every render; interface drawn over the pages renders again only when the results open or close.
-let resultsShown = false;
-connect.onToggle(() => {
-  browser.syncNativeView();
-  if (resultsShown === connect.resultsOpen()) return;
-  resultsShown = connect.resultsOpen();
   render();
 });
 onRefocusView(refocus);

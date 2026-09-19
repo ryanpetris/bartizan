@@ -48,15 +48,14 @@ await withDirectory('fonts', async (directory, cleanup) => {
   const explicit = await waitFor(() => size(override), 'override terminal size');
   const inherited = await openTerminal('beta');
   await show(inherited);
-  const connect = page.getByRole('combobox', { name: 'Connect', exact: true });
-  await connect.fill('typing-during-font-load');
+  // Focus moved elsewhere while a terminal waits for its font stays there once the terminal opens.
+  const home = page.getByRole('button', { name: 'Home', exact: true });
+  await home.focus();
   await page.waitForTimeout(300);
   assert.equal(await size(inherited), undefined, 'A terminal opens only once its font has loaded');
   await page.evaluate(() => window.releaseRigFont());
   const bundled = await waitFor(() => size(inherited), 'inherited terminal size');
-  await expect(connect).toBeFocused();
-  await expect(connect).toHaveValue('typing-during-font-load');
-  await connect.press('Escape');
+  await expect(home).toBeFocused();
   assert.ok(explicit.cols < bundled.cols && explicit.rows < bundled.rows, 'The override terminal draws larger cells');
   await page.waitForFunction(() => {
     const faces = [...document.fonts].filter(face => face.family.includes('Bartizan JetBrains Mono'));
@@ -65,7 +64,7 @@ await withDirectory('fonts', async (directory, cleanup) => {
   assert.ok(await page.evaluate(() => document.fonts.check('italic bold 13px "Bartizan JetBrains Mono"')));
   await page.waitForFunction(() => [...document.fonts].some(face => face.family.includes('Bartizan Inter') && face.status === 'loaded'));
   assert.match(await page.locator('body').evaluate(e => getComputedStyle(e).fontFamily), /Bartizan Inter/);
-  console.log('Bundled fonts load offline; a terminal opens once its font has loaded without taking focus from typing elsewhere.');
+  console.log('Bundled fonts load offline; a terminal opens once its font has loaded without taking back focus that has moved on.');
 
   await api('settings', { terminalFontSize: 18, interfaceFont: '' });
   await expect.poll(async () => (await size(inherited)).rows).toBeLessThan(bundled.rows);

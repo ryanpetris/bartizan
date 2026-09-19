@@ -1,28 +1,15 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { createPortal } from 'react-dom';
 import type { PublicProfile as Profile } from '../core/config';
 import { parseDestination } from '../shared';
 import { Icon, IconButton, Tags } from './ui';
 import { api, run, matchProfiles, focusConnection, store, profileName, profileEndpoint, activeConnection } from './store';
 import { connectProfile, openConnection } from './connection-form';
-import { ProfileSummary, profileDescription } from './profiles';
+import { profileDescription } from './profiles';
 import { Identicon, destinationSeed } from './identicon';
 
 type Destination = NonNullable<ReturnType<typeof parseDestination>>;
 type Result = { kind: 'profile'; profile: Profile } | { kind: 'destination'; destination: Destination };
-let input: HTMLInputElement | null = null,
-  list: HTMLDivElement | null = null;
-let toggled = () => {};
-export const onToggle = (callback: () => void) => {
-  toggled = callback;
-};
-export const resultsOpen = () => Boolean(list?.matches(':popover-open'));
-export const resultsBounds = () => list?.getBoundingClientRect() ?? new DOMRect();
-export const close = () => {
-  if (!resultsOpen()) return;
-  list!.hidePopover();
-  toggled();
-};
+let input: HTMLInputElement | null = null;
 export const focus = () => input?.focus();
 const optionId = (result: Result) =>
   result.kind === 'profile' ? `connect-profile-${result.profile.id}` : 'connect-destination';
@@ -62,38 +49,31 @@ function ListedProfile({ profile }: { profile: Profile }) {
 }
 
 /**
- * The Connect field and its results: the profiles that match its text, then a direct connection when the text names a
- * destination. By default the results open over the window while the field has focus and text. `listed` shows them
- * below the field instead, every profile while the field is empty, with none chosen until the arrow keys or the pointer
- * choose one. One Connect is shown at a time.
+ * The home page's Connect field over its results: the profiles that match its text, every profile while it is empty,
+ * then a direct connection when the text names a destination. Nothing is chosen while the field is empty until the
+ * arrow keys or the pointer choose a result.
  */
-export function Connect({ listed = false }: { listed?: boolean }) {
+export function Connect() {
   const [query, setQuery] = useState(''),
-    [active, setActive] = useState(listed ? -1 : 0),
-    [dismissed, setDismissed] = useState(false);
+    [active, setActive] = useState(-1);
   const reveal = useRef(true),
     revealed = useRef<string | undefined>(undefined),
     launching = useRef(false),
     currentQuery = useRef(query);
   const destination = parseDestination(query);
-  const results: Result[] =
-    listed || query.trim()
-      ? [
-          ...matchProfiles(query).map((profile): Result => ({ kind: 'profile', profile })),
-          ...(destination ? [{ kind: 'destination' as const, destination }] : []),
-        ]
-      : [];
+  const results: Result[] = [
+    ...matchProfiles(query).map((profile): Result => ({ kind: 'profile', profile })),
+    ...(destination ? [{ kind: 'destination' as const, destination }] : []),
+  ];
   const unmatched = !results.length && !!query.trim();
-  const visible = !listed && !dismissed && (results.length > 0 || unmatched) && document.activeElement === input;
   const previous = useRef<string | undefined>(undefined);
-  /** The first result is chosen while there is text; listed results start with none. */
-  const least = (text: string) => (listed && !text.trim() ? -1 : 0);
+  /** The first result is chosen while there is text; an empty field chooses none. */
+  const least = (text: string) => (text.trim() ? 0 : -1);
   const selected = Math.max(least(query), Math.min(active, results.length - 1));
   function clear() {
     currentQuery.current = '';
     setQuery('');
-    setActive(least(''));
-    setDismissed(false);
+    setActive(-1);
   }
   function choose(result: Result) {
     if (result.kind === 'profile') {
@@ -104,7 +84,6 @@ export function Connect({ listed = false }: { listed?: boolean }) {
     if (launching.current) return;
     launching.current = true;
     const original = currentQuery.current;
-    setDismissed(true);
     void run('session', api.connect(result.destination)).then((id) => {
       launching.current = false;
       if (!id) return;
@@ -118,25 +97,12 @@ export function Connect({ listed = false }: { listed?: boolean }) {
     currentQuery.current = value;
     setQuery(value);
     setActive(least(value));
-    setDismissed(false);
   }
+  // The results scroll in a box of their own; the chosen one is brought into view only when it changes.
   useLayoutEffect(() => {
-    if (!list || !input) return;
-    // Listed results scroll in a box of their own; the chosen one is brought into view only when it changes.
-    if (listed) {
-      const id = results[selected] && optionId(results[selected]);
-      if (reveal.current && id && id !== revealed.current) document.getElementById(id)?.scrollIntoView({ block: 'nearest' });
-      revealed.current = id;
-      return;
-    }
-    if (!visible) {
-      close();
-      return;
-    }
-    if (!resultsOpen()) list.showPopover();
-    if (reveal.current && results[selected])
-      document.getElementById(optionId(results[selected]))?.scrollIntoView({ block: 'nearest' });
-    toggled();
+    const id = results[selected] && optionId(results[selected]);
+    if (reveal.current && id && id !== revealed.current) document.getElementById(id)?.scrollIntoView({ block: 'nearest' });
+    revealed.current = id;
   });
   useLayoutEffect(() => {
     const key = previous.current;
@@ -149,56 +115,6 @@ export function Connect({ listed = false }: { listed?: boolean }) {
   useLayoutEffect(() => {
     previous.current = results[selected] && optionId(results[selected]);
   });
-  useLayoutEffect(() => {
-    const dismiss = () => setDismissed(true);
-    const outside = (event: PointerEvent) => {
-      if (resultsOpen() && !list?.contains(event.target as Node) && event.target !== input) dismiss();
-    };
-    addEventListener('pointerdown', outside, true);
-    addEventListener('resize', dismiss);
-    return () => {
-      removeEventListener('pointerdown', outside, true);
-      removeEventListener('resize', dismiss);
-    };
-  }, []);
-  const options = results.map((result, index) => (
-    <div
-      key={optionId(result)}
-      className={`connect-option ${result.kind === 'profile' ? 'profile-item' : 'connect-destination'}`}
-      role="option"
-      id={optionId(result)}
-      aria-selected={index === selected}
-      aria-description={result.kind === 'profile' ? profileDescription(result.profile) : undefined}
-      aria-label={result.kind === 'destination' ? `Connect to ${target(result.destination)}` : undefined}
-      onPointerDown={(e) => e.preventDefault()}
-      onPointerMove={(event) => {
-        // Rows that appear under a still pointer get a move with no movement; only a moving pointer chooses.
-        if (!event.movementX && !event.movementY) return;
-        reveal.current = false;
-        setActive(index);
-      }}
-      onClick={() => choose(result)}
-    >
-      {result.kind === 'profile' ? (
-        listed ? (
-          <ListedProfile profile={result.profile} />
-        ) : (
-          <ProfileSummary profile={result.profile} />
-        )
-      ) : (
-        <>
-          {listed ? (
-            <span className="connect-tile" aria-hidden="true">
-              <Identicon seed={destinationSeed(result.destination.host, result.destination.username ?? store.state.defaults.username)} />
-            </span>
-          ) : (
-            <Identicon seed={destinationSeed(result.destination.host, result.destination.username ?? store.state.defaults.username)} />
-          )}
-          <span className="connect-target mono">{target(result.destination)}</span>
-        </>
-      )}
-    </div>
-  ));
   const empty = (text: string, id?: string) => (
     <div className="section-empty" id={id} role="option" aria-disabled="true" onPointerDown={(e) => e.preventDefault()}>
       {text}
@@ -218,80 +134,79 @@ export function Connect({ listed = false }: { listed?: boolean }) {
           aria-label="Connect"
           placeholder="Connect"
           aria-autocomplete="list"
-          aria-expanded={listed || visible}
+          aria-expanded
           aria-controls="connect-results"
-          aria-activedescendant={(listed || visible) && results[selected] ? optionId(results[selected]) : undefined}
+          aria-activedescendant={results[selected] ? optionId(results[selected]) : undefined}
           autoComplete="off"
           spellCheck={false}
           value={query}
           onInput={(e) => change(e.currentTarget.value)}
           onChange={() => {}}
-          onBlur={() => setDismissed(true)}
           onKeyDown={(event) => {
             if (event.nativeEvent.isComposing || event.keyCode === 229) return;
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
               reveal.current = true;
               event.preventDefault();
-              if (!listed && !resultsOpen()) {
-                setDismissed(false);
-                return;
-              }
               const last = results.length - 1,
                 down = event.key === 'ArrowDown';
               setActive(selected < 0 ? (down ? 0 : last) : Math.min(last, Math.max(0, selected + (down ? 1 : -1))));
             } else if (event.key === 'Enter') {
               event.preventDefault();
-              const result = results[listed || resultsOpen() ? selected : 0];
+              const result = results[selected];
               if (result) choose(result);
             } else if (event.key === 'Escape') {
-              if (resultsOpen()) {
-                event.preventDefault();
-                setDismissed(true);
-              } else if (query) {
+              if (query) {
                 event.preventDefault();
                 clear();
-              } else if (selected >= 0 && listed) {
+              } else if (selected >= 0) {
                 event.preventDefault();
                 setActive(-1);
               }
-            } else if (event.key === 'Tab') setDismissed(true);
+            }
           }}
         />
       </label>
-      {listed ? (
-        <div
-          ref={(node) => {
-            list = node;
-          }}
-          className="connect-list"
-          id="connect-results"
-          role="listbox"
-          aria-label="Profiles"
-          // The box keeps room for every profile and a destination, however many it shows.
-          style={{ '--connect-rows': store.state.profiles.length + 1 } as CSSProperties}
-        >
-          {options}
-          {unmatched && empty('No Results Found', 'connect-no-results')}
-          {!store.state.profiles.length && !query.trim() && empty('No Profiles')}
-        </div>
-      ) : (
-        createPortal(
+      <div
+        className="connect-list"
+        id="connect-results"
+        role="listbox"
+        aria-label="Profiles"
+        // The box keeps room for every profile and a destination, however many it shows.
+        style={{ '--connect-rows': store.state.profiles.length + 1 } as CSSProperties}
+      >
+        {results.map((result, index) => (
           <div
-            ref={(node) => {
-              list = node;
+            key={optionId(result)}
+            className={`connect-option ${result.kind === 'profile' ? 'profile-item' : 'connect-destination'}`}
+            role="option"
+            id={optionId(result)}
+            aria-selected={index === selected}
+            aria-description={result.kind === 'profile' ? profileDescription(result.profile) : undefined}
+            aria-label={result.kind === 'destination' ? `Connect to ${target(result.destination)}` : undefined}
+            onPointerDown={(e) => e.preventDefault()}
+            onPointerMove={(event) => {
+              // Rows that appear under a still pointer get a move with no movement; only a moving pointer chooses.
+              if (!event.movementX && !event.movementY) return;
+              reveal.current = false;
+              setActive(index);
             }}
-            className="connect-results"
-            id="connect-results"
-            role="listbox"
-            aria-label="Profiles"
-            popover="manual"
+            onClick={() => choose(result)}
           >
-            {options}
-            {unmatched && empty('No Results Found', 'connect-no-results')}
-          </div>,
-          document.body,
-        )
-      )}
+            {result.kind === 'profile' ? (
+              <ListedProfile profile={result.profile} />
+            ) : (
+              <>
+                <span className="connect-tile" aria-hidden="true">
+                  <Identicon seed={destinationSeed(result.destination.host, result.destination.username ?? store.state.defaults.username)} />
+                </span>
+                <span className="connect-target mono">{target(result.destination)}</span>
+              </>
+            )}
+          </div>
+        ))}
+        {unmatched && empty('No Results Found', 'connect-no-results')}
+        {!store.state.profiles.length && !query.trim() && empty('No Profiles')}
+      </div>
     </>
   );
 }

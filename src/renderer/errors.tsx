@@ -3,7 +3,6 @@ import { Toaster, toast } from 'sonner';
 import type { ErrorEntry, ErrorLog } from '../shared';
 import { Button, Icon } from './ui';
 import { api, render, run, activeManifest, dialogOpen, store } from './store';
-import { resultsOpen } from './connect';
 import { Overlay } from './overlay';
 import { openModal } from './dialogs';
 
@@ -23,7 +22,7 @@ const toastPlacement = () => {
     ? { overlay: false as const, position: 'top-right' as const, offset: { top: 64, right: 16 }, width: '356px' }
     : placement;
 };
-const obscured = () => toastPlacement().overlay && (dialogOpen() || resultsOpen());
+const obscured = () => toastPlacement().overlay && dialogOpen();
 function defer(entry: ErrorEntry) {
   pending.delete(entry.id);
   pending.set(entry.id, entry);
@@ -202,7 +201,6 @@ export function Toasts() {
         name="toasts"
         place={(size) => {
           // Below a browser session's toolbar, whose controls stay in reach, and otherwise at the top of the view.
-          if (resultsOpen()) return undefined;
           const area = document.querySelector('.browser-view:not([hidden]) .browser-body') ?? document.querySelector('.main');
           const view = area?.getBoundingClientRect();
           return view ? { x: view.right - size.width - toastInset, y: view.top, ...size } : undefined;

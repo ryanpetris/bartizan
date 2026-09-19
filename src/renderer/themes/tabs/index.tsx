@@ -3,7 +3,6 @@ import { IconButton } from '../../ui';
 import { groups, currentConnection, statusText } from '../../store';
 import { HomeButton, ContextTitle, AppActions, NewConnectionButton } from '../../chrome';
 import { NavGroup, ConnectionChips, ConnectionItems, ConnectionTools } from '../../nav';
-import { Connect } from '../../connect';
 import { ErrorsButton } from '../../errors';
 import { openDetails } from '../../details';
 import { Strip } from './strip';
@@ -11,9 +10,9 @@ import './style.css';
 
 /**
  * Two tiers across the window and no side panel. The title tier, which moves the window, holds Home and every
- * connection as a pill beside Connect and the application's commands. The tab tier holds the items of the connection
- * in view as tabs: a terminal is a tab and a browser session is a group of tabs. The end of the tab tier shows the
- * connection's status for a browser session, as a terminal's does. The home page has no tab tier; Connect joins it there.
+ * connection as a pill beside the application's commands. The tab tier holds the items of the connection in view as
+ * tabs: a terminal is a tab and a browser session is a group of tabs. The end of the tab tier shows the connection's
+ * status for a browser session, as a terminal's does. The home page has no tab tier.
  */
 function Chrome() {
   const all = groups();
@@ -35,7 +34,6 @@ function Chrome() {
         )}
         <NewConnectionButton />
         <span className="tabs-gap" />
-        {current && <Connect />}
         <ErrorsButton />
         <AppActions />
       </header>

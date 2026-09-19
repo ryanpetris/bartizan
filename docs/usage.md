@@ -4,7 +4,7 @@
 
 ## Connect and Save Profiles
 
-Bartizan opens on its home page: the Connect field over a list of your profiles. Click a profile to connect to it. The home page returns whenever nothing is selected, and **Home**, the Bartizan mark at the top of the rail, goes back to it at any time. While a connection is in view, Connect sits at the foot of its panel.
+Bartizan opens on its home page: the Connect field over a list of your profiles. Click a profile to connect to it. The home page returns whenever nothing is selected, and **Home**, the Bartizan mark at the top of the rail, goes back to it at any time.
 
 Use **New Connection** on the rail or the home page to enter a host, port and authentication settings. The form can connect without saving, save a profile, or save and connect. **Profiles** on the rail opens the saved profile list and its Edit controls; on the home page, a profile's Edit button appears when you point at it.
 

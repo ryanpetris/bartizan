@@ -52,17 +52,8 @@ await withDirectory('connect', async (directory, cleanup) => {
     assert.ok(list.x + list.width <= width, 'Connect results fit the window');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'The home page fits the window');
   };
-  const checkLayout = async width => {
-    const field = await search.boundingBox(), panel = await page.locator('.rail-panel').boundingBox(), button = await add.boundingBox();
-    assert.ok(field.y > panel.y + panel.height - 70, 'Connect sits in the panel footer');
-    assert.ok(button.x >= 0 && button.x + button.width <= panel.x, 'New Connection sits in the rail');
-    const list = await results.boundingBox();
-    assert.ok(list.y >= 0 && list.y + list.height <= field.y, 'Connect results open above the field');
-    assert.ok(Math.abs(list.x - field.x) < 2, 'Connect results align with the field');
-    assert.ok(list.x + list.width <= width, 'Connect results fit the window');
-  };
   const original = await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
-  // Connect closes its results on resize, so a resize finishes once its event has been dispatched before a frame.
+  // A resize finishes once the page has its new size and a frame has passed.
   const resize = async bounds => {
     await application.evaluate(({ BrowserWindow }, bounds) => BrowserWindow.getAllWindows()[0].setBounds(bounds), bounds);
     await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([bounds.width, bounds.height]);
@@ -144,18 +135,12 @@ await withDirectory('connect', async (directory, cleanup) => {
     assert.deepEqual({ host: connection.host, profileId: connection.profileId, username: connection.username }, { host, profileId, username });
     await expect(page.locator('#connection-dialog')).toBeHidden();
     if (choose) await page.locator(`.connection-chip[data-id="${connection.id}"] .connection-titles`).click();
-    // The terminal takes focus once it has opened in view, so Connect is used after that.
+    // The terminal comes into view with focus; New Connection stays in the rail beside the panel.
     await expect(page.locator(`[data-kind="terminal"][data-id="${terminal.id}"]`)).toHaveAttribute('aria-current', 'page');
     await expect(page.locator('.terminal-surface:not([hidden]) .xterm-helper-textarea')).toBeFocused();
     await expect(home).not.toHaveAttribute('aria-current');
-    await search.fill('::1');
-    await expect(results).toBeVisible();
-    const destinationIcon = results.locator('.connect-destination .identicon');
-    await expect(destinationIcon).toBeVisible();
-    if (!profileId && !username && host === '::1') assert.equal(await destinationIcon.innerHTML(), pattern, 'The popup shows the same destination icon');
-    await checkLayout(await page.evaluate(() => innerWidth));
-    await search.press('Escape');
-    await search.fill('');
+    const button = await add.boundingBox(), panel = await page.locator('.rail-panel').boundingBox();
+    assert.ok(button.x >= 0 && button.x + button.width <= panel.x, 'New Connection sits in the rail');
     await api('input', terminal.id, "printf 'DIRECT_%s\\n' READY\n");
     await waitFor(async () => (await output(terminal.id)).includes('DIRECT_READY'), 'terminal output');
     await api('closeTerminal', terminal.id);
@@ -170,6 +155,11 @@ await withDirectory('connect', async (directory, cleanup) => {
     await expect(page.locator('.rail-panel')).toHaveCount(0);
     await expect(home).toHaveAttribute('aria-current', 'page');
     await expect(search).toBeFocused();
+    await search.fill('::1');
+    const destinationIcon = results.locator('.connect-destination .identicon');
+    await expect(destinationIcon).toBeVisible();
+    if (!profileId && !username && host === '::1') assert.equal(await destinationIcon.innerHTML(), pattern, 'The destination row shows the same icon');
+    await search.fill('');
     await home.focus();
     await page.keyboard.press('ArrowDown');
     await expect(page.locator(`.connection-chip[data-id="${connection.id}"] .connection-titles`)).toBeFocused();

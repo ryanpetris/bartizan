@@ -74,12 +74,11 @@ await withDirectory('themes', async (directory, cleanup) => {
     await expect(dialog).toBeHidden();
     await expect.poll(() => page.evaluate(() => navigator.windowControlsOverlay.getTitlebarAreaRect().height), `${id}: the window controls take the theme's height`).toBe(theme.controls.height);
 
-    // Home shows the home page, which holds the only Connect and none of what belongs to a connection.
+    // Home shows the home page, with Connect focused and none of what belongs to a connection.
     const home = page.getByRole('button', { name: 'Home', exact: true });
     await home.click();
     await expect(page.locator('.home-view')).toBeVisible();
     await expect(home).toHaveAttribute('aria-current', 'page');
-    await expect(page.getByRole('combobox', { name: 'Connect', exact: true })).toHaveCount(1);
     await expect(page.locator('.home-view').getByRole('combobox', { name: 'Connect', exact: true })).toBeFocused();
     await expect(page.locator('.rail-panel, .tabs-tier, .console-windows:not([hidden])')).toHaveCount(0);
     await expect(page.locator('h1#home-title')).toBeVisible();
@@ -109,7 +108,6 @@ await withDirectory('themes', async (directory, cleanup) => {
 
     // Every command is on show inside the window and clear of the native window controls.
     const overlay = await page.evaluate(() => { const area = navigator.windowControlsOverlay.getTitlebarAreaRect(); return { left: area.x + area.width, height: area.height, visible: navigator.windowControlsOverlay.visible }; });
-    await expect(page.getByRole('combobox', { name: 'Connect', exact: true })).toBeVisible();
     // Tabs opens terminals and browser sessions from the connection's Add menu.
     const opening = await page.getByRole('button', { name: 'New Terminal', exact: true }).first().isVisible() ? ['New Terminal', 'New Browser Tab'] : ['Add Fixture'];
     for (const name of [...controls, ...opening]) {
@@ -173,17 +171,10 @@ await withDirectory('themes', async (directory, cleanup) => {
       await page.locator('#settings-dialog').getByRole('button', { name: 'Close', exact: true }).click();
       await expect(toasts.locator('[data-sonner-toast]')).toContainText('failure during Settings');
       await expect(toasts.locator('[data-sonner-toast]')).toContainText('×2');
-      const connect = page.getByRole('combobox', { name: 'Connect', exact: true });
-      await connect.fill('Fixture');
-      await expect(connect).toHaveAttribute('aria-expanded', 'true');
-      await page.waitForTimeout(6500);
-      await connect.press('Escape');
-      await expect(connect).toHaveAttribute('aria-expanded', 'false');
-      await expect(toasts.locator('[data-sonner-toast]')).toContainText('failure during Settings');
       await dismiss();
       await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1250, 820));
       await page.waitForFunction(() => innerWidth === 1250 && innerHeight === 820);
-      console.log('Notifications fit at 800×500 and survive Settings and Connect results for longer than their timeout.');
+      console.log('Notifications fit at 800×500 and survive Settings for longer than their timeout.');
     }
     if (id === 'console') {
       await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 500));

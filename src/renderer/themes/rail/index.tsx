@@ -2,7 +2,6 @@ import { useLayoutEffect, useRef } from 'react';
 import type { Theme } from '..';
 import { HomeButton, ContextTitle, ContextActions, AppActions, NewConnectionButton } from '../../chrome';
 import { NavGroup, ConnectionChips, ConnectionItems, ConnectionName, ConnectionTools } from '../../nav';
-import { Connect } from '../../connect';
 import { ErrorsButton } from '../../errors';
 import { Tags } from '../../ui';
 import { groups, currentConnection } from '../../store';
@@ -22,7 +21,7 @@ function useReveal(selector: string) {
 }
 /**
  * A rail down the window's left edge of Home and every connection, a panel beside it for the connection in view, and a
- * slim bar over the view that names what it shows. The home page has no panel; Connect joins it there.
+ * slim bar over the view that names what it shows. The home page has no panel.
  */
 function Chrome() {
   const current = groups().find(({ connection }) => connection.id === currentConnection());
@@ -66,9 +65,6 @@ function Chrome() {
               <ConnectionItems group={current} />
             </div>
           </NavGroup>
-          <div className="rail-panel-footer">
-            <Connect />
-          </div>
         </nav>
       )}
       <header className="rail-topbar">
@@ -93,7 +89,6 @@ export const rail: Theme = {
       <rect x="3" y="19.5" width="5" height="5" rx="1.75" fill="var(--preview-ink)" />
       <rect x="3.5" y="28" width="4" height="4" rx="1.25" fill="none" stroke="var(--preview-ink)" />
       <path d="M14 5h7M14 13h9M14 17h8M16 21h7M16 25h6M14 29h9" stroke="var(--preview-ink)" strokeLinecap="round" />
-      <rect x="13.5" y="36" width="10" height="4" rx="1.5" fill="none" stroke="var(--preview-line)" />
     </svg>
   ),
   terminal: {

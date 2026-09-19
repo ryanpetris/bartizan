@@ -7,7 +7,6 @@
   --field-radius: 10px;
   --rail-width: 60px;
   --panel-width: 248px;
-  --panel-footer-height: 55px;
   --titlebar-height: env(titlebar-area-height, 44px);
   --chrome-top: calc(var(--titlebar-height) + 1px);
 
@@ -270,7 +269,6 @@
 :root[data-theme="rail"] .rail-panel-scroll::after { bottom: -12px; margin: -2px 0 -12px -9px; background: linear-gradient(transparent, var(--bg-panel) 85%); }
 @container scroll-state(scrollable: top) { :root[data-theme="rail"] .rail-panel-scroll::before { opacity: 1; } }
 @container scroll-state(scrollable: bottom) { :root[data-theme="rail"] .rail-panel-scroll::after { opacity: 1; } }
-:root[data-theme="rail"] .rail-panel-footer { display: flex; flex: none; height: var(--panel-footer-height); padding: 10px 9px; border-top: 1px solid var(--border-subtle); }
 
 :root[data-theme="rail"] .nav-item, :root[data-theme="rail"] .icon-button, :root[data-theme="rail"] .button, :root[data-theme="rail"] .section-tab, :root[data-theme="rail"] .theme-option { transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease; }
 :root[data-theme="rail"] .connection-items { gap: 2px; }
@@ -298,12 +296,10 @@
 :root[data-theme="rail"] .tab-items .nav-item[aria-current="page"]::before { content: ""; top: 3px; bottom: 3px; left: -9px; }
 :root[data-theme="rail"] .favicon { border-radius: 4px; }
 
-/* Connect: a well in the panel's foot, whose results open above it across the view. */
-:root[data-theme="rail"] .connect-input { height: 34px; padding-left: 33px; border-color: var(--border-field); border-radius: var(--field-radius); background: var(--field); }
+/* Connect is a well. */
+:root[data-theme="rail"] .connect-input { height: 38px; padding-left: 33px; border-color: var(--border-field); border-radius: var(--field-radius); background: var(--field); }
 :root[data-theme="rail"] .connect-input:hover:not(:focus) { border-color: var(--border-field-hover); }
 :root[data-theme="rail"] .connect .icon { left: 10px; }
-:root[data-theme="rail"] .connect-results { margin-bottom: 6px; padding: 6px; border-radius: 12px; }
-:root[data-theme="rail"] .connect-destination { min-height: 36px; }
 
 @supports (corner-shape: squircle) {
   :root[data-theme="rail"] :is(.connection-chip > .connection-titles, .rail-new .icon-button, .home-button) { border-radius: 20px; corner-shape: squircle; }
@@ -315,7 +311,6 @@
 
 /* Home: the rows are badges beside their names, and the bar over the view draws no rule. */
 :root[data-theme="rail"] #app:not(:has(> .rail-panel)) > .rail-topbar { border-bottom-color: transparent; }
-:root[data-theme="rail"] .home .connect-input { height: 38px; }
 :root[data-theme="rail"] .connect-tile { border-radius: 12px; background: var(--badge); box-shadow: var(--badge-shadow); color: var(--badge-text); }
 :root[data-theme="rail"] .connect-list .connect-option { border-radius: 12px; }
 
@@ -371,7 +366,7 @@
 :root[data-theme="rail"] .download-list { padding: 6px; }
 
 /* Errors: toasts and their shadows end inside the panel, short of the view. */
-:root[data-theme="rail"] .error-toaster[data-sonner-toaster] { --border-radius: 12px; clip-path: inset(-100vh -9px -64px -69px); }
+:root[data-theme="rail"] .error-toaster[data-sonner-toaster] { --border-radius: 12px; clip-path: inset(-100vh -9px -12px -69px); }
 :root[data-theme="rail"] .error-toaster [data-sonner-toast] { box-shadow: var(--toast-shadow); }
 /* The mark stands beside the title, and the message is set small enough for a host name to stay whole in the panel's width. */
 :root[data-theme="rail"] .error-toaster [data-sonner-toast][data-styled="true"] { align-items: flex-start; gap: 8px; padding: 12px 14px 13px 12px; }

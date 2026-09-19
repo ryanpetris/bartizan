@@ -68,14 +68,6 @@ export async function testBrowserInteractions(app, httpPort, first) {
     chrome.push(await page.locator('.browser-toolbar').evaluate(e => getComputedStyle(e).backgroundColor));
   }
   assert.notEqual(chrome[0], chrome[1]);
-  const connect = page.getByRole('combobox', { name: 'Connect', exact: true });
-  await connect.fill('127.0.0.1');
-  await expect(page.getByRole('listbox', { name: 'Profiles', exact: true })).toBeVisible();
-  await expect.poll(nativeViews).toBe(0);
-  await connect.press('Escape');
-  await connect.press('Escape');
-  await expect(page.getByRole('listbox', { name: 'Profiles', exact: true })).toBeHidden();
-  await expect.poll(nativeViews).toBe(1);
   await chooseAppearance(app, 'system');
   console.log('Settings hides and restores the visible page; browser controls and remote page color preference follow application appearance.');
   await expect(page.locator('.rail-topbar').getByRole('heading', { level: 1 })).toContainText('Browser');

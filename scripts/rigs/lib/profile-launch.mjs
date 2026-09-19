@@ -115,28 +115,6 @@ export async function testProfileLaunch(app, config, url) {
     await expect(form).toBeHidden();
     assert.equal((await api('details', direct)).username, userInfo().username);
 
-    // With a connection in view, Connect is in the panel and its results open over the window only for typed input.
-    await connect.focus();
-    await expect(results).toBeHidden();
-    await connect.fill('127.0.0.1');
-    await expect(results.getByRole('option')).toHaveCount(4);
-    await expect(page.locator('#connect-profile-rig')).toHaveAttribute('aria-selected', 'true');
-    await connect.press('ArrowDown');
-    await expect(page.locator('#connect-profile-other')).toHaveAttribute('aria-selected', 'true');
-    await connect.press('Escape');
-    await expect(results).toBeHidden();
-    await expect(connect).toHaveValue('127.0.0.1');
-    await connect.blur();
-    await connect.focus();
-    await page.waitForTimeout(200);
-    await expect(results).toBeHidden();
-    await connect.press('ArrowDown');
-    await expect(results).toBeVisible();
-    await page.locator('.rail-panel').click({ position: { x: 20, y: 20 } });
-    await expect(results).toBeHidden();
-    await connect.fill('');
-    console.log('With a connection in view, Connect results open only for typed input and support arrows, Escape and outside dismissal.');
-
     await (await profileRow('rig')).locator('.profile-item').click();
     await expect(page.locator('#profiles-dialog')).toBeHidden();
     assert.equal((await state()).connections.filter(c => c.profileId === 'rig').length, 1);
@@ -158,8 +136,8 @@ export async function testProfileLaunch(app, config, url) {
     assert.equal((await state()).connections.find(c => c.id === direct)?.status, 'connected');
     await expect(page.locator(`.connection-chip[data-id="${direct}"]`)).toHaveCount(1);
 
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
     await connect.fill('rig');
-    await connect.press('Enter');
     await connect.press('Enter');
     const keyboard = await connected();
     assert.equal((await state()).connections.filter(c => c.profileId === 'rig').length, 1);
@@ -177,6 +155,5 @@ export async function testProfileLaunch(app, config, url) {
   } finally {
     await writeFile(config, original);
     await api('reloadConfig');
-    await connect.fill('');
   }
 }

@@ -29,7 +29,7 @@ export function Home() {
             New Connection
           </Button>
         </div>
-        <Connect listed />
+        <Connect />
       </div>
     </section>
   );

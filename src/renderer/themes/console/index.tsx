@@ -2,7 +2,6 @@ import { useInsertionEffect, useLayoutEffect, useRef, type ReactNode } from 'rea
 import type { Theme } from '..';
 import { HomeButton, ContextTitle, ContextActions, AppActions, NewConnectionButton } from '../../chrome';
 import { NavGroup, ConnectionItems, ConnectionChips, ConnectionTools } from '../../nav';
-import { Connect } from '../../connect';
 import { ErrorsButton } from '../../errors';
 import { hoveredLink } from '../../browser';
 import { terminalFontFamily } from '../../fonts';
@@ -72,8 +71,8 @@ function Strip({ name, children }: { name: string; children: ReactNode }) {
 /**
  * Three lines of text around the view, as a terminal multiplexer draws them: a title line of Home and what is in view,
  * and below the view a line of the windows of the connection in view over a status line of connections, the hovered
- * link's address and the Connect prompt. The home page has no windows line, and Connect joins it there. The lines are
- * set in the configured terminal font, so that they and a terminal read as one.
+ * link's address and the application's commands. The home page has no windows line. The lines are set in the
+ * configured terminal font, so that they and a terminal read as one.
  */
 function Chrome() {
   const all = groups(),
@@ -114,8 +113,7 @@ function Chrome() {
           </nav>
           <span className="console-link">{hoveredLink()}</span>
         </div>
-        <div className="console-prompt">
-          {selected && <Connect />}
+        <div className="console-new">
           <NewConnectionButton />
         </div>
         <div className="console-app">

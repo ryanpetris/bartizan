@@ -3,7 +3,6 @@ import type { BrowserAction, BrowserShortcut, Bounds } from '../shared';
 import { Icon, IconButton, Button, colorStyle } from './ui';
 import { api, render, describeError, dialogOpen, onFocusRequest, sessionColor, activeManifest } from './store';
 import { currentTab as current, findText, setFindText, targetOf } from './tab-state';
-import { resultsOpen, resultsBounds } from './connect';
 import { openMenu } from './menu';
 import { FindBar, focusFind } from './browser-find';
 import { DownloadsButton, DownloadsPopover } from './browser-downloads';
@@ -421,8 +420,6 @@ export function hoveredLink() {
   const { tab } = current();
   return tab && pageVisible() ? targetOf(tab.id) : '';
 }
-const overlaps = (a: DOMRect, b: DOMRect) =>
-  a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 /** Whether the selected tab's page can be shown: it has something to show and no interface of the application lies over it. */
 function pageVisible() {
   const { workspace, tab } = current();
@@ -434,8 +431,7 @@ function pageVisible() {
       (tab.url || tab.loading) &&
       !tab.certificate &&
       !dialogOpen() &&
-      !view.hidden &&
-      !(resultsOpen() && overlaps(resultsBounds(), body!.getBoundingClientRect())),
+      !view.hidden,
   );
 }
 const boundsOf = (element: HTMLElement): Bounds => {

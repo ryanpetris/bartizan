@@ -160,7 +160,7 @@
   padding: 0 max(12px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 6px)) 0 max(12px, calc(env(titlebar-area-x, 0px) + 12px));
   background: var(--bg-header); user-select: none; app-region: drag;
 }
-:root[data-theme="tabs"] .tabs-title :is(button, input) { app-region: no-drag; }
+:root[data-theme="tabs"] .tabs-title button { app-region: no-drag; }
 :root[data-theme="tabs"] .tabs-title .brand-mark { width: 22px; height: 22px; }
 /* Home is a pill like a connection's around the mark, and the name beside it while there are no connections. */
 :root[data-theme="tabs"] .home-button { display: flex; align-items: center; gap: 8px; flex: none; height: 30px; margin-right: 4px; padding: 0 12px 0 3px; border: 1px solid transparent; border-radius: 15px; background: transparent; color: var(--text-strong); }
@@ -170,9 +170,9 @@
 :root[data-theme="tabs"] .home-button:focus-visible { outline-offset: -1px; }
 :root[data-theme="tabs"] .tabs-wordmark { font-size: 14px; font-weight: 650; letter-spacing: -0.015em; }
 :root[data-theme="tabs"] .tabs-title .icon-button { width: 28px; height: 28px; border-radius: 50%; }
-/* The room between the connections and Connect, which stays wide enough to take hold of the window by. */
+/* The room between the connections and the application's commands, which stays wide enough to take hold of the window by. */
 :root[data-theme="tabs"] .tabs-gap { flex: 1 0 40px; align-self: stretch; }
-/* Connections: a row of pills that scrolls once Connect, which takes spare room up to its full width, is at its narrowest. */
+/* Connections: a row of pills that scrolls once the room beside it is at its narrowest. */
 :root[data-theme="tabs"] .tabs-connections { display: flex; align-items: center; flex: 0 1 auto; align-self: stretch; min-width: 0; overflow: auto hidden; scrollbar-width: none; }
 :root[data-theme="tabs"] .tabs-connections-list { flex: none; }
 :root[data-theme="tabs"] .connection-chips { display: flex; align-items: center; gap: 2px; padding: 0 3px; }
@@ -190,13 +190,6 @@
 :root[data-theme="tabs"] .connection-chip:is(.drop-before, .drop-after) { box-shadow: none; }
 :root[data-theme="tabs"] .connection-chip:is(.drop-before, .drop-after)::before { content: ""; position: absolute; top: 6px; bottom: 6px; left: -2px; width: 2px; border-radius: 1px; background: var(--accent); }
 :root[data-theme="tabs"] .connection-chip.drop-after::before { right: -2px; left: auto; }
-:root[data-theme="tabs"] .tabs-title .connect { flex: 100 1 120px; min-width: 120px; max-width: 240px; margin-right: 6px; }
-:root[data-theme="tabs"] .tabs-title .connect .icon { left: 10px; }
-:root[data-theme="tabs"] .tabs-title .connect-input { height: 28px; padding: 0 12px 0 32px; border-radius: 14px; background: var(--hover); font-size: 12.5px; }
-:root[data-theme="tabs"] .tabs-title .connect-input::placeholder { color: var(--text-muted); }
-:root[data-theme="tabs"] .tabs-title .connect-input:hover:not(:focus) { background: color-mix(in srgb, var(--hover) 140%, transparent); }
-:root[data-theme="tabs"] .tabs-title .connect-input:focus { background: var(--field); }
-:root[data-theme="tabs"] .connect-results { position-area: bottom span-left; width: min(420px, calc(100vw - 24px)); margin: 6px 0 0; padding: 5px; border-radius: 12px; }
 
 /* Tab tier: the rule along its bottom runs under the strip, and the tab in view covers it to join the view below. */
 :root[data-theme="tabs"] .tabs-tier { position: relative; display: flex; align-items: stretch; min-width: 0; background: var(--bg-header); user-select: none; }
@@ -312,9 +305,9 @@
 :root[data-theme="tabs"] .address:hover:not(:focus) { border-color: var(--border); }
 :root[data-theme="tabs"] .zoom-level { top: 4px; }
 :root[data-theme="tabs"] .find-input { border-radius: 14px; }
-:root[data-theme="tabs"] .connect-destination, :root[data-theme="tabs"] .profile-item { border-radius: 8px; }
-:root[data-theme="tabs"] .home .connect .icon { left: 13px; }
-:root[data-theme="tabs"] .home .connect-input { height: 36px; padding-left: 37px; border-radius: 18px; }
+:root[data-theme="tabs"] .profile-item { border-radius: 8px; }
+:root[data-theme="tabs"] .connect .icon { left: 13px; }
+:root[data-theme="tabs"] .connect-input { height: 36px; padding-left: 37px; border-radius: 18px; }
 :root[data-theme="tabs"] .connect-list .connect-option { border-radius: 12px; }
 :root[data-theme="tabs"] .connect-tile { border-radius: 11px; }
 :root[data-theme="tabs"] .empty-mark { border-radius: 16px; }

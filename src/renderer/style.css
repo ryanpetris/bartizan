@@ -220,22 +220,15 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 
 .brand-mark { flex: none; width: 28px; height: 28px; }
-.connect { position: relative; display: block; flex: 1; min-width: 0; }
+.connect { position: relative; display: block; min-width: 0; }
 .connect .icon { position: absolute; top: 50%; left: 9px; color: var(--text-faint); pointer-events: none; transform: translateY(-50%); }
 .connect-input {
-  width: 100%; height: 30px; padding: 0 8px 0 31px; border: 1px solid transparent; border-radius: var(--radius);
-  background: var(--hover); color: var(--text); anchor-name: --connect;
+  width: 100%; height: 34px; padding: 0 8px 0 31px; border: 1px solid var(--border-control); border-radius: var(--radius);
+  background: var(--field); color: var(--text);
 }
 .connect-input::placeholder { color: var(--text-faint); }
 .connect-input:focus { border-color: var(--focus); background: var(--field); box-shadow: 0 0 0 3px var(--focus-ring); outline: none; }
-.connect-results {
-  position: fixed; inset: auto; position-anchor: --connect; position-area: top span-right; width: 420px; max-height: 360px; margin: 0 0 4px; padding: 4px; overflow-y: auto;
-  border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg-dialog); color: var(--text); box-shadow: var(--menu-shadow);
-}
 .connect-option { cursor: default; }
-.connect-option[aria-selected="true"] { background: var(--selected); color: var(--text-strong); }
-.connect-destination { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 5px 10px 5px 8px; border-radius: var(--radius); }
-.connect-destination > .identicon { width: 24px; }
 .connect-target { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Titles shrink before actions; the padding after the actions stays draggable. */
 .titlebar-marker { display: grid; place-items: center; flex: none; width: 16px; height: 16px; color: var(--session-color); }
@@ -379,7 +372,6 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 .home-title { margin: 0; color: var(--text-strong); font-size: 22px; font-weight: 650; line-height: 28px; letter-spacing: -0.01em; }
 .home-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .home-heading { margin: 0; color: var(--text-strong); font-size: 14px; font-weight: 600; }
-.home .connect-input { height: 34px; background: var(--field); border-color: var(--border-control); }
 /* The box is as tall as every profile and a destination would be, whatever it shows, up to the room the page leaves. Its
    rows have one height, so filtering and resizing never depend on what is shown. */
 .connect-list {
@@ -398,7 +390,6 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 .connect-list::after { bottom: 0; margin-top: -16px; background: linear-gradient(transparent, var(--bg-main)); }
 @container scroll-state(scrollable: top) { .connect-list::before { opacity: 1; } }
 @container scroll-state(scrollable: bottom) { .connect-list::after { opacity: 1; } }
-.connect-list .connect-option[aria-selected="true"] { background: none; color: inherit; }
 .connect-list .connect-option:hover { background: var(--hover); }
 /* The chosen row shows while Connect has focus, as Enter would connect it. */
 .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] { background: var(--selected); color: var(--text-strong); }
