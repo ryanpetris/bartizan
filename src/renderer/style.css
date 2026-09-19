@@ -429,6 +429,10 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 
 /* Overlays: documents of their own, drawn over the pages, that hold one surface sized to its content. */
 html.overlay, html.overlay body { background: transparent; }
+/* The modal overlay starts below the band where the title bar is, so its dialogs and their backdrop start at its top. */
+html.overlay-modal:root { --chrome-top: 0px; }
+/* Spans the title bar's band, below which the modal overlay starts. */
+.modal-probe { position: fixed; top: 0; left: 0; width: 0; height: var(--chrome-top); visibility: hidden; pointer-events: none; }
 html.overlay .error-toaster[data-sonner-toaster],
 html.overlay .error-toaster[data-sonner-toaster] [data-sonner-toast] { width: var(--width); }
 html.overlay .error-toaster[data-sonner-toaster] { left: 16px; right: auto; }

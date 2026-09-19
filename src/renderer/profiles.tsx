@@ -117,7 +117,7 @@ function ProfilesDialog() {
             ref={list}
             className="profile-list"
             onKeyDown={(event) => {
-              if (event.key === 'ArrowUp' && document.activeElement === targets()[0]) search.current!.focus();
+              if (event.key === 'ArrowUp' && event.currentTarget.ownerDocument.activeElement === targets()[0]) search.current!.focus();
               else if (!moveFocus(targets(), event.key)) return;
               event.preventDefault();
             }}

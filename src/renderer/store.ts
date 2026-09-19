@@ -251,7 +251,9 @@ export function matchProfiles(query: string, profiles = store.state.profiles) {
     ),
   );
 }
-export const dialogOpen = () => document.querySelector('dialog[open]') !== null;
+/** The document dialogs open in: the modal overlay's once it has opened, or this page's where there is none. */
+export const dialogHost = { document };
+export const dialogOpen = () => dialogHost.document.querySelector('dialog[open]') !== null;
 
 /**
  * Navigation order the user chose, by scope: `connections`, `items:<connection>` and `tabs:<browser session>`. It lasts for

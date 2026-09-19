@@ -176,7 +176,7 @@ function SettingsDialog() {
                   const key = { ArrowLeft: 'ArrowUp', ArrowRight: 'ArrowDown' }[event.key] ?? event.key;
                   if (!moveFocus(options, key, true)) return;
                   event.preventDefault();
-                  (document.activeElement as HTMLElement).click();
+                  (event.currentTarget.ownerDocument.activeElement as HTMLElement).click();
                 }}
               >
                 {themeIds.map((id) => {

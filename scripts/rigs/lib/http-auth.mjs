@@ -37,7 +37,6 @@ export async function testAuthentication(app, port, connectionId) {
   const action = (operation, tab, url) => page.evaluate(({ id, operation, tab, url }) => window.bartizan.browser(id, operation, tab, url), { id: workspaceId, operation, tab, url });
   const open = async url => { if (!workspace(await state())) workspaceId = await browse(app, connectionId, url); else await action('new', undefined, url); };
   const navigate = url => action('navigate', undefined, url);
-  const dialog = page.locator('#auth-dialog');
   await open( `http://localhost:${port}/auth/basic`);
   let current = await wait(value => pending(value).length === 1);
   const tabId = workspace(current).activeTab;
@@ -49,6 +48,7 @@ export async function testAuthentication(app, port, connectionId) {
   current = await wait(value => pending(value).length === 1 && pending(value)[0].id !== first.id);
   const retry = pending(current)[0];
   await page.reload();
+  const dialog = (await app.modal()).locator('#auth-dialog');
   await dialog.waitFor({ state: 'visible' });
   assert.equal(pending(await state())[0].id, retry.id);
   assert.ok((await dialog.textContent()).includes(`http://localhost:${port}`));

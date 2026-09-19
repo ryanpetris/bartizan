@@ -520,7 +520,7 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
   }
   useLayoutEffect(() => {
     const first = errors.find((issue) => issue.path && relevant(issue.path));
-    if (first?.path) document.getElementById(first.path === 'id' ? 'field-profile-id' : idFor(first.path))?.focus();
+    if (first?.path) dialog.current?.ownerDocument.getElementById(first.path === 'id' ? 'field-profile-id' : idFor(first.path))?.focus();
   }, [errors]);
   function rejected(error: unknown, saving = false) {
     const { message, fields } = describeError(error);
@@ -685,7 +685,7 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
             onKeyDown={(event) => {
               if (!moveFocus([...event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')], event.key, true)) return;
               event.preventDefault();
-              activate(document.activeElement!.id.slice('tab-'.length) as SectionId);
+              activate(event.currentTarget.ownerDocument.activeElement!.id.slice('tab-'.length) as SectionId);
             }}
           >
             {sections.map(([id, label]) => (
@@ -751,7 +751,7 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
                         reset={() => {
                           setValues((previous) => ({ ...previous, [path]: initial(path, undefined) }));
                           setTouched((previous) => new Set([...previous, path]));
-                          requestAnimationFrame(() => document.getElementById(idFor(path))?.focus());
+                          requestAnimationFrame(() => dialog.current?.ownerDocument.getElementById(idFor(path))?.focus());
                         }}
                       >
                         <Control

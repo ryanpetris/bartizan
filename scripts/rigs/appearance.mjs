@@ -24,7 +24,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   };
   const themeSource = () => app.application.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
   const colorScheme = mode => app.page.waitForFunction(mode => getComputedStyle(document.documentElement).colorScheme === mode, mode);
-  const settingsDialog = () => app.page.locator('#settings-dialog');
+  const settingsDialog = () => dialog;
   const appearance = () => settingsDialog().getByRole('combobox', { name: 'Appearance', exact: true });
   const fontChoice = () => settingsDialog().getByRole('combobox', { name: 'Terminal Font', exact: true });
   const family = () => settingsDialog().getByRole('textbox', { name: 'Terminal Font Family', exact: true });
@@ -50,7 +50,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
     await expect(dialog).toHaveJSProperty('open', true);
     await closeSettings(page);
     await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
-    const form = page.locator('#connection-dialog');
+    const form = (await app.modal()).locator('#connection-dialog');
     await expect(form).toHaveCSS('background-color', dialogBackground[mode]);
     await form.getByRole('tab', { name: 'Authentication', exact: true }).click();
     assert.equal(await pickerBackground(app, form.locator('#field-auth-method')), dialogBackground[mode], `Connection form options follow ${mode} appearance`);
@@ -89,7 +89,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   assert.match(await dialog.locator('.font-sample').evaluate(e => e.style.fontFamily), /^"Bartizan Rig Mono", /);
   await closeSettings(page);
   await page.reload();
-  await openSettings(page);
+  dialog = await openSettings(page);
   await expect(appearance()).toHaveValue('light');
   await expect(fontChoice().locator('option:checked')).toHaveText('Custom');
   await expect(family()).toHaveValue('Bartizan Rig Mono');
@@ -125,9 +125,9 @@ await withDirectory('appearance', async (directory, cleanup) => {
   assert.equal(await themeSource(), 'system');
   // Closing the dialog confirms the typed size, so its failure arrives as the dialog goes.
   await size().focus();
-  await page.keyboard.press('Control+a');
-  await page.keyboard.type('14');
-  await page.keyboard.press('Escape');
+  await dialog.page().keyboard.press('Control+a');
+  await dialog.page().keyboard.type('14');
+  await dialog.page().keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(page.locator('[data-sonner-toaster]')).toContainText(failure);
   assert.equal((await state()).settings.terminalFontSize, 21);
@@ -147,10 +147,11 @@ await withDirectory('appearance', async (directory, cleanup) => {
   ({ page, state } = await start());
   assert.equal(await themeSource(), 'dark');
   await page.getByRole('button', { name: 'Errors', exact: true }).click();
-  await expect(page.locator('.error-current')).toContainText('Invalid YAML');
-  await page.keyboard.press('Escape');
+  const dialogs = await app.modal();
+  await expect(dialogs.locator('.error-current')).toContainText('Invalid YAML');
+  await dialogs.keyboard.press('Escape');
   assert.deepEqual((await state()).settings, defaults);
-  await openSettings(page);
+  dialog = await openSettings(page);
   await expect(appearance()).toHaveValue('dark');
   await closeSettings(page);
   assert.deepEqual(app.errors, []);

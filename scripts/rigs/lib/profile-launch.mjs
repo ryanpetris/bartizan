@@ -2,22 +2,25 @@ import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { userInfo } from 'node:os';
 import { readFile, writeFile } from 'node:fs/promises';
+import { modalOf } from './harness.mjs';
 
 export const connectSearch = page => page.getByRole('combobox', { name: 'Connect', exact: true });
 export const connectResults = page => page.getByRole('listbox', { name: 'Profiles', exact: true });
 export async function openProfiles(page) {
-  const dialog = page.locator('#profiles-dialog');
+  const dialog = (await modalOf(page)).locator('#profiles-dialog');
   if (!(await dialog.evaluate(node => node.open))) await page.getByRole('button', { name: 'Profiles', exact: true }).click();
   await expect(dialog).toBeVisible();
   return dialog;
 }
 export async function closeProfiles(page) {
-  await page.locator('#profiles-dialog').getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(page.locator('#profiles-dialog')).toBeHidden();
+  const dialog = (await modalOf(page)).locator('#profiles-dialog');
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(dialog).toBeHidden();
 }
 
 export async function testProfileLaunch(app, config, url) {
   const { application, page, state, api } = app;
+  const dialogs = await app.modal();
   const original = await readFile(config, 'utf8');
   const connect = connectSearch(page), results = connectResults(page);
   const profileRow = async id => (await openProfiles(page)).locator(`.profile-row[data-id="${id}"]`);
@@ -62,7 +65,7 @@ export async function testProfileLaunch(app, config, url) {
     await connect.evaluate(input => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true })));
     await page.waitForTimeout(300);
     assert.equal((await state()).connections.length, 0);
-    await expect(page.locator('#connection-dialog')).not.toBeVisible();
+    await expect(dialogs.locator('#connection-dialog')).not.toBeVisible();
     await connect.press('Escape');
     await expect(connect).toHaveValue('');
     // A moving pointer chooses the row it moves onto.
@@ -73,7 +76,7 @@ export async function testProfileLaunch(app, config, url) {
     // A profile's Edit opens its settings without connecting.
     await page.locator('#connect-profile-other').hover();
     await page.locator('#connect-profile-other .connect-edit').click();
-    const editing = page.locator('#connection-dialog');
+    const editing = dialogs.locator('#connection-dialog');
     await expect(editing).toBeVisible();
     await expect(editing.locator('.dialog-context')).toHaveText('other');
     await expect(editing.locator('#field-profile-id')).toHaveCount(0);
@@ -88,26 +91,26 @@ export async function testProfileLaunch(app, config, url) {
     await connect.fill('unmatched profile query');
     await expect(results.getByRole('option', { name: 'No Results Found', exact: true })).toHaveAttribute('aria-disabled', 'true');
     await connect.press('Enter');
-    await expect(page.locator('#connection-dialog')).not.toBeVisible();
+    await expect(dialogs.locator('#connection-dialog')).not.toBeVisible();
     assert.equal((await state()).connections.length, 0);
     await connect.fill('template');
     await connect.press('Enter');
-    await expect(page.locator('#connection-dialog')).toBeVisible();
-    await expect(page.locator('[data-path="auth.identity_files"] .field-error')).toBeVisible();
-    const noIdentityFiles = page.locator('select[name="auth.identity_files"] option[value="none"]');
+    await expect(dialogs.locator('#connection-dialog')).toBeVisible();
+    await expect(dialogs.locator('[data-path="auth.identity_files"] .field-error')).toBeVisible();
+    const noIdentityFiles = dialogs.locator('select[name="auth.identity_files"] option[value="none"]');
     await expect(noIdentityFiles).toHaveText('None');
-    await page.locator('select[name="auth.method"]').selectOption('auto');
+    await dialogs.locator('select[name="auth.method"]').selectOption('auto');
     await expect(noIdentityFiles).toHaveText('OpenSSH Default');
     assert.equal((await state()).connections.length, 0);
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await dialogs.getByRole('button', { name: 'Cancel', exact: true }).click();
 
     await (await profileRow('rig')).locator('.profile-item').click();
     const direct = await connected();
-    await expect(page.locator('#connection-dialog')).not.toBeVisible();
+    await expect(dialogs.locator('#connection-dialog')).not.toBeVisible();
     const connectedEdit = (await profileRow('rig')).locator('.profile-edit');
     await expect(connectedEdit).toBeEnabled();
     await connectedEdit.click();
-    const form = page.locator('#connection-dialog');
+    const form = dialogs.locator('#connection-dialog');
     await expect(form).toBeVisible();
     await expect(form.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
     for (const name of ['Save and Connect', 'Connect']) await expect(form.getByRole('button', { name, exact: true })).toHaveCount(0);
@@ -116,7 +119,7 @@ export async function testProfileLaunch(app, config, url) {
     assert.equal((await api('details', direct)).username, userInfo().username);
 
     await (await profileRow('rig')).locator('.profile-item').click();
-    await expect(page.locator('#profiles-dialog')).toBeHidden();
+    await expect(dialogs.locator('#profiles-dialog')).toBeHidden();
     assert.equal((await state()).connections.filter(c => c.profileId === 'rig').length, 1);
     await api('newTerminal', direct);
     const workspace = await api('newBrowser', direct);

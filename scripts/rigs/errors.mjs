@@ -10,13 +10,15 @@ await withDirectory('errors', async (directory, cleanup) => {
   const app = await launch(directory, config);
   cleanup(app.close);
   const { application, page, api, errors } = app;
+  // The error panel draws in the modal overlay, which a reload replaces.
+  let dialogs = await app.modal();
   const button = () => page.getByRole('button', { name: 'Errors', exact: true });
-  const panel = () => page.locator('dialog.error-panel');
+  const panel = () => dialogs.locator('dialog.error-panel');
   const clearHistory = () => panel().getByRole('button', { name: 'Clear History', exact: true });
   const toasts = () => page.locator('[data-sonner-toast][data-removed="false"]');
   const dismiss = toast => toast.getByRole('button', { name: 'Dismiss', exact: true });
-  const current = () => page.locator('.error-current');
-  const history = () => page.locator('.error-history');
+  const current = () => dialogs.locator('.error-current');
+  const history = () => dialogs.locator('.error-history');
   const report = async (message, connectionId) => {
     await api('reportError', { source: 'rig', message, connectionId, label: connectionId ? 'Fixture' : 'App' });
     await page.clock.runFor(50);
@@ -30,26 +32,26 @@ await withDirectory('errors', async (directory, cleanup) => {
   await button().click();
   await expect(panel()).toHaveJSProperty('open', true);
   await expect(panel()).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(page.getByRole('combobox', { name: 'Filter', exact: true })).toBeFocused();
+  await dialogs.keyboard.press('Tab');
+  await expect(dialogs.getByRole('combobox', { name: 'Filter', exact: true })).toBeFocused();
   await expect(current()).toContainText('Invalid YAML');
   const activeClass = await button().getAttribute('class');
-  await page.keyboard.press('Escape');
+  await dialogs.keyboard.press('Escape');
   assert.equal(await button().getAttribute('class'), activeClass);
   await button().click();
   await clearHistory().click();
   await expect(current()).toContainText('Invalid YAML');
   await expect(page.locator('#error-count')).toHaveText('1');
-  await page.keyboard.press('Escape');
+  await dialogs.keyboard.press('Escape');
   await writeFile(config, 'version: 1\n');
   await api('reloadConfig');
   await expect(page.locator('#error-count')).toBeHidden();
   await button().click();
   await expect(current()).toBeHidden();
   await expect(clearHistory()).toBeDisabled();
-  await expect(page.locator('.error-empty')).toHaveText('No Errors');
-  await expect(page.locator('.error-empty')).toBeVisible();
-  await page.keyboard.press('Escape');
+  await expect(dialogs.locator('.error-empty')).toHaveText('No Errors');
+  await expect(dialogs.locator('.error-empty')).toBeVisible();
+  await dialogs.keyboard.press('Escape');
   await expect(button()).toBeFocused();
   console.log('A configuration error stays current through Clear History until the configuration is fixed.');
 
@@ -113,11 +115,12 @@ await withDirectory('errors', async (directory, cleanup) => {
   await expect(history()).toContainText('failure one');
   await expect(history()).toContainText('Fixture');
   await expect(history()).toContainText('repeated failure');
-  await page.getByRole('combobox', { name: 'Filter', exact: true }).selectOption({ label: 'Fixture' });
+  await dialogs.getByRole('combobox', { name: 'Filter', exact: true }).selectOption({ label: 'Fixture' });
   await expect(history()).toContainText('failure one');
   await expect(history()).not.toContainText('failure two');
-  await page.keyboard.press('Escape');
+  await dialogs.keyboard.press('Escape');
   await page.reload();
+  dialogs = await app.modal();
   await expect(button()).toBeVisible();
   await expect(toasts()).toHaveCount(0);
   await button().click();
@@ -126,7 +129,7 @@ await withDirectory('errors', async (directory, cleanup) => {
   await clearHistory().click();
   await expect(history()).toBeHidden();
   await expect(clearHistory()).toBeDisabled();
-  await page.keyboard.press('Escape');
+  await dialogs.keyboard.press('Escape');
   await application.evaluate(({ BrowserWindow }) => {
     const time = Date.now();
     BrowserWindow.getAllWindows()[0].webContents.send('event', { type: 'errors', log: { current: [], history: [{ id: 100000, kind: 'current', source: 'config', label: 'App', message: 'Recovered within one update', time, lastTime: time, resolvedAt: time, count: 1 }] } });

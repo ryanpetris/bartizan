@@ -4,6 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { withDirectory, startSshd, sshProfile, launch, waitFor } from './lib/harness.mjs';
+import { openSettings } from './lib/settings.mjs';
 
 await withDirectory('fonts', async (directory, cleanup) => {
   const sshd = await startSshd(directory);
@@ -74,8 +75,7 @@ await withDirectory('fonts', async (directory, cleanup) => {
   assert.deepEqual(await size(override), explicit, 'The override terminal keeps its size');
   console.log('A connection with its own font keeps it while the global terminal and interface fonts change.');
 
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  const settings = page.locator('#settings-dialog');
+  const settings = await openSettings(page);
   await settings.getByRole('combobox', { name: 'Terminal Font', exact: true }).selectOption({ label: 'System Default' });
   await settings.getByRole('combobox', { name: 'Interface Font', exact: true }).selectOption({ label: 'Inter' });
   await waitState(s => s.settings.terminalFont === '' && s.settings.interfaceFont === 'Inter', 'saved fonts');
@@ -83,8 +83,9 @@ await withDirectory('fonts', async (directory, cleanup) => {
   await expect.poll(() => page.locator('body').evaluate(e => getComputedStyle(e).fontFamily)).toMatch(/Bartizan Inter/);
 
   await page.getByRole('button', { name: 'Profiles', exact: true }).click();
-  await page.locator('#profiles-dialog .profile-row[data-id="alpha"] .profile-edit').click();
-  const form = page.locator('#connection-dialog');
+  const dialogs = settings.page();
+  await dialogs.locator('#profiles-dialog .profile-row[data-id="alpha"] .profile-edit').click();
+  const form = dialogs.locator('#connection-dialog');
   await form.getByRole('tab', { name: /^Terminal/ }).click();
   await expect(form.locator('[name="terminal.font"] option:checked')).toHaveText('System Default');
   await expect(form.locator('[name="terminal.font_size"]')).toHaveValue('20');

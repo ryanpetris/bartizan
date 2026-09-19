@@ -96,7 +96,7 @@ export function Tags({ tags }: { tags: string[] }) {
 }
 /** Moves focus among items with the arrow, Home and End keys; returns whether it handled the key. */
 export function moveFocus(items: HTMLElement[], key: string, wrap = false): boolean {
-  const index = items.indexOf(document.activeElement as HTMLElement);
+  const index = items.indexOf((items[0]?.ownerDocument ?? document).activeElement as HTMLElement);
   const next =
     key === 'ArrowDown' ? index + 1 : key === 'ArrowUp' ? index - 1 : key === 'Home' ? 0 : key === 'End' ? items.length - 1 : NaN;
   if (index < 0 || Number.isNaN(next)) return false;

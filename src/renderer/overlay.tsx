@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Bounds, OverlayName } from '../shared';
-import { api, dialogOpen } from './store';
+import { api, store, render, dialogOpen, dialogHost } from './store';
+import { holdPage } from './dialogs';
 
 /** Each overlay's document once its styles have loaded, or nothing when the overlay could not open. */
 const documents = new Map<OverlayName, Promise<Document | undefined>>();
@@ -13,18 +14,18 @@ function open(name: OverlayName) {
   let ready = documents.get(name);
   if (!ready) {
     const child = window.open('about:blank', `overlay-${name}`);
-    ready = child ? prepare(child.document) : Promise.resolve(undefined);
+    ready = child ? prepare(child.document, name) : Promise.resolve(undefined);
     documents.set(name, ready);
   }
   return ready;
 }
-async function prepare(target: Document) {
+async function prepare(target: Document, name: OverlayName) {
   const root = target.documentElement;
   // The application sets its fonts and appearance on its root element.
   const mirror = () => {
     for (const { name } of [...root.attributes]) root.removeAttribute(name);
     for (const { name, value } of document.documentElement.attributes) root.setAttribute(name, value);
-    root.classList.add('overlay');
+    root.classList.add('overlay', `overlay-${name}`);
   };
   mirror();
   new MutationObserver(mirror).observe(document.documentElement, { attributes: true });
@@ -110,4 +111,70 @@ export function Overlay({
     };
   }, [target]);
   return target ? createPortal(<div ref={surface} className="overlay-surface">{children}</div>, target.body) : null;
+}
+
+/** The modal overlay's document: undefined while it opens, and null where there is none, as in a browser. */
+let modalDocument: Document | null | undefined;
+/**
+ * Opens the modal overlay, where dialogs draw over the pages, and holds its children until it has opened. The overlay
+ * is shown while one of its dialogs is open. It covers the window below the band where the title bar is, which the
+ * application page keeps; `--chrome-top` marks that band.
+ */
+export function ModalLayer({ children }: { children: ReactNode }) {
+  const overlaid = store.state.capabilities.embeddedBrowser;
+  const probe = useRef<HTMLDivElement>(null),
+    shown = useRef('null');
+  useLayoutEffect(() => {
+    if (!overlaid) {
+      modalDocument = null;
+      render();
+      return;
+    }
+    let live = true;
+    void open('modal').then((ready) => {
+      if (!live) return;
+      if (ready) dialogHost.document = ready;
+      modalDocument = ready ?? null;
+      render();
+    });
+    return () => {
+      live = false;
+    };
+  }, [overlaid]);
+  const sync = () => {
+    // This page stops taking input as the overlay appears.
+    holdPage();
+    const top = Math.round(probe.current?.getBoundingClientRect().height ?? 0);
+    const bounds = modalDocument?.querySelector('dialog[open]') ? { x: 0, y: top, width: innerWidth, height: innerHeight - top } : null;
+    const key = JSON.stringify(bounds);
+    if (key === shown.current) return;
+    shown.current = key;
+    api.overlay('modal', bounds);
+  };
+  const latest = useRef(sync);
+  latest.current = sync;
+  useLayoutEffect(() => latest.current());
+  useLayoutEffect(() => {
+    const resync = () => latest.current();
+    // The title bar's band changes height with the window controls, which settle after the theme that sets them.
+    const observer = new ResizeObserver(resync);
+    if (probe.current) observer.observe(probe.current);
+    addEventListener('resize', resync);
+    return () => {
+      observer.disconnect();
+      removeEventListener('resize', resync);
+    };
+  }, [overlaid]);
+  return (
+    <>
+      {overlaid && <div ref={probe} className="modal-probe" aria-hidden="true" />}
+      {modalDocument !== undefined && children}
+    </>
+  );
+}
+/** Whether the modal overlay has opened, or there is none. */
+export const modalReady = () => modalDocument !== undefined;
+/** Draws a dialog in the modal overlay, or in this page where there is none. */
+export function Modal({ children }: { children: ReactNode }) {
+  return modalDocument ? createPortal(children, modalDocument.body) : <>{children}</>;
 }

@@ -319,7 +319,7 @@ function ErrorsDialog() {
   }, []);
   useLayoutEffect(() => {
     // Clearing disables the focused button; focus stays in the dialog.
-    if (clear.current?.disabled && document.activeElement === clear.current) filter.current?.focus();
+    if (clear.current?.disabled && clear.current.ownerDocument.activeElement === clear.current) filter.current?.focus();
   });
   return (
     <dialog

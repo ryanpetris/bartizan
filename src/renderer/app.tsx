@@ -13,6 +13,7 @@ import {
   stateApplied,
   focusView,
   dialogOpen,
+  dialogHost,
   rows,
   sameRow,
   selectedRow,
@@ -28,6 +29,7 @@ import { activeTheme } from './themes';
 import { windowTitle } from './chrome';
 import { Challenges } from './challenges';
 import { Settings } from './settings';
+import { ModalLayer, Modal, modalReady } from './overlay';
 import * as connect from './connect';
 import { Profiles } from './profiles';
 import { Details } from './details';
@@ -40,11 +42,8 @@ const refocus = () => {
   if (store.selection) focusView();
   else connect.focus();
 };
-onDialogChange(() => {
-  browser.syncNativeView();
-  // Interface drawn over the pages gives way to a dialog.
-  render();
-});
+// Interface drawn over the pages gives way to a dialog.
+onDialogChange(render);
 onRefocusView(refocus);
 let loaded = false;
 let startupError: string | undefined;
@@ -85,15 +84,15 @@ const focusables = (container: HTMLElement) =>
     ),
   ].filter((item) => item.offsetParent !== null);
 /**
- * Captures focus before React changes the DOM. When the focused control disappears, focus moves to the item with the
- * same ID in its `data-focus-group`, or else to its own item, the nearest following item or the nearest preceding one
- * that remains; otherwise to the selected view. A group's `data-focus-items` selects its items, and any other control
- * belongs to the item before it.
+ * Captures focus before React changes the DOM, in the dialogs' document while a dialog is open. When the focused control
+ * disappears, focus moves to the item with the same ID in its `data-focus-group`, or else to its own item, the nearest
+ * following item or the nearest preceding one that remains; otherwise to the selected view. A group's
+ * `data-focus-items` selects its items, and any other control belongs to the item before it.
  */
 class FocusRecovery extends Component<{ children: ReactNode }> {
   getSnapshotBeforeUpdate() {
-    const focused = document.activeElement;
-    if (!(focused instanceof HTMLElement)) return undefined;
+    const focused = (dialogOpen() ? dialogHost.document : document).activeElement;
+    if (!(focused instanceof (focused?.ownerDocument.defaultView ?? window).HTMLElement)) return undefined;
     const group = focused.closest<HTMLElement>('[data-focus-group]');
     const items = group ? focusables(group) : [];
     const index = items.reduce(
@@ -105,12 +104,14 @@ class FocusRecovery extends Component<{ children: ReactNode }> {
     return { focused, id: focused.dataset.id, group: group?.dataset.focusGroup, nearest };
   }
   componentDidUpdate(_props: unknown, _state: unknown, snapshot: ReturnType<FocusRecovery['getSnapshotBeforeUpdate']>) {
+    const root = snapshot?.focused.ownerDocument;
     const lost =
       snapshot &&
+      root &&
       (!snapshot.focused.isConnected || snapshot.focused.closest('[hidden]')) &&
-      (document.activeElement === document.body || document.activeElement === snapshot.focused);
+      (root.activeElement === root.body || root.activeElement === snapshot.focused);
     if (lost) {
-      const group = document.querySelector<HTMLElement>(`[data-focus-group="${snapshot.group}"]`);
+      const group = root.querySelector<HTMLElement>(`[data-focus-group="${snapshot.group}"]`);
       const items = group ? focusables(group) : [];
       const target =
         items.find((item) => snapshot.id && item.dataset.id === snapshot.id) ??
@@ -144,9 +145,10 @@ function App() {
   useLayoutEffect(() => {
     document.title = windowTitle();
   });
+  const ready = loaded && modalReady();
   useLayoutEffect(() => {
-    if (loaded && !dialogOpen() && document.activeElement === document.body) connect.focus();
-  }, [loaded]);
+    if (ready && !dialogOpen() && document.activeElement === document.body) connect.focus();
+  }, [ready]);
   useLayoutEffect(() => {
     const unsubscribe = api.onEvent((event) => {
       switch (event.type) {
@@ -205,27 +207,31 @@ function App() {
   if (!loaded && startupError) return <main className="startup-error" role="alert">{startupError}</main>;
   if (!loaded) return null;
   return (
-    <FocusRecovery>
-      <Chrome />
-      <main className="main">
-        <terminals.Terminals />
-        <browser.Browser />
-        <section className="view empty-view" aria-label="Nothing Open" hidden={store.selection?.kind !== 'connection'}>
-          <span className="empty-mark">
-            <Icon name="terminal" />
-          </span>
-          <p>Nothing Open</p>
-        </section>
-        {!store.selection && <Home />}
-      </main>
-      <errors.Toasts />
-      <ConnectionForm />
-      <Challenges />
-      <Details />
-      <Settings />
-      <Profiles />
-      <errors.Errors />
-    </FocusRecovery>
+    <ModalLayer>
+      <FocusRecovery>
+        <Chrome />
+        <main className="main">
+          <terminals.Terminals />
+          <browser.Browser />
+          <section className="view empty-view" aria-label="Nothing Open" hidden={store.selection?.kind !== 'connection'}>
+            <span className="empty-mark">
+              <Icon name="terminal" />
+            </span>
+            <p>Nothing Open</p>
+          </section>
+          {!store.selection && <Home />}
+        </main>
+        <errors.Toasts />
+        <Modal>
+          <ConnectionForm />
+          <Challenges />
+          <Details />
+          <Settings />
+          <Profiles />
+          <errors.Errors />
+        </Modal>
+      </FocusRecovery>
+    </ModalLayer>
   );
 }
 // Subscribe to IPC before the page finishes loading and the main process sends its initial state.

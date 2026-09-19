@@ -58,6 +58,8 @@ else void app.whenReady().then(async () => {
   browsers.added = () => overlays.raise();
   // A menu's accelerators receive only the keys that a page, or the application's own page, leaves alone. The menu bar stays hidden.
   const pageShortcut = (name: PageShortcut) => {
+    // A dialog open over the page keeps the page's keys from it.
+    if (overlays.holdsModal()) return;
     const target = browsers.target();
     if (target) browsers.pageShortcut(name, target).catch(error => reportError('browser', String(error), target.connectionId));
   };

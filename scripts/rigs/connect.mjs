@@ -133,7 +133,7 @@ await withDirectory('connect', async (directory, cleanup) => {
       directPatterns.set(target, pattern);
     }
     assert.deepEqual({ host: connection.host, profileId: connection.profileId, username: connection.username }, { host, profileId, username });
-    await expect(page.locator('#connection-dialog')).toBeHidden();
+    await expect((await app.modal()).locator('#connection-dialog')).toBeHidden();
     if (choose) await page.locator(`.connection-chip[data-id="${connection.id}"] .connection-titles`).click();
     // The terminal comes into view with focus; New Connection stays in the rail beside the panel.
     await expect(page.locator(`[data-kind="terminal"][data-id="${terminal.id}"]`)).toHaveAttribute('aria-current', 'page');
@@ -189,8 +189,9 @@ await withDirectory('connect', async (directory, cleanup) => {
   } else console.log('No link-local IPv6 interface is available; the scoped destination was not tried.');
 
   await add.click();
-  await page.locator('#field-host').fill('[::1]');
-  await page.locator('#connection-dialog').getByRole('button', { name: 'Connect', exact: true }).click();
+  const form = (await app.modal()).locator('#connection-dialog');
+  await form.locator('#field-host').fill('[::1]');
+  await form.getByRole('button', { name: 'Connect', exact: true }).click();
   await verify('::1', undefined, undefined);
   await api('connect', { host: '[::1]' });
   await verify('::1', undefined, undefined, { choose: true });

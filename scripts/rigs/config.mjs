@@ -5,16 +5,16 @@ import { once } from 'node:events';
 import { access, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { withDirectory, launch } from './lib/harness.mjs';
+import { withDirectory, launch, modalOf } from './lib/harness.mjs';
 
 async function openProfiles(page) {
   await page.getByRole('button', { name: 'Profiles', exact: true }).click();
-  const dialog = page.locator('#profiles-dialog');
+  const dialog = (await modalOf(page)).locator('#profiles-dialog');
   await expect(dialog).toBeVisible();
   return dialog;
 }
 async function closeProfiles(page) {
-  const dialog = page.locator('#profiles-dialog');
+  const dialog = (await modalOf(page)).locator('#profiles-dialog');
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(dialog).toBeHidden();
 }

@@ -49,12 +49,13 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   cleanup(app.close);
   const { application, page, api, state, waitState, errors } = app;
   const profiles = async () => parse(await readFile(config, 'utf8')).profiles;
-  const dialog = page.locator('#profiles-dialog');
+  const dialogs = await app.modal();
+  const dialog = dialogs.locator('#profiles-dialog');
   const search = dialog.getByRole('textbox', { name: 'Search Profiles' });
   const rows = dialog.locator('.profile-item');
   const profilesButton = page.getByRole('button', { name: 'Profiles', exact: true });
   const openProfiles = async () => { await profilesButton.click(); await expect(search).toBeFocused(); };
-  const form = page.locator('#connection-dialog');
+  const form = dialogs.locator('#connection-dialog');
   const notice = form.locator('.form-notice');
   const button = name => form.getByRole('button', { name, exact: true });
   const section = name => form.getByRole('tab', { name: new RegExp(`^${name}`) }).click();
@@ -100,7 +101,7 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await search.press('ArrowDown');
   await rows.first().press('Tab');
   await expect(dialog.getByRole('button', { name: 'Edit Alpha', exact: true })).toBeFocused();
-  await page.keyboard.press('Enter');
+  await dialogs.keyboard.press('Enter');
   await expect(form).toBeVisible();
   await button('Cancel').click();
   assert.deepEqual((await state()).connections, []);

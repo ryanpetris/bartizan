@@ -9,8 +9,6 @@
   --console-line: 26px;
   /* Where text starts on every line, and in a terminal. */
   --console-inset: 8px;
-  /* What the lines below the view take of the window's height; a dialog stays clear of it. */
-  --console-bottom: calc(2 * var(--console-line));
   /* The terminal font is the font of everything; the chrome sets --console-font to the configured one. */
   --font-mono: var(--console-font, "Bartizan JetBrains Mono", monospace);
 
@@ -141,15 +139,12 @@
 :root[data-theme="console"] {
   /* Everything is monospace text. Outside a terminal each character shows as it is; a terminal and the font sample follow Terminal Ligatures. */
   body { font: 12px/1.5 var(--font-mono); }
-  #app > :not(.main), .main > :not(.terminal-view), .overlay-surface { font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
+  #app > :not(.main), .main > :not(.terminal-view), .overlay-surface, &.overlay-modal body { font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
   .font-sample:not(.no-ligatures) { font-variant-ligatures: normal; font-feature-settings: normal; }
   .mono { font-size: 12px; }
   ::selection { background: var(--accent); color: var(--on-accent); }
   ::-webkit-scrollbar-thumb { border: 0; }
   ::-webkit-scrollbar-thumb:active { background-color: var(--accent); }
-
-  /* With no connection there is no windows line. */
-  &:has(.console-windows[hidden]) { --console-bottom: var(--console-line); }
 
   /* A title line, the view, the windows line and the status line. */
   #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--chrome-top) minmax(0, 1fr) auto var(--console-line); }

@@ -420,7 +420,7 @@ export function hoveredLink() {
   const { tab } = current();
   return tab && pageVisible() ? targetOf(tab.id) : '';
 }
-/** Whether the selected tab's page can be shown: it has something to show and no interface of the application lies over it. */
+/** Whether the selected tab's page can be shown: its view is on show, and the tab has a page to show rather than a certificate warning. */
 function pageVisible() {
   const { workspace, tab } = current();
   return Boolean(
@@ -430,7 +430,6 @@ function pageVisible() {
       tab &&
       (tab.url || tab.loading) &&
       !tab.certificate &&
-      !dialogOpen() &&
       !view.hidden,
   );
 }

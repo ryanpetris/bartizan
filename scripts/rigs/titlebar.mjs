@@ -3,6 +3,7 @@ import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { launch, waitFor, withDirectory } from './lib/harness.mjs';
+import { openSettings, closeSettings } from './lib/settings.mjs';
 
 await withDirectory('titlebar', async (directory, cleanup) => {
   const wm = spawn('openbox', ['--sm-disable'], { stdio: 'ignore' });
@@ -74,8 +75,9 @@ await withDirectory('titlebar', async (directory, cleanup) => {
     await application.evaluate(({ BrowserWindow }, zoom) => { const window = BrowserWindow.getAllWindows()[0]; window.setSize(800, 600); window.webContents.setZoomFactor(zoom); }, zoom);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
-    await expect(page.locator('#connection-dialog')).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    const dialogs = await app.modal();
+    await expect(dialogs.locator('#connection-dialog')).toBeVisible();
+    await dialogs.getByRole('button', { name: 'Cancel', exact: true }).click();
     for (const control of [page.getByRole('button', { name: 'Profiles', exact: true }), settings]) {
       assert.equal(await control.evaluate(node => {
         const bounds = node.getBoundingClientRect(), area = navigator.windowControlsOverlay.getTitlebarAreaRect();
@@ -83,11 +85,10 @@ await withDirectory('titlebar', async (directory, cleanup) => {
       }), true, `Application controls stay clear of the native controls at ${zoom}x`);
     }
     await page.getByRole('button', { name: 'Profiles', exact: true }).click();
-    await expect(page.locator('#profiles-dialog')).toBeVisible();
-    await page.locator('#profiles-dialog').getByRole('button', { name: 'Close', exact: true }).click();
-    await settings.click();
-    await expect(page.locator('#settings-dialog')).toBeVisible();
-    await page.locator('#settings-dialog').getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(dialogs.locator('#profiles-dialog')).toBeVisible();
+    await dialogs.locator('#profiles-dialog').getByRole('button', { name: 'Close', exact: true }).click();
+    await openSettings(page);
+    await closeSettings(page);
     await expect(settings).toBeFocused();
   }
   await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1));

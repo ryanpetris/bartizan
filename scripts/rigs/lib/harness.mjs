@@ -37,6 +37,18 @@ export async function waitFor(check, message = 'condition', timeout = 20000) {
   }
 }
 
+/**
+ * The modal overlay beside `page`, where dialogs draw over the pages: a window of its own, which the page replaces when
+ * it reloads. The page shows its interface once its overlay has opened, and the newest overlay is the page's.
+ */
+export async function modalOf(page) {
+  await page.locator('.main').waitFor({ state: 'attached' });
+  return waitFor(async () => {
+    for (const candidate of page.context().pages().reverse())
+      if (candidate !== page && !candidate.isClosed() && await candidate.evaluate(() => document.documentElement.classList.contains('overlay-modal')).catch(() => false)) return candidate;
+  }, 'the modal overlay');
+}
+
 export const sshdBinary = () => (process.env.PATH ?? '').split(delimiter).concat('/usr/sbin').map(directory => join(directory, 'sshd')).find(existsSync);
 
 /**
@@ -103,5 +115,5 @@ export async function launch(directory, config, { args = [], env = {}, colorSche
   const output = id => page.evaluate(id => window.rigOutputs[id] ?? '', id);
   /** Chooses a connection on the rail, which brings its items into view; a connection made through the API is not chosen by itself. */
   const chooseConnection = id => page.locator(`.connection-chip[data-id="${id}"] .connection-titles`).click();
-  return { application, page, errors, state, api, waitState, recordOutput, output, chooseConnection, close: () => application.close() };
+  return { application, page, errors, state, api, waitState, recordOutput, output, chooseConnection, modal: () => modalOf(page), close: () => application.close() };
 }

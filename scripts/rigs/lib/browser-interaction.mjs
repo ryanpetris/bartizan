@@ -37,8 +37,13 @@ export async function testBrowserInteractions(app, httpPort, first) {
   assert.equal(values.persistent, false); assert.equal(values.storage, 'present'); assert.ok(values.cookies.some(c => c.name === 'rig'));
   await firstTabRow.click();
   const chrome = [];
-  const nativeViews = () => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).length);
-  await expect.poll(nativeViews).toBe(1);
+  // Overlays are blank documents; page views hold the pages.
+  const pageViews = () => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible() && view.webContents.getURL() !== 'about:blank').length);
+  await expect.poll(pageViews).toBe(1);
+  const views = () => application.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    return { content: window.getContentBounds(), shown: window.contentView.children.filter(view => view.getVisible()).map(view => ({ url: view.webContents.getURL(), focused: view.webContents.isFocused(), ...view.getBounds() })) };
+  });
   const toastBounds = () => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).map(view => view.getBounds()));
   const boundsBeforeToast = await toastBounds();
   await page.evaluate(() => window.bartizan.reportError({ source: 'rig', message: 'Browser notification fixture' }));
@@ -46,20 +51,66 @@ export async function testBrowserInteractions(app, httpPort, first) {
   assert.deepEqual(await toastBounds(), boundsBeforeToast, 'A toast does not hide or resize the native page');
   await page.locator('[data-sonner-toaster]').getByRole('button', { name: 'Dismiss', exact: true }).click();
   await page.getByRole('button', { name: 'Errors', exact: true }).click();
-  await expect(page.locator('.error-panel')).toBeVisible();
-  await expect.poll(nativeViews).toBe(0);
-  await page.keyboard.press('Escape');
-  await expect.poll(nativeViews).toBe(1);
-  assert.deepEqual(await toastBounds(), boundsBeforeToast);
-  console.log('Error toasts preserve native page visibility and bounds; the panel restores the page on close.');
+  const panel = (await app.modal()).locator('.error-panel');
+  await expect(panel).toBeVisible();
+  await expect.poll(async () => (await views()).shown.map(view => view.url.startsWith('http:') ? 'page' : view.url), 'The panel draws over the page').toEqual(['page', 'about:blank']);
+  await panel.page().keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect.poll(toastBounds).toEqual(boundsBeforeToast);
+  console.log('Error toasts and the error panel leave the native page in view with its bounds.');
+  // Settings draws over the page, which stays in view beneath the backdrop, from the foot of the title bar to the window's.
+  const chromeTop = () => page.locator('.rail-topbar').evaluate(bar => bar.getBoundingClientRect().bottom);
+  // While a dialog is open over the pages, the only overlay shown is the modal overlay.
+  const modalView = () => application.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].contentView.children.find(view => view.getVisible() && view.webContents.getURL() === 'about:blank');
+    return view && { focused: view.webContents.isFocused(), zoom: view.webContents.getZoomFactor() };
+  });
+  const modalFocused = async () => (await modalView())?.focused === true;
+  const pageMarked = () => application.evaluate(({ webContents }) => webContents.getAllWebContents().find(w => w.getURL().startsWith('http://localhost:')).executeJavaScript('window.marked === true'));
+  const pageReload = () => application.evaluate(async ({ Menu, webContents }) => {
+    await webContents.getAllWebContents().find(w => w.getURL().startsWith('http://localhost:')).executeJavaScript('window.marked = true');
+    Menu.getApplicationMenu().items[0].submenu.items.find(item => item.label === 'reload').click();
+  });
   for (const mode of ['dark', 'light']) {
-    await expect.poll(nativeViews).toBe(1);
+    await expect.poll(pageViews).toBe(1);
     const settings = await openSettings(page);
-    await expect.poll(nativeViews).toBe(0);
+    await expect.poll(async () => {
+      const { content, shown } = await views(), top = Math.round(await chromeTop()), modal = shown.at(-1);
+      return shown.length === 2 && shown[0].url.startsWith('http:') && modal.url === 'about:blank' && modal.focused
+        && modal.x === 0 && modal.y === top && modal.width === content.width && modal.height === content.height - top;
+    }, 'Settings draws over the page from the foot of the title bar').toBe(true);
+    await expect(settings.getByRole('combobox', { name: 'Appearance', exact: true })).toBeFocused();
+    if (mode === 'dark') {
+      // The application page takes native focus when the window is activated or its title bar clicked, and hands it back.
+      await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.focus());
+      await expect.poll(modalFocused, 'Settings takes the keyboard back from the application page').toBe(true);
+      await application.evaluate(({ BrowserWindow }) => { const window = BrowserWindow.getAllWindows()[0]; window.blur(); window.focus(); });
+      await expect.poll(modalFocused, 'Settings keeps the keyboard when the window is activated again').toBe(true);
+      // The page's own keys stay with it while Settings is open.
+      await pageReload();
+      await page.waitForTimeout(500);
+      assert.equal(await pageMarked(), true);
+      // The dialog's document follows the application's zoom.
+      await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1.25));
+      await expect.poll(async () => {
+        const [inner, modal] = await Promise.all([page.evaluate(() => innerWidth), settings.evaluate(() => innerWidth)]);
+        return (await modalView())?.zoom === 1.25 && Math.abs(modal - inner) <= 1;
+      }, 'Settings follows the application zoom').toBe(true);
+      await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1));
+      await expect.poll(async () => {
+        const { content, shown } = await views(), top = Math.round(await chromeTop()), modal = shown.at(-1);
+        return modal.url === 'about:blank' && modal.y === top && modal.width === content.width && modal.height === content.height - top;
+      }).toBe(true);
+    }
     await settings.getByRole('combobox', { name: 'Appearance', exact: true }).selectOption(mode);
     await expect.poll(async () => (await state()).settings.appearance).toBe(mode);
     await closeSettings(page);
-    await expect.poll(nativeViews).toBe(1);
+    await expect.poll(pageViews).toBe(1);
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
+    if (mode === 'dark') {
+      await pageReload();
+      await expect.poll(pageMarked, 'The page reloads once Settings closes').toBe(false);
+    }
     await page.waitForFunction(mode => getComputedStyle(document.documentElement).colorScheme === mode, mode);
     await expect.poll(() => application.evaluate(async ({ webContents }) => {
       const browser = webContents.getAllWebContents().find(w => w.getURL().startsWith('http://localhost:'));
@@ -69,7 +120,7 @@ export async function testBrowserInteractions(app, httpPort, first) {
   }
   assert.notEqual(chrome[0], chrome[1]);
   await chooseAppearance(app, 'system');
-  console.log('Settings hides and restores the visible page; browser controls and remote page color preference follow application appearance.');
+  console.log('Settings draws over the visible page and returns focus when it closes; browser controls and remote page color preference follow application appearance.');
   await expect(page.locator('.rail-topbar').getByRole('heading', { level: 1 })).toContainText('Browser');
   const tabs = async () => (await state()).workspaces.find(w => w.id === workspaceId).tabs;
   const existingTabs = await tabs();
@@ -78,7 +129,7 @@ export async function testBrowserInteractions(app, httpPort, first) {
   await page.locator('.browser-toolbar').getByRole('button', { name: 'Close Tab', exact: true }).click();
   await expect.poll(async () => (await tabs()).length).toBe(existingTabs.length);
   await page.locator(`[data-kind="tab"][data-id="${existingTabs[0].id}"]`).click();
-  await expect.poll(nativeViews).toBe(1);
+  await expect.poll(pageViews).toBe(1);
   console.log('Browser context appears in the title bar; the address toolbar opens and closes tabs.');
   await application.evaluate(async ({ webContents }) => {
     const browser = webContents.getAllWebContents().find(w => w.getURL().startsWith('http://localhost:'));
@@ -94,8 +145,9 @@ export async function testBrowserInteractions(app, httpPort, first) {
   await page.waitForFunction(() => document.activeElement?.getAttribute('name') === 'address');
   assert.equal(await page.locator('[name="address"]').evaluate(input => input.selectionEnd - input.selectionStart), await page.locator('[name="address"]').evaluate(input => input.value.length));
   await browserKey('N', ['control', 'shift']);
-  await page.waitForFunction(() => document.querySelector('#connection-dialog')?.open);
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  const shortcutForm = (await app.modal()).locator('#connection-dialog');
+  await expect(shortcutForm).toBeVisible();
+  await shortcutForm.getByRole('button', { name: 'Cancel', exact: true }).click();
   console.log('Focused browser pages retain ordinary input and forward address/new-connection shortcuts.');
   const selections = await page.locator('[name="address"]').evaluate(async input => {
     const results = [];
@@ -131,19 +183,51 @@ export async function testBrowserInteractions(app, httpPort, first) {
   await application.evaluate(({ webContents }) => webContents.getAllWebContents().find(w => w.getURL().startsWith('http://localhost:')).focus());
   await page.evaluate(() => { location.href = 'https://example.invalid/'; });
   await page.waitForTimeout(200);
-  assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).length), 1);
+  assert.equal(await pageViews(), 1);
   await page.reload();
   await page.locator('.home-view').waitFor();
-  assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).length), 0);
+  assert.equal(await pageViews(), 0);
+  // A reload with Settings open hands the keyboard to the reloaded application page.
+  await openSettings(page);
+  await expect.poll(modalFocused).toBe(true);
+  await page.reload();
+  await page.locator('.home-view').waitFor();
+  await expect.poll(() => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.isFocused())).toBe(true);
   await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
-  await page.locator('#connection-dialog').waitFor({ state: 'visible' });
-  assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).length), 0);
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  const form = (await app.modal()).locator('#connection-dialog');
+  await form.waitFor({ state: 'visible' });
+  await form.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await app.chooseConnection(connectionId);
+  await firstTabRow.click();
+  // A sign-in prompt that arrives while Settings is open draws above it with the keyboard, and hands it back as it closes.
+  const holds = dialog => dialog.evaluate(node => node.contains(node.ownerDocument.activeElement));
+  const settingsUnder = await openSettings(page);
+  const cancelled = await api('connect', { profileId: 'ask' });
+  const prompt = settingsUnder.page().locator('#auth-dialog');
+  await prompt.waitFor({ state: 'visible' });
+  await expect.poll(() => holds(prompt), 'The prompt has the keyboard').toBe(true);
+  assert.equal(await modalFocused(), true);
+  await prompt.page().keyboard.press('Escape');
+  await waitState(page, s => s.connections.find(c => c.id === cancelled)?.status === 'closed');
+  await expect(settingsUnder).toBeVisible();
+  await expect.poll(() => holds(settingsUnder), 'Settings has the keyboard again').toBe(true);
+  await closeSettings(page);
+  // A prompt that arrives while the window is inactive takes the keyboard once the window is activated, from the page too.
+  await application.evaluate(({ webContents }) => webContents.getAllWebContents().find(w => w.getURL().startsWith('http://localhost:')).focus());
+  await expect.poll(() => application.evaluate(({ webContents }) => webContents.getAllWebContents().find(w => w.getURL().startsWith('http://localhost:')).isFocused())).toBe(true);
+  await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].blur());
+  const inactive = await api('connect', { profileId: 'ask' });
+  await prompt.waitFor({ state: 'visible' });
+  await expect.poll(async () => (await modalView())?.focused, 'The prompt appears').toBe(false);
+  await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].focus());
+  await expect.poll(modalFocused, 'The prompt takes the keyboard').toBe(true);
+  await prompt.page().keyboard.press('Escape');
+  await waitState(page, s => s.connections.find(c => c.id === inactive)?.status === 'closed');
   await app.chooseConnection(connectionId);
   await firstTabRow.click();
   await application.evaluate(({ webContents }) => webContents.getAllWebContents().find(w => w.getURL().startsWith('http://localhost:')).focus());
   const challenged = await api('connect', { profileId: 'ask' });
-  await page.locator('#auth-dialog').waitFor({ state: 'visible' });
+  await prompt.waitFor({ state: 'visible' });
   const draft = await api('profileDraft', 'ask');
   const preview = await api('profilePreview', { token: draft.token, values: {}, reset: [] });
   const details = await page.evaluate(id => window.bartizan.details(id), challenged);
@@ -156,12 +240,13 @@ export async function testBrowserInteractions(app, httpPort, first) {
   }
   const pendingChallenge = (await state()).challenges[0].id;
   await page.reload();
-  await page.locator('#auth-dialog').waitFor({ state: 'visible' });
+  const recovered = (await app.modal()).locator('#auth-dialog');
+  await recovered.waitFor({ state: 'visible' });
   assert.equal((await state()).challenges[0].id, pendingChallenge);
-  assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).length), 0);
+  assert.equal(await pageViews(), 0);
 
-  await page.waitForFunction(() => document.hasFocus());
-  await page.keyboard.press('Escape');
+  await expect.poll(modalFocused).toBe(true);
+  await recovered.page().keyboard.press('Escape');
   await waitState(page, s => s.connections.find(c => c.id === challenged)?.status === 'closed');
   await app.chooseConnection(connectionId);
   await firstTabRow.click();

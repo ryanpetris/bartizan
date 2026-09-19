@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse } from 'yaml';
 import { withDirectory, startSshd, sshProfile, launch, waitFor } from './lib/harness.mjs';
+import { openSettings, closeSettings } from './lib/settings.mjs';
 
 const controls = ['New Connection', 'Errors', 'Profiles', 'Settings', 'Connection Details'];
 
@@ -60,11 +61,10 @@ await withDirectory('themes', async (directory, cleanup) => {
     await expect(page.locator('.terminal-surface:not([hidden]) .xterm-screen')).toBeVisible();
     const keptSelectors = ['main.main', '.terminal-view', '.browser-view', '.terminal-surface:not([hidden]) .xterm-screen'];
     for (const selector of keptSelectors) await page.locator(selector).evaluate(node => { node.rigKept = true; });
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    const dialog = page.locator('#settings-dialog');
+    const dialog = await openSettings(page);
     if (id === 'tabs') {
       await dialog.getByRole('radio', { checked: true }).focus();
-      await page.keyboard.press('ArrowRight');
+      await dialog.page().keyboard.press('ArrowRight');
       await expect(dialog.getByRole('radio', { name: theme.name, exact: true })).toBeFocused();
     } else await dialog.getByRole('radio', { name: theme.name, exact: true }).click();
     await expect(dialog.getByRole('radio', { name: theme.name, exact: true })).toHaveAttribute('aria-checked', 'true');
@@ -99,7 +99,7 @@ await withDirectory('themes', async (directory, cleanup) => {
     for (const selector of keptSelectors) assert.equal(await page.locator(selector).evaluate(node => node.rigKept === true), true, `${id}: ${selector} stays mounted`);
     assert.equal(await page.locator('.terminal-surface:not([hidden]) .xterm-screen').evaluate(screen => screen.clientWidth > 300 && screen.clientHeight > 200), true, `${id}: the terminal fits`);
     if (iteration === themeIds.length) {
-      assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--console-font')), '');
+      for (const property of ['--console-font', '--console-bottom']) assert.equal(await page.evaluate(property => document.documentElement.style.getPropertyValue(property), property), '');
       for (const candidate of application.windows()) if (candidate !== page) await expect(candidate.locator('[data-sonner-toast]')).toHaveCount(0);
     }
     await expect(page.locator('h1#view-title')).toHaveCount(1);
@@ -164,11 +164,11 @@ await withDirectory('themes', async (directory, cleanup) => {
       };
       await fits();
       await dismiss();
-      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      await openSettings(page);
       await api('reportError', { source: 'rig', message: 'failure during Settings' });
       await api('reportError', { source: 'rig', message: 'failure during Settings' });
       await page.waitForTimeout(6500);
-      await page.locator('#settings-dialog').getByRole('button', { name: 'Close', exact: true }).click();
+      await closeSettings(page);
       await expect(toasts.locator('[data-sonner-toast]')).toContainText('failure during Settings');
       await expect(toasts.locator('[data-sonner-toast]')).toContainText('×2');
       await dismiss();
@@ -177,13 +177,22 @@ await withDirectory('themes', async (directory, cleanup) => {
       console.log('Notifications fit at 800×500 and survive Settings for longer than their timeout.');
     }
     if (id === 'console') {
+      // A dialog keeps clear of the lines below the view: the windows line and the status line, or at home the status line.
+      for (const place of ['connection', 'home']) {
+        if (place === 'home') await home.click();
+        const dialog = await openSettings(page);
+        const below = await page.evaluate(() => innerHeight - document.querySelector('.main').getBoundingClientRect().bottom);
+        assert.equal(await dialog.evaluate(node => parseFloat(getComputedStyle(node).bottom)), below, `Console dialogs clear the lines below the view from ${place}`);
+        await closeSettings(page);
+      }
+      await chip.click();
+      await page.locator(`[data-kind="terminal"][data-id="${terminal}"]`).click();
       await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 500));
       await page.waitForFunction(() => innerWidth === 800 && innerHeight === 500);
-      await page.getByRole('button', { name: 'Settings', exact: true }).click();
-      const close = page.locator('#settings-dialog').getByRole('button', { name: 'Close', exact: true });
+      const close = (await openSettings(page)).getByRole('button', { name: 'Close', exact: true });
       await expect(close).toBeVisible();
       const bounds = await box(close);
-      assert.ok(bounds.y >= 0 && bounds.bottom <= 500, 'Console Settings Close fits a 500px window');
+      assert.ok(bounds.y >= 0 && bounds.bottom <= await close.page().evaluate(() => innerHeight), 'Console Settings Close fits a 500px window');
       await close.click();
       await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1250, 820));
       await page.waitForFunction(() => innerWidth === 1250 && innerHeight === 820);
@@ -218,14 +227,15 @@ await withDirectory('themes', async (directory, cleanup) => {
           await owner.mouse.up();
         }
         await expect(notification).toHaveCount(0);
-        await expect(page.locator('#errors-dialog')).toBeHidden();
+        await expect((await app.modal()).locator('#errors-dialog')).toBeHidden();
       } else {
         if (action === 'click') await notification.locator('[data-description]').click();
         else await notification.locator('.error-toast-title').press(action);
-        await expect(page.locator('#errors-dialog')).toBeVisible();
-        await expect(page.locator('.error-history')).toContainText(message);
-        await page.locator('#errors-dialog').getByRole('button', { name: 'Close', exact: true }).click();
-        await expect(page.locator('#errors-dialog')).toBeHidden();
+        const panel = (await app.modal()).locator('#errors-dialog');
+        await expect(panel).toBeVisible();
+        await expect(panel.locator('.error-history')).toContainText(message);
+        await panel.getByRole('button', { name: 'Close', exact: true }).click();
+        await expect(panel).toBeHidden();
         await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
       }
     }

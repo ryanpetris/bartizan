@@ -263,7 +263,8 @@ await withDirectory('browsing', async (directory, cleanup) => {
   // Opening an overlay's name again reaches the same overlay, which stays blank.
   await page.evaluate(() => { window.open('https://example.invalid/', 'overlay-status'); });
   await page.waitForTimeout(500);
-  assert.deepEqual(await application.evaluate(({ webContents }) => webContents.getAllWebContents().map(contents => contents.getURL()).filter(url => !/^(file|http):/.test(url))), ['about:blank', 'about:blank']);
+  // The status and downloads overlays are open, and the modal overlay, which opens at launch.
+  assert.deepEqual(await application.evaluate(({ webContents }) => webContents.getAllWebContents().map(contents => contents.getURL()).filter(url => !/^(file|http):/.test(url))), ['about:blank', 'about:blank', 'about:blank']);
   assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
   assert.deepEqual(errors, []);
   console.log('Every overlay and tool stays inside the one application window.');

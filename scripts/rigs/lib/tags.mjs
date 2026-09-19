@@ -9,8 +9,9 @@ export async function testProfileTags(app, config, connectionId) {
   const before = await state();
   const connectionBefore = before.connections.find(connection => connection.id === connectionId);
   const connect = connectSearch(page), results = connectResults(page);
+  const dialogs = await app.modal();
   const option = page.locator('#connect-profile-rig');
-  const profile = page.locator('#profiles-dialog .profile-row[data-id="rig"]');
+  const profile = dialogs.locator('#profiles-dialog .profile-row[data-id="rig"]');
   const chip = page.locator(`.connection-chip[data-id="${connectionId}"] .connection-titles`);
   await chip.click();
   const connection = page.locator('.rail-panel');
@@ -25,8 +26,8 @@ export async function testProfileTags(app, config, connectionId) {
     await expect(profile).toContainText('<b>literal</b>');
     await expect(profile.locator('b')).toHaveCount(0);
     await profile.locator('.profile-item').focus();
-    await page.keyboard.press('ArrowDown');
-    await expect(page.locator('#profiles-dialog .profile-item').nth(1)).toBeFocused();
+    await dialogs.keyboard.press('ArrowDown');
+    await expect(dialogs.locator('#profiles-dialog .profile-item').nth(1)).toBeFocused();
     await closeProfiles(page);
     await expect(connection.locator('.rail-panel-head')).toContainText('Team Blue');
     assert.deepEqual((await state()).profiles.find(p => p.id === 'rig').tags, ['Operations', 'Team Blue', '<b>literal</b>']);
