@@ -5,7 +5,6 @@ import { NavGroup, ConnectionChips, ConnectionItems, ConnectionName, ConnectionT
 import { ErrorsButton } from '../../errors';
 import { Tags, IconButton } from '../../ui';
 import { groups, currentConnection, render, type Group } from '../../store';
-import { themes } from '../../../themes';
 import './style.css';
 
 /** Brings the entry a list marks as current into view whenever another entry becomes the current one or the list is new. */
@@ -74,6 +73,7 @@ function Chrome() {
           <NavGroup name="panel" className="rail-panel-nav">
             <header className="rail-panel-head" data-status={connection.status}>
               <div className="rail-panel-title">
+                <IconButton icon="sidebar" label={thin ? 'Expand Sidebar' : 'Collapse Sidebar'} className="rail-panel-toggle" onClick={toggleThin} />
                 <ConnectionName connection={connection} />
                 <ConnectionTools connection={connection} />
               </div>
@@ -89,9 +89,6 @@ function Chrome() {
               </LabelTitles.Provider>
             </div>
           </NavGroup>
-          <footer className="rail-panel-foot">
-            <IconButton icon="sidebar" label={thin ? 'Expand Sidebar' : 'Collapse Sidebar'} onClick={toggleThin} />
-          </footer>
         </nav>
       )}
       <header className="rail-topbar">
@@ -107,12 +104,10 @@ function Chrome() {
 export const rail: Theme = {
   Chrome,
   toasts: () => {
-    const group = shownGroup(),
-      beside = themes.rail.toasts;
-    if (!group || beside.overlay) return undefined;
+    const group = shownGroup();
     // A thin panel has no room for notifications at its foot, and a page view can lie where they would be, so they draw
-    // over the view. Beside a wide panel they stand above its button, which takes 46px of its foot.
-    return narrow(group) ? { overlay: true } : { ...beside, offset: { ...beside.offset, bottom: 56 } };
+    // over the view.
+    return group && narrow(group) ? { overlay: true } : undefined;
   },
   Preview: () => (
     <svg viewBox="0 0 64 44" aria-hidden="true" focusable="false">

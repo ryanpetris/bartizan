@@ -147,23 +147,22 @@ await withDirectory('themes', async (directory, cleanup) => {
       assert.ok(bounds.right <= slot.x || bounds.x >= slot.x + slot.width || bounds.bottom <= slot.y || bounds.y >= slot.y + slot.height, `${id}: the notification is clear of the page`);
     }
     if (id === 'rail' && !iteration) {
-      // The sidebar's foot holds the button that makes it thin, level with Settings, below the notifications.
-      const panel = page.locator('.rail-panel'), foot = panel.locator('.rail-panel-foot');
-      const collapse = foot.getByRole('button', { name: 'Collapse Sidebar', exact: true }), expand = foot.getByRole('button', { name: 'Expand Sidebar', exact: true });
+      // The button that makes the sidebar thin leads its title, and stays where it is as the sidebar narrows.
+      const panel = page.locator('.rail-panel'), title = panel.locator('.rail-panel-title');
+      const collapse = title.getByRole('button', { name: 'Collapse Sidebar', exact: true }), expand = title.getByRole('button', { name: 'Expand Sidebar', exact: true });
       const pageView = async () => (await pageViews()).find(view => view.url.startsWith('http:'));
-      const middle = bounds => bounds.y + bounds.height / 2;
-      assert.ok(Math.abs(middle(await box(collapse)) - middle(await box(page.locator('.rail-actions').getByRole('button', { name: 'Settings', exact: true })))) <= 1, 'The sidebar button is level with Settings');
+      const place = await box(collapse);
+      assert.ok(place.x < (await box(title.locator('.connection-name'))).x, 'The sidebar button leads the title');
       await api('reportError', { source: 'rig', message: 'failure beside the wide sidebar' });
-      const wideToast = page.locator('[data-sonner-toast]').filter({ hasText: 'failure beside the wide sidebar' });
-      await expect(wideToast).toBeVisible();
-      // A toast slides up into place.
-      await expect.poll(async () => (await box(wideToast)).bottom <= (await box(collapse)).y, 'Notifications stand above the sidebar button').toBe(true);
+      await expect(page.locator('[data-sonner-toast]').filter({ hasText: 'failure beside the wide sidebar' })).toBeVisible();
       const wide = await box(panel);
 
       // A thin sidebar shows each item by its icon, named in its title, and the view takes the width it gives up.
       await collapse.click();
       await expect(expand).toBeFocused();
       await expect(panel).toHaveClass(/\bthin\b/);
+      const thinPlace = await box(expand);
+      assert.deepEqual([thinPlace.x, thinPlace.y], [place.x, place.y], 'The sidebar button stays where it was');
       const thin = await box(panel);
       assert.equal(thin.width, 56);
       const narrow = await box(page.locator('.browser-slot'));

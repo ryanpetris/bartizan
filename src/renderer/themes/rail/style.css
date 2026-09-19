@@ -254,9 +254,13 @@
 :root[data-theme="rail"] .rail-panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--border); background: var(--bg-panel); }
 :root[data-theme="rail"] .rail-panel-nav { display: flex; flex: 1; flex-direction: column; min-height: 0; }
 :root[data-theme="rail"] .rail-panel-head { flex: none; }
-:root[data-theme="rail"] .rail-panel-title { display: flex; align-items: center; gap: 4px; height: var(--chrome-top); padding: 0 10px 0 19px; border-bottom: 1px solid var(--border); user-select: none; app-region: drag; }
+/* The button that makes the panel thin leads its title, where it stands in the thin panel too; the rail's badge beside it
+   shows the connection's status. The button's icon lines up with the items' icons, 19px in, and the connection's name
+   with their labels, 8px past the icon. */
+:root[data-theme="rail"] .rail-panel-title { display: flex; align-items: center; gap: 4px; height: var(--chrome-top); padding: 0 10px 0 13px; border-bottom: 1px solid var(--border); user-select: none; app-region: drag; }
+:root[data-theme="rail"] .rail-panel-toggle { margin-right: -2px; }
 :root[data-theme="rail"] .rail-panel-title .connection-name { flex: 1; gap: 8px; }
-:root[data-theme="rail"] .rail-panel-title .status-dot { margin: 0 4px; }
+:root[data-theme="rail"] .rail-panel-title .status-dot { display: none; }
 :root[data-theme="rail"] .rail-panel-title .connection-label { color: var(--text-strong); font-size: 15px; font-weight: 650; line-height: 18px; letter-spacing: -0.01em; }
 :root[data-theme="rail"] .rail-panel-title .icon-button { app-region: no-drag; }
 /* The narrower panel sets the label a size down, which keeps an ordinary one whole beside the connection's commands. */
@@ -271,24 +275,17 @@
 :root[data-theme="rail"] .rail-panel-scroll::after { bottom: -12px; margin: -2px 0 -12px -9px; background: linear-gradient(transparent, var(--bg-panel) 85%); }
 @container scroll-state(scrollable: top) { :root[data-theme="rail"] .rail-panel-scroll::before { opacity: 1; } }
 @container scroll-state(scrollable: bottom) { :root[data-theme="rail"] .rail-panel-scroll::after { opacity: 1; } }
-/* The panel's foot holds the button that makes it thin, level with Settings on the rail. */
-:root[data-theme="rail"] .rail-panel-foot { display: flex; flex: none; padding: 0 10px 10px; }
-:root[data-theme="rail"] .rail-panel-foot .icon-button { width: 36px; height: 36px; border-radius: 10px; }
-:root[data-theme="rail"] .rail-panel-foot .icon { width: 18px; height: 18px; }
-
-/* A thin panel: the connection's status over a column of its items' icons, each named in its title. */
-:root[data-theme="rail"] .rail-panel.thin :is(.connection-label, .nav-label, .nav-meta) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* A thin panel: the button that widens it over a column of its items' icons, each named in its title. */
+:root[data-theme="rail"] .rail-panel.thin :is(.rail-panel-title .connection-name, .nav-label, .nav-meta) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 :root[data-theme="rail"] .rail-panel.thin :is(.connection-tools, .rail-panel-meta, .row-actions) { display: none; }
-:root[data-theme="rail"] .rail-panel.thin .rail-panel-title { justify-content: center; padding: 0; }
-:root[data-theme="rail"] .rail-panel.thin .rail-panel-title .connection-name { flex: none; }
+:root[data-theme="rail"] .rail-panel.thin .rail-panel-title { padding-right: 0; }
 :root[data-theme="rail"] .rail-panel.thin .rail-panel-scroll { padding: 8px 0 12px; scrollbar-gutter: auto; }
 :root[data-theme="rail"] .rail-panel.thin .rail-panel-scroll::-webkit-scrollbar { display: none; }
 :root[data-theme="rail"] .rail-panel.thin .rail-panel-scroll::before, :root[data-theme="rail"] .rail-panel.thin .rail-panel-scroll::after { margin-left: 0; }
-:root[data-theme="rail"] .rail-panel.thin .row > .nav-item { justify-content: center; width: 36px; margin: 0 auto; padding: 0; }
+:root[data-theme="rail"] .rail-panel.thin .row > .nav-item { justify-content: center; width: 36px; margin-left: 9px; padding: 0; }
 :root[data-theme="rail"] .rail-panel.thin .tab-items { margin: 2px 0 0; padding-left: 0; }
 :root[data-theme="rail"] .rail-panel.thin .tab-items::before { left: 4px; }
 :root[data-theme="rail"] .rail-panel.thin .tab-items .nav-item[aria-current="page"]::before { left: -6px; }
-:root[data-theme="rail"] .rail-panel.thin .rail-panel-foot { justify-content: center; padding: 0 0 10px; }
 
 :root[data-theme="rail"] .nav-item, :root[data-theme="rail"] .icon-button, :root[data-theme="rail"] .button, :root[data-theme="rail"] .section-tab, :root[data-theme="rail"] .theme-option { transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease; }
 :root[data-theme="rail"] .connection-items { gap: 2px; }
