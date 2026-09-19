@@ -424,6 +424,8 @@ html.overlay [data-compact] .error-toaster [data-sonner-toast] [data-description
 /* Dialogs */
 dialog { top: var(--chrome-top); max-height: calc(100vh - var(--chrome-top) - 2em - 6px); padding: 0; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg-dialog); color: var(--text); box-shadow: var(--shadow); }
 dialog::backdrop { top: var(--chrome-top); background: rgba(8, 10, 14, 0.42); }
+/* A dialog that takes focus itself, rather than one of its controls, shows no ring. */
+dialog:focus-visible { outline: none; }
 .dialog-header { display: flex; align-items: flex-start; gap: 12px; }
 .dialog-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 8px; background: var(--accent-soft); color: var(--accent-text); }
 .dialog-icon.warning { background: var(--warn-soft); color: var(--warn-text); }

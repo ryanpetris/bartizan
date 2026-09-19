@@ -32,6 +32,7 @@ await withDirectory('errors', async (directory, cleanup) => {
   await button().click();
   await expect(panel()).toHaveJSProperty('open', true);
   await expect(panel()).toBeFocused();
+  assert.equal(await panel().evaluate(node => getComputedStyle(node).outlineStyle), 'none', 'The panel holds focus without a ring');
   await dialogs.keyboard.press('Tab');
   await expect(dialogs.getByRole('combobox', { name: 'Filter', exact: true })).toBeFocused();
   await expect(current()).toContainText('Invalid YAML');
