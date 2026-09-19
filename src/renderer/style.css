@@ -235,7 +235,7 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 .connect-option { cursor: default; }
 .connect-option[aria-selected="true"] { background: var(--selected); color: var(--text-strong); }
 .connect-destination { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 5px 10px 5px 8px; border-radius: var(--radius); }
-.connect-destination .icon { color: var(--text-muted); }
+.connect-destination > .identicon { width: 24px; }
 .connect-target { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Titles shrink before actions; the padding after the actions stays draggable. */
 .titlebar-marker { display: grid; place-items: center; flex: none; width: 16px; height: 16px; color: var(--session-color); }

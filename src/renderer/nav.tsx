@@ -33,7 +33,7 @@ import { openMenu, type MenuItem } from './menu';
 import { faviconOf, dropFavicon } from './tab-state';
 import { hasCurrent } from './errors';
 import { openDetails } from './details';
-import { Identicon } from './identicon';
+import { Identicon, destinationSeed } from './identicon';
 
 const actionsStyle = (count: number) => ({ '--actions': count }) as CSSProperties;
 /** The unit being dragged, and the unit marked where it would land with the key it would land before. */
@@ -484,7 +484,7 @@ export function ConnectionChips({ current }: { current?: string }) {
               aria-current={current === id ? 'true' : undefined}
               onClick={() => revisit(id)}
             >
-              <Identicon seed={connection.profileId ?? JSON.stringify([connection.host, connection.username ?? ''])} />
+              <Identicon seed={connection.profileId ?? destinationSeed(connection.host, connection.username)} />
               <ConnectionName connection={connection} />
             </button>
           </li>

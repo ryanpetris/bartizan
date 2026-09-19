@@ -128,12 +128,13 @@ await withDirectory('connect', async (directory, cleanup) => {
 
   // A connection made through the interface is shown; one made through the API is chosen from the rail.
   const directPatterns = new Map();
-  const verify = async (host, profileId, username, { choose = false } = {}) => {
+  const verify = async (host, profileId, username, { choose = false, preview } = {}) => {
     const state = await waitState(s => s.connections.length === 1 && s.terminals[0]?.status === 'connected', `connection to ${host}`);
     const [connection] = state.connections, [terminal] = state.terminals;
     const icon = page.locator(`.connection-chip[data-id="${connection.id}"] .identicon`);
     await expect(icon).toBeVisible();
     const pattern = await icon.innerHTML();
+    if (preview) assert.equal(pattern, preview, 'The quick-connect preview matches the connected badge');
     if (profileId) assert.equal(pattern, profilePattern, 'The profile list and connected badge share an icon');
     else {
       const target = JSON.stringify([host, username]);
@@ -149,6 +150,9 @@ await withDirectory('connect', async (directory, cleanup) => {
     await expect(home).not.toHaveAttribute('aria-current');
     await search.fill('::1');
     await expect(results).toBeVisible();
+    const destinationIcon = results.locator('.connect-destination .identicon');
+    await expect(destinationIcon).toBeVisible();
+    if (!profileId && !username && host === '::1') assert.equal(await destinationIcon.innerHTML(), pattern, 'The popup shows the same destination icon');
     await checkLayout(await page.evaluate(() => innerWidth));
     await search.press('Escape');
     await search.fill('');
@@ -180,8 +184,9 @@ await withDirectory('connect', async (directory, cleanup) => {
   for (const destination of ['[::1]', `${userInfo().username}@[::1]`]) {
     await search.fill(destination);
     await expect(options).toHaveCount(1);
+    const preview = await options.first().locator('.identicon').innerHTML();
     await search.press('Enter');
-    await verify('::1', undefined, destination.includes('@') ? userInfo().username : undefined);
+    await verify('::1', undefined, destination.includes('@') ? userInfo().username : undefined, { preview });
     await expect(search).toHaveValue('');
   }
   console.log('Enter connects the first result: an IPv6 profile, or a bracketed IPv6 destination with or without a username, using the configured defaults.');
@@ -200,6 +205,16 @@ await withDirectory('connect', async (directory, cleanup) => {
   await api('connect', { host: '[::1]' });
   await verify('::1', undefined, undefined, { choose: true });
   console.log('The New Connection form and a host target connect to a bracketed IPv6 address.');
+
+  await writeFile(config, source.replace('defaults:\n', `defaults:\n  username: ${JSON.stringify(userInfo().username)}\n`));
+  await api('reloadConfig');
+  await search.fill('[::1]');
+  const defaultUserPreview = await options.first().locator('.identicon').innerHTML();
+  await search.press('Enter');
+  await verify('::1', undefined, userInfo().username, { preview: defaultUserPreview });
+  await writeFile(config, source);
+  await api('reloadConfig');
+  console.log('Quick-connect icons match their connection badges with explicit, default and omitted usernames.');
 
   for (const invalid of ['@host', 'host:22', '[::1', '999.1.1.1']) {
     await search.fill(invalid);

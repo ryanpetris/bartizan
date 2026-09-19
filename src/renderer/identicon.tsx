@@ -1,3 +1,5 @@
+export const destinationSeed = (host: string, username?: string) => JSON.stringify([host, username ?? '']);
+
 /** A symmetric seven-pixel creature, with a solid face and two open eyes. */
 export function identiconCells(seed: string): [number, number][] {
   let hash = 2166136261;

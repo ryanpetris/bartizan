@@ -6,7 +6,7 @@ import { Icon, IconButton, Tags } from './ui';
 import { api, run, matchProfiles, focusConnection, store, profileName, profileEndpoint, activeConnection } from './store';
 import { connectProfile, openConnection } from './connection-form';
 import { ProfileSummary, profileDescription } from './profiles';
-import { Identicon } from './identicon';
+import { Identicon, destinationSeed } from './identicon';
 
 type Destination = NonNullable<ReturnType<typeof parseDestination>>;
 type Result = { kind: 'profile'; profile: Profile } | { kind: 'destination'; destination: Destination };
@@ -189,10 +189,10 @@ export function Connect({ listed = false }: { listed?: boolean }) {
         <>
           {listed ? (
             <span className="connect-tile" aria-hidden="true">
-              <Icon name="terminal" />
+              <Identicon seed={destinationSeed(result.destination.host, result.destination.username ?? store.state.defaults.username)} />
             </span>
           ) : (
-            <Icon name="terminal" />
+            <Identicon seed={destinationSeed(result.destination.host, result.destination.username ?? store.state.defaults.username)} />
           )}
           <span className="connect-target mono">{target(result.destination)}</span>
         </>
