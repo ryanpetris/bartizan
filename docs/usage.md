@@ -4,23 +4,27 @@
 
 ## Connect and save profiles
 
-Use **New Connection** beside the sidebar's Connect field to enter a host, port and authentication settings. The form can connect without saving, save a profile, or save and connect. **Profiles** in the title bar opens the saved profile list and its Edit controls.
+Bartizan opens on its home page: the Connect field over a list of your profiles. Click a profile to connect to it. The home page returns whenever nothing is selected, and **Home**, the Bartizan mark at the top of the rail, goes back to it at any time. While a connection is in view, Connect sits at the foot of its panel.
+
+Use **New Connection** on the rail or the home page to enter a host, port and authentication settings. The form can connect without saving, save a profile, or save and connect. **Profiles** on the rail opens the saved profile list and its Edit controls; on the home page, a profile's Edit button appears when you point at it.
 
 The Connect field searches profile labels, IDs, hosts, usernames and tags. Use the arrow keys to choose a result and Enter to connect. A hostname or `user@host` also offers a direct connection using your configured defaults. Direct connections do not create profiles. Set a custom port in the connection form or configuration.
+
+A connection with no terminals or browser sessions open shows **Nothing Open**; open one from the connection's add menu.
 
 Selecting an already connected profile focuses its most recently viewed live terminal. If it has no live terminal, Bartizan opens one. Each connection shares one SSH transport across its terminals and browser sessions.
 
 ## Arrange your workspace
 
-The connection's add menu offers **Terminal** and **Browser Session**. Drag sidebar rows to reorder connections, terminals, sessions or tabs within their group. The row context menu also offers **Move Up** and **Move Down**. Sidebar order lasts for the current app session.
+The connection's add menu offers **Terminal** and **Browser Session**. Drag navigation items to reorder connections, terminals, sessions or tabs within their group. The row context menu also offers **Move Up** and **Move Down**. Navigation order lasts for the current app session.
 
-**Disconnect** ends the SSH transport and its shells. The connection remains in the sidebar. Browser pages stay open but lose network access. **Reconnect** restores the transport and browser access; it does not resume closed shells. Use **New Terminal** for a fresh shell. Remove a disconnected connection to close its browser sessions and remove its sidebar entry.
+**Disconnect** ends the SSH transport and its shells. The connection remains in the connection list. Browser pages stay open but lose network access. **Reconnect** restores the transport and browser access; it does not resume closed shells. Use **New Terminal** for a fresh shell. Remove a disconnected connection to close its browser sessions and remove its navigation entry.
 
 **Connection Details** shows connection state. Negotiated SSH algorithms, duration and traffic are available when the installed OpenSSH supports `ssh -O conninfo`.
 
 ## Work in terminals
 
-Each terminal runs a separate remote shell. Programs can set its sidebar and window title with OSC 0 or OSC 2. For example:
+Each terminal runs a separate remote shell. Programs can set its navigation and window title with OSC 0 or OSC 2. For example:
 
 ```sh
 printf '\033]2;Build & tests\007'
@@ -28,13 +32,13 @@ printf '\033]2;Build & tests\007'
 
 Drag to select text. Releasing the mouse copies nonblank text to the clipboard and clears the selection. Hold Shift while dragging when a remote program handles mouse input. Remote programs can also write to the clipboard using OSC 52; clipboard queries are ignored.
 
-Click an HTTP or HTTPS link to open it in the connection's first browser session, meaning the highest session in the sidebar. Bartizan creates a session if needed. Right-click a link to choose a different destination. Shift+F10 offers links from the terminal; when there are none, the key goes to the remote program.
+Click an HTTP or HTTPS link to open it in the connection's first browser session, meaning the first session in navigation order. Bartizan creates a session if needed. Right-click a link to choose a different destination. Shift+F10 offers links from the terminal; when there are none, the key goes to the remote program.
 
 ## Browse through SSH
 
 A new browser session starts with one empty tab. Enter an HTTP or HTTPS URL in **Address** and press Enter. An address without a scheme uses HTTP. The field does not perform web searches.
 
-The add button on a session row opens another tab there. **New Browser Tab** in the title bar uses the session you are viewing, or the connection's first session when you are viewing a terminal. A session can hold up to 32 tabs.
+The add button on a session row opens another tab there. In Rail and Console, **New Browser Tab** in the title bar uses the session you are viewing, or the connection's first session when you are viewing a terminal. A session can hold up to 32 tabs.
 
 Sessions receive a color and a name such as Browser 1. Use **Rename** in a session row's context menu to change its name. Clicking the row opens its first tab; if the session is empty, it opens a new tab.
 
@@ -46,7 +50,7 @@ A tab's row shows its page's icon. A tab that plays sound shows a speaker in its
 
 Ctrl+F opens **Find in Page** below the toolbar. Enter and Shift+Enter move between matches, and Escape closes it. Ctrl+Plus, Ctrl+Minus and Ctrl+0 zoom the page. The address field shows a zoom level other than 100%; click it to reset the zoom. Zoom belongs to a site within its session. Shift-click **Reload**, or press Ctrl+Shift+R, to reload without the cache.
 
-The toolbar's **Page Menu** offers the same commands with **Save as PDF…** and **Print…**. The address of a link under the pointer shows over the bottom corner of the page.
+The toolbar's **Page Menu** offers the same commands with **Save as PDF…** and **Print…**. The address of a link under the pointer shows over the bottom corner of the page, or in Console's status line.
 
 **Developer Tools**, or F12, opens the selected tab's tools docked below the page, inside the window; the same control closes them. Drag the divider to resize them, and use **Dock Developer Tools at Right** in the Page Menu to move them beside the page. The dock side and size last for the current app session. Requests the tools make pass through SSH like the page's own.
 
@@ -84,11 +88,21 @@ A page sees the find, reload, print and zoom keys first, so a site that uses the
 | Ctrl+Plus, Ctrl+Minus, Ctrl+0 | Browser | Zoom in, zoom out, reset zoom |
 | Ctrl+P | Browser | Print |
 | F12 or Ctrl+Shift+I | Browser | Open or close the selected tab's developer tools |
-| Shift+F10 | Sidebar row | Open the row's context menu |
+| Shift+F10 | Navigation item | Open the row's context menu |
 | Shift+F10 | Terminal with links | Open the link menu |
 
 ## Appearance and errors
 
-Open **Settings** in the title bar to choose Dark, Light or System appearance, an interface font, a terminal font, terminal size and ligatures. Inter and JetBrains Mono are bundled. System Default uses the system font. Settings apply immediately and save to the configuration file. A connection's terminal overrides take priority over global settings.
+Open **Settings** to choose Dark, Light or System appearance, a theme, an interface font, a terminal font, terminal size and ligatures.
 
-**Errors** beside Connect shows current configuration problems and the error history. New failures also appear as short notifications. If a configuration edit fails, fix the file and use **Reload Configuration** in Profiles. See the [configuration reference](configuration.md) for accepted fields.
+A theme is a layout of the window with its own colours, terminal colours and scroll bars, in both appearances:
+
+| Theme | Layout |
+| --- | --- |
+| Rail | Connections as a narrow strip of badges, beside a panel that lists the items of the connection in view |
+| Tabs | No side list: connections as pills in the title bar, and the items of the connection in view as a strip of tabs |
+| Console | The view at full width over two lines of text, one for the items of the connection in view and one for connections and status |
+
+Rail is the default theme; this guide names controls as Rail places them. On the home page, Rail hides its panel, Tabs its tab strip and Console its line of items; in Tabs and Console, **Home** is the Bartizan mark at the start of the title bar. In Tabs, the connection's Add menu opens terminals and browser sessions; the add button on a session row opens a tab in that session. Console uses the terminal font throughout its interface, so its Settings has no Interface Font control. In Rail, Tabs and Console, choosing a connection returns to what it last showed. Where the lists run across the window, the row menus offer **Move Left** and **Move Right** and the Left and Right arrow keys move along them. Inter and JetBrains Mono are bundled. System Default uses the system font. Settings apply immediately and save to the configuration file. A connection's terminal overrides take priority over global settings.
+
+**Errors** at the bottom of the rail shows current configuration problems and the error history. New failures also appear as short notifications. If a configuration edit fails, fix the file and use **Reload Configuration** in Profiles. See the [configuration reference](configuration.md) for accepted fields.

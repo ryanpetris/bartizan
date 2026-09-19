@@ -19,7 +19,9 @@ Bartizan has one Electron application window containing a React interface around
 | [`src/main/certificates.ts`](../src/main/certificates.ts) | TLS warnings and temporary certificate approvals |
 | [`src/main/askpass.ts`](../src/main/askpass.ts) | OpenSSH authentication prompts and configured credentials |
 | [`src/core/`](../src/core/) | Configuration schemas, profile persistence, SSH arguments and TCP relay |
-| [`src/renderer/`](../src/renderer/) | React UI, selection, sidebar ordering and terminal rendering |
+| [`src/renderer/`](../src/renderer/) | React UI, selection, ordering and terminal rendering |
+| [`src/themes/`](../src/themes/) | What both processes know of each theme |
+| [`src/renderer/themes/`](../src/renderer/themes/) | Each theme's layout, styles, terminal colours and preview |
 | [`src/shared.ts`](../src/shared.ts) | Shared state, events and preload API types |
 
 ## State and process boundaries
@@ -37,6 +39,14 @@ The backend publishes state snapshots and separate terminal data events. Tab ico
 Browser tabs use sandboxed `WebContentsView` instances without a preload or Node integration. The renderer reports the browser area's bounds to the main process, which positions the selected native view. Modal dialogs and overlapping Connect results hide the view so that native page content does not cover app controls.
 
 Interface that floats over a page, such as the downloads list and a hovered link's address, is drawn in an overlay: a transparent `WebContentsView` above the page views. The renderer opens each overlay as a named blank child window. The [main process](../src/main/overlays.ts) makes that window a view inside the application window and denies every other `window.open`. The child shares the renderer's process, so the [renderer](../src/renderer/overlay.tsx) copies its styles into the overlay's document and renders into it through a React portal. An overlay has no preload and cannot navigate. It is sized to its content, so the page around it keeps receiving input, and its top left corner stays fixed while it resizes, because a view that moves as it resizes shows one frame out of place.
+
+## Themes
+
+A theme is a layout of the window, chosen in settings. Its [manifest](../src/themes/index.ts) holds what both processes need: its name, the way its lists run, where error notifications go, and the height and colours of the native window controls, which the main process applies to the title bar overlay. In the renderer a [theme](../src/renderer/themes/index.tsx) adds a component that draws the window around the selected view, terminal colours for both appearances and a preview for Settings.
+
+The theme's elements and the view are children of the application root. The document root's `data-theme` attribute names the theme; `data-appearance` selects its light or dark colors in both Electron and web clients. The base stylesheet supplies shared component styles. Each theme uses a `:root[data-theme]` selector to set its design tokens and grid and customize those shared components. The views stay mounted when the theme changes. Navigation, ordering, renaming and the commands of connections, terminals, browser sessions and tabs are [shared](../src/renderer/nav.tsx) by every theme, which arranges them with its styles; a theme brings components of its own only for what it shows differently.
+
+A theme places error notifications inside the application page only beside a corner that no page view covers. Otherwise they are drawn in an overlay over the view. Web clients draw all notifications inside the application page, using the top-right corner for themes that use native overlays in Electron.
 
 ## SSH transport
 

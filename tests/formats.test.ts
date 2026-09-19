@@ -42,7 +42,7 @@ test('format errors are bounded and do not disclose source credentials', () => {
 });
 
 test('omitted and blank usernames defer to OpenSSH, including cleared inherited users', () => {
-  const catalog = { defaults: {}, profiles: [], file: '', settings: { appearance: 'dark' as const, interfaceFont: 'Inter', terminalLigatures: true, terminalFont: '', terminalFontSize: 13 } };
+  const catalog = { defaults: {}, profiles: [], file: '', settings: { appearance: 'dark' as const, theme: 'rail' as const, interfaceFont: 'Inter', terminalLigatures: true, terminalFont: '', terminalFontSize: 13 } };
   const host = 'example.invalid';
   for (const overrides of [{ host }, { host, username: '' }]) {
     const spec = resolveSpec(catalog, undefined, overrides);

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <!-- Round surfaces are lit from the front left, as GNOME icons are. -->
+    <linearGradient id="body" x1="30" x2="98" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1d4ed8"/>
+      <stop offset="0.3" stop-color="#3b82f6"/>
+      <stop offset="0.55" stop-color="#2f6ef0"/>
+      <stop offset="1" stop-color="#1e40af"/>
+    </linearGradient>
+    <linearGradient id="parapet" x1="22" x2="106" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="0.3" stop-color="#60a5fa"/>
+      <stop offset="0.55" stop-color="#4f8ff8"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="base" x1="30" x2="98" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="0.3" stop-color="#2563eb"/>
+      <stop offset="0.55" stop-color="#1d4ed8"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+  </defs>
+  <!-- Corbelled base -->
+  <path d="M30 86h68l-28 28a8.5 8.5 0 0 1-12 0Z" fill="url(#base)"/>
+  <path d="M30 86h68l-6 6H36Z" fill="#172554" opacity="0.35"/>
+  <!-- Body -->
+  <rect x="30" y="42" width="68" height="46" fill="url(#body)"/>
+  <!-- Arrow slits -->
+  <rect x="50" y="52" width="8" height="24" rx="4" fill="#172554"/>
+  <rect x="70" y="52" width="8" height="24" rx="4" fill="#172554"/>
+  <!-- Parapet and its shadow on the body -->
+  <rect x="30" y="42" width="68" height="5" fill="#172554" opacity="0.3"/>
+  <rect x="22" y="30" width="84" height="14" rx="3" fill="url(#parapet)"/>
+  <!-- Merlons, their tops catching the light -->
+  <path d="M22 32V16a4 4 0 0 1 4-4h14a4 4 0 0 1 4 4v16ZM53 32V16a4 4 0 0 1 4-4h14a4 4 0 0 1 4 4v16ZM84 32V16a4 4 0 0 1 4-4h14a4 4 0 0 1 4 4v16Z" fill="url(#parapet)"/>
+  <path d="M22 18v-2a4 4 0 0 1 4-4h14a4 4 0 0 1 4 4v2ZM53 18v-2a4 4 0 0 1 4-4h14a4 4 0 0 1 4 4v2ZM84 18v-2a4 4 0 0 1 4-4h14a4 4 0 0 1 4 4v2Z" fill="#ffffff" opacity="0.25"/>
+</svg>

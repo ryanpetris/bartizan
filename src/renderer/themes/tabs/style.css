@@ -1,0 +1,332 @@
+/* Styles of the tabs theme, each under :root[data-theme="tabs"]. */
+@property --tabs-fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --tabs-fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes tabs-fade { 0% { --tabs-fade-start: 0px; --tabs-fade-end: 28px; } 5%, 95% { --tabs-fade-start: 28px; --tabs-fade-end: 28px; } 100% { --tabs-fade-start: 28px; --tabs-fade-end: 0px; } }
+:root[data-theme="tabs"] {
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 14px;
+  --titlebar-height: env(titlebar-area-height, 42px);
+  --tier-height: 38px;
+  /* Dialogs and their backdrop start below the title tier, so a dialog dims the tabs together with the view they join. */
+  --chrome-top: var(--titlebar-height);
+  /* The narrowest and the widest a tab gets; between them, tabs share the strip's room equally. */
+  --tab-min: 96px;
+  --tab-max: 208px;
+  /* The tab in view stays wide enough to read its name beside its buttons. */
+  --tab-current-min: 140px;
+
+  --bg-app: #f1ede6;
+  --bg-panel: #f4f0ea;
+  --bg-main: #faf8f5;
+  --bg-header: #f1ede6;
+  --bg-toolbar: #faf8f5;
+  --bg-page: #fdfcfa;
+  --bg-dialog: #fdfcfa;
+  --text: #2b2622;
+  --text-strong: #1a1613;
+  --text-muted: #5a5149;
+  --text-faint: #6c6359;
+  --border: #e5dfd5;
+  --border-subtle: #ece7df;
+  --border-strong: #d3cabd;
+  --border-control: #d9d1c5;
+  --control: #fffdfa;
+  --control-hover: #f6f2ec;
+  --control-active: #ece6dd;
+  --field: #fffdfa;
+  --field-muted: #f4f0ea;
+  --hover: rgba(66, 48, 30, 0.07);
+  --selected: rgba(194, 65, 12, 0.1);
+  --accent: #c2410c;
+  --accent-hover: #a8380a;
+  --on-accent: #ffffff;
+  --accent-soft: rgba(194, 65, 12, 0.1);
+  --accent-text: #9a3412;
+  --focus: #c2410c;
+  --focus-ring: rgba(194, 65, 12, 0.2);
+  --ok: #4f8a3c;
+  --warn: #a16207;
+  --warn-soft: rgba(161, 98, 7, 0.14);
+  --warn-text: #7c4a03;
+  --danger: #b3261e;
+  --danger-soft: #fbeeeb;
+  --danger-text: #8f1d17;
+  --danger-border: #efcfc9;
+  --on-danger: #ffffff;
+  --chip-bg: rgba(66, 48, 30, 0.08);
+  --brand-plate: #c2410c;
+  --brand-tower: #fff4e8;
+  --brand-glyph: #c2410c;
+  --tab-line: #dcd4c8;
+  --on-session: #ffffff;
+  --backdrop: rgba(43, 32, 22, 0.34);
+  --raised-shadow: 0 1px 2px rgba(66, 48, 30, 0.1);
+  --float-shadow: 0 6px 16px rgba(66, 48, 30, 0.16), 0 1px 3px rgba(66, 48, 30, 0.1);
+  --scroll-thumb: rgba(87, 70, 54, 0.5);
+  --scroll-thumb-hover: rgba(87, 70, 54, 0.66);
+  --scroll-size: 10px;
+  --scroll-radius: 999px;
+  --shadow: 0 24px 60px rgba(66, 48, 30, 0.2), 0 2px 8px rgba(66, 48, 30, 0.08);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235a5149' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
+  --menu-shadow: 0 12px 30px rgba(66, 48, 30, 0.16), 0 1px 3px rgba(66, 48, 30, 0.1);
+  --session-0: #2f67b3;
+  --session-1: #7a4db3;
+  --session-2: #12787a;
+  --session-3: #a8650e;
+  --session-4: #b5316f;
+  --session-5: #3d7f3f;
+  --session-6: #857410;
+  --session-7: #b83a35;
+  --session-8: #6b635b;
+}
+:root[data-theme="tabs"][data-appearance="dark"] {
+    --bg-app: #151312;
+    --bg-panel: #201d1a;
+    --bg-main: #1c1917;
+    --bg-header: #151312;
+    --bg-toolbar: #1c1917;
+    --bg-page: #1c1917;
+    --bg-dialog: #24201d;
+    --text: #e7e0d8;
+    --text-strong: #f7f2ec;
+    --text-muted: #aea59a;
+    --text-faint: #968d82;
+    --border: #2d2926;
+    --border-subtle: #302b27;
+    --border-strong: #433d37;
+    --border-control: #3d3732;
+    --control: #2b2723;
+    --control-hover: #342f2a;
+    --control-active: #3c3631;
+    --field: #171513;
+    --field-muted: #25211e;
+    --hover: rgba(255, 240, 222, 0.06);
+    --selected: rgba(232, 121, 63, 0.16);
+    --accent: #e8793f;
+    --accent-hover: #ee8a55;
+    --on-accent: #1f0d04;
+    --accent-soft: rgba(232, 121, 63, 0.15);
+    --accent-text: #f2a071;
+    --focus: #ec8a57;
+    --focus-ring: rgba(236, 138, 87, 0.3);
+    --ok: #7fb977;
+    --warn: #d9a94e;
+    --warn-soft: rgba(217, 169, 78, 0.14);
+    --warn-text: #e6c078;
+    --danger: #e5706a;
+    --danger-soft: rgba(229, 112, 106, 0.1);
+    --danger-text: #f0a19c;
+    --danger-border: rgba(229, 112, 106, 0.26);
+    --on-danger: #1d0806;
+    --chip-bg: rgba(255, 240, 222, 0.08);
+    --tab-line: #38332e;
+    --on-session: #1c1917;
+    --backdrop: rgba(8, 6, 5, 0.56);
+    --raised-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --float-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --scroll-thumb: rgba(231, 214, 196, 0.36);
+    --scroll-thumb-hover: rgba(231, 214, 196, 0.5);
+    --shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23aea59a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
+    --menu-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --session-0: #84aee8;
+    --session-1: #b99ae6;
+    --session-2: #5fc2c0;
+    --session-3: #e3a35c;
+    --session-4: #e88bb5;
+    --session-5: #8fc98a;
+    --session-6: #d6c360;
+    --session-7: #ec8a80;
+    --session-8: #b3aaa0;
+}
+:root[data-theme="tabs"] ::selection { background: color-mix(in srgb, var(--accent) 24%, transparent); }
+:root[data-theme="tabs"] .icon-button:disabled { opacity: 0.55; }
+:root[data-theme="tabs"] :is(.icon-button, .button, .nav-item, .connection-titles, .section-tab, .theme-option) { transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease; }
+@media (prefers-reduced-motion: reduce) { :root[data-theme="tabs"] * { transition: none !important; } }
+
+/* Layout: the title tier, the tab tier and the view, each the window's whole width. The home page has no tab tier, and
+   a rule parts it from the title tier. */
+:root[data-theme="tabs"] #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--titlebar-height) var(--tier-height) minmax(0, 1fr); }
+:root[data-theme="tabs"] #app:not(:has(> .tabs-tier)) { grid-template-rows: var(--titlebar-height) 0 minmax(0, 1fr); }
+:root[data-theme="tabs"] #app:not(:has(> .tabs-tier)) > .tabs-title { box-shadow: inset 0 -1px var(--tab-line); }
+:root[data-theme="tabs"] .tabs-title { grid-row: 1; }
+:root[data-theme="tabs"] .tabs-tier { grid-row: 2; }
+:root[data-theme="tabs"] .main { grid-row: 3; }
+
+/* Title tier: the strip that moves the window; the native window controls draw over the room at its end. */
+:root[data-theme="tabs"] .tabs-title {
+  display: flex; align-items: center; gap: 2px; min-width: 0;
+  padding: 0 max(12px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 6px)) 0 max(12px, calc(env(titlebar-area-x, 0px) + 12px));
+  background: var(--bg-header); user-select: none; app-region: drag;
+}
+:root[data-theme="tabs"] .tabs-title :is(button, input) { app-region: no-drag; }
+:root[data-theme="tabs"] .tabs-title .brand-mark { width: 22px; height: 22px; }
+/* Home is a pill like a connection's around the mark, and the name beside it while there are no connections. */
+:root[data-theme="tabs"] .home-button { display: flex; align-items: center; gap: 8px; flex: none; height: 30px; margin-right: 4px; padding: 0 12px 0 3px; border: 1px solid transparent; border-radius: 15px; background: transparent; color: var(--text-strong); }
+:root[data-theme="tabs"] .home-button:has(> .tabs-wordmark[hidden]) { padding-right: 3px; }
+:root[data-theme="tabs"] .home-button:hover { background: var(--hover); }
+:root[data-theme="tabs"] .home-button[aria-current="page"] { border-color: var(--border-strong); background: var(--control); box-shadow: var(--raised-shadow); }
+:root[data-theme="tabs"] .home-button:focus-visible { outline-offset: -1px; }
+:root[data-theme="tabs"] .tabs-wordmark { font-size: 14px; font-weight: 650; letter-spacing: -0.015em; }
+:root[data-theme="tabs"] .tabs-title .icon-button { width: 28px; height: 28px; border-radius: 50%; }
+/* The room between the connections and Connect, which stays wide enough to take hold of the window by. */
+:root[data-theme="tabs"] .tabs-gap { flex: 1 0 40px; align-self: stretch; }
+/* Connections: a row of pills that scrolls once Connect, which takes spare room up to its full width, is at its narrowest. */
+:root[data-theme="tabs"] .tabs-connections { display: flex; align-items: center; flex: 0 1 auto; align-self: stretch; min-width: 0; overflow: auto hidden; scrollbar-width: none; }
+:root[data-theme="tabs"] .tabs-connections-list { flex: none; }
+:root[data-theme="tabs"] .connection-chips { display: flex; align-items: center; gap: 2px; padding: 0 3px; }
+:root[data-theme="tabs"] .connection-chips:empty { display: none; }
+:root[data-theme="tabs"] .connection-chip { position: relative; flex: none; max-width: 184px; }
+:root[data-theme="tabs"] .connection-chip .connection-titles { flex-direction: row; align-items: center; width: 100%; height: 28px; padding: 0 12px 0 10px; border: 1px solid transparent; border-radius: 14px; }
+:root[data-theme="tabs"] .connection-chip .connection-titles:hover { background: var(--hover); }
+:root[data-theme="tabs"] .connection-chip .connection-titles[aria-current="true"] { border-color: var(--border-strong); background: var(--control); box-shadow: var(--raised-shadow); }
+:root[data-theme="tabs"] .connection-chip .connection-titles:focus-visible { outline-offset: -1px; }
+:root[data-theme="tabs"] .connection-initials { display: none; }
+:root[data-theme="tabs"] .connection-chip .connection-name { gap: 7px; }
+:root[data-theme="tabs"] .connection-chip .connection-label { color: var(--text-muted); font-size: 12.5px; font-weight: 500; }
+:root[data-theme="tabs"] .connection-chip .connection-titles:is(:hover, [aria-current="true"]) .connection-label { color: var(--text-strong); }
+:root[data-theme="tabs"] .connection-chip[data-status="closed"] .connection-titles .connection-label { color: var(--text-faint); }
+:root[data-theme="tabs"] .connection-chip:is(.drop-before, .drop-after) { box-shadow: none; }
+:root[data-theme="tabs"] .connection-chip:is(.drop-before, .drop-after)::before { content: ""; position: absolute; top: 6px; bottom: 6px; left: -2px; width: 2px; border-radius: 1px; background: var(--accent); }
+:root[data-theme="tabs"] .connection-chip.drop-after::before { right: -2px; left: auto; }
+:root[data-theme="tabs"] .tabs-title .connect { flex: 100 1 120px; min-width: 120px; max-width: 240px; margin-right: 6px; }
+:root[data-theme="tabs"] .tabs-title .connect .icon { left: 10px; }
+:root[data-theme="tabs"] .tabs-title .connect-input { height: 28px; padding: 0 12px 0 32px; border-radius: 14px; background: var(--hover); font-size: 12.5px; }
+:root[data-theme="tabs"] .tabs-title .connect-input::placeholder { color: var(--text-muted); }
+:root[data-theme="tabs"] .tabs-title .connect-input:hover:not(:focus) { background: color-mix(in srgb, var(--hover) 140%, transparent); }
+:root[data-theme="tabs"] .tabs-title .connect-input:focus { background: var(--field); }
+:root[data-theme="tabs"] .connect-results { position-area: bottom span-left; width: min(420px, calc(100vw - 24px)); margin: 6px 0 0; padding: 5px; border-radius: 12px; }
+
+/* Tab tier: the rule along its bottom runs under the strip, and the tab in view covers it to join the view below. */
+:root[data-theme="tabs"] .tabs-tier { position: relative; display: flex; align-items: stretch; min-width: 0; background: var(--bg-header); user-select: none; }
+:root[data-theme="tabs"] .tabs-tier::after { content: ""; position: absolute; inset: auto 0 0; z-index: 0; height: 1px; background: var(--tab-line); pointer-events: none; }
+:root[data-theme="tabs"] .tabs-strip { position: relative; z-index: 1; display: flex; flex: 1 1 0; min-width: 0; padding: 6px 8px 0 12px; overflow: auto hidden; scrollbar-width: none; }
+:root[data-theme="tabs"] .tabs-items { display: flex; flex: none; }
+:root[data-theme="tabs"] .tabs-strip .connection-items { display: flex; align-items: stretch; flex: none; gap: 0; }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) { display: flex; align-items: stretch; }
+/* A strip with more than it shows fades at an end that has more to scroll to. */
+:root[data-theme="tabs"] :is(.tabs-strip, .tabs-connections)[data-overflows] {
+  mask-image: linear-gradient(to right, transparent, #000 var(--tabs-fade-start), #000 calc(100% - var(--tabs-fade-end)), transparent);
+  animation: tabs-fade linear both; animation-timeline: scroll(self inline);
+}
+
+/* Tabs: a terminal and a browser tab are each a tab of the width the strip gives them. */
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row { position: relative; flex: none; width: clamp(var(--tab-min), var(--tab-width, 176px), var(--tab-max)); height: 32px; border: 1px solid transparent; border-bottom: 0; border-radius: 9px 9px 0 0; }
+/* The button's transparent border insets its hover fill from the tab's edges. */
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row > .nav-item { gap: 7px; height: 100%; padding: 0 6px 0 7px; border: solid transparent; border-width: 3px 2px 4px; border-radius: 10px; background-clip: padding-box; color: var(--text-muted); font-size: 12.5px; }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:hover > .nav-item { background-color: var(--hover); color: var(--text); }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row > .nav-item:focus-visible { outline-offset: -3px; }
+/* The tab in view and a sounding tab keep room for their buttons, so a mute control never moves. Any other tab shows Close over the end of its name, which fades beneath it, so pointing at a tab never moves its name. */
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(.current, .has-persistent) > .nav-item { padding-right: calc(var(--actions) * 20px + 6px); }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(:hover, :focus-within):not(.current, .has-persistent) .nav-label:has(+ .nav-meta:empty) { mask-image: linear-gradient(to right, #000 calc(100% - 31px), transparent calc(100% - 19px)); }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(:hover, :focus-within):not(.current) .nav-meta { opacity: 0; }
+:root[data-theme="tabs"] .tabs-strip .row:not(.session-row) > .row-actions { right: 5px; margin-top: -0.5px; }
+:root[data-theme="tabs"] .tabs-strip .row-actions .icon-button { width: 20px; height: 20px; border-radius: 6px; }
+/* The tab in view takes the view's surface, flares into the rule at its feet and carries its colour along its top. */
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row.current { z-index: 2; width: clamp(var(--tab-current-min), var(--tab-width, 176px), var(--tab-max)); border-color: var(--tab-line); background: var(--bg-main); }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row.current > .nav-item { background-color: transparent; color: var(--text-strong); font-weight: 550; }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row.current::before, :root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row.current::after { content: ""; position: absolute; bottom: 0; width: 9px; height: 9px; pointer-events: none; }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row.current::before { right: 100%; background: radial-gradient(circle at 0 0, transparent 7.75px, var(--tab-line) 8.25px, var(--tab-line) 8.75px, var(--bg-main) 9.25px); }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row.current::after { left: 100%; background: radial-gradient(circle at 100% 0, transparent 7.75px, var(--tab-line) 8.25px, var(--tab-line) 8.75px, var(--bg-main) 9.25px); }
+:root[data-theme="tabs"] .tabs-strip .row > .nav-item[aria-current="page"]::before { top: -4px; right: 9px; bottom: auto; left: 9px; width: auto; height: 2px; border-radius: 0 0 2px 2px; background: var(--accent); }
+:root[data-theme="tabs"] .tabs-strip .tab-items > .row > .nav-item[aria-current="page"] { border-radius: 10px; background-color: transparent; }
+:root[data-theme="tabs"] .tabs-strip .tab-items > .row > .nav-item[aria-current="page"]::before { background: var(--session-color); }
+/* The icon of the tab in view takes the tab's colour unless it shows a state of its own. */
+:root[data-theme="tabs"] .tabs-strip .row.current > .nav-item:not([data-status="closed"]) .nav-icon { color: var(--accent); }
+:root[data-theme="tabs"] .tabs-strip .tab-items > .row.current > .nav-item[data-state="idle"] .nav-icon { color: var(--session-color); }
+:root[data-theme="tabs"] .tabs-strip .tab-items > .row.current > .nav-item[data-state="error"] .nav-icon { color: var(--danger); }
+:root[data-theme="tabs"] .tabs-strip .tab-items > .row.current > .nav-item[data-state="certificate"] .nav-icon { color: var(--warn); }
+/* A quiet rule parts neighbouring tabs that are neither in view nor under the pointer. */
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row > .nav-item::after { content: ""; position: absolute; top: 50%; right: -3px; width: 1px; height: 14px; background: var(--border-strong); transform: translateY(-50%); }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(:hover, .current) > .nav-item::after, :root[data-theme="tabs"] .tabs-strip .tab-items > .row:is(:last-child, :has(+ .row:is(:hover, .current))) > .nav-item::after, :root[data-theme="tabs"] .tabs-strip .terminal-entry:is(:last-child, :has(+ .session), :has(+ .terminal-entry > .row:is(:hover, .current))) .nav-item::after { opacity: 0; }
+:root[data-theme="tabs"] .tabs-strip .nav-meta { font-size: 10.5px; }
+/* A closed terminal leans, and its icon carries the hollow ring of a closed connection. */
+:root[data-theme="tabs"] .tabs-strip .nav-item[data-kind="terminal"][data-status="closed"] .nav-label { font-style: italic; }
+:root[data-theme="tabs"] .tabs-strip .nav-item[data-kind="terminal"][data-status="closed"] .nav-icon { position: relative; }
+:root[data-theme="tabs"] .tabs-strip .nav-item[data-kind="terminal"][data-status="closed"] .nav-icon .icon { mask-image: radial-gradient(circle at 12.5px 12.5px, transparent 5.25px, #000 5.75px); }
+:root[data-theme="tabs"] .tabs-strip .nav-item[data-kind="terminal"][data-status="closed"] .nav-icon::after { content: ""; position: absolute; top: 8.5px; left: 8.5px; width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; }
+/* A narrow tab keeps its room for its name: it says a terminal is closed by its icon and its lean alone. */
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row { container-type: inline-size; }
+@container (max-width: 148px) {
+  :root[data-theme="tabs"] .tabs-strip .nav-meta { display: none; }
+  :root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(:hover, :focus-within):not(.current, .has-persistent) .nav-label { mask-image: linear-gradient(to right, #000 calc(100% - 31px), transparent calc(100% - 19px)); }
+}
+/* A sounding tab too narrow to keep room for its buttons shows its mute control in place of its icon. */
+@container (max-width: 118px) {
+  :root[data-theme="tabs"] .tabs-strip .row.has-persistent:not(.current) > .nav-item { padding-right: 6px; }
+  :root[data-theme="tabs"] .tabs-strip .row.has-persistent:not(.current) > .nav-item .nav-icon { visibility: hidden; }
+  :root[data-theme="tabs"] .tabs-strip .row.has-persistent:not(.current) > .row-actions { left: 7px; justify-content: space-between; pointer-events: none; }
+  :root[data-theme="tabs"] .tabs-strip .row.has-persistent:not(.current) > .row-actions > * { pointer-events: auto; }
+  :root[data-theme="tabs"] .tabs-strip .row.has-persistent:is(:hover, :focus-within):not(.current) .nav-label { mask-image: linear-gradient(to right, #000 calc(100% - 31px), transparent calc(100% - 19px)); }
+}
+:root[data-theme="tabs"] .tabs-strip :is(.drop-before, .drop-after) { box-shadow: -2px 0 0 var(--accent); }
+:root[data-theme="tabs"] .tabs-strip .drop-after { box-shadow: 2px 0 0 var(--accent); }
+
+/* A browser session is a group: a chip of its colour holding its name, New Tab and the button that closes it, in the order the Tab key visits them; then its tabs over a rule of that colour. */
+:root[data-theme="tabs"] .tabs-strip .session { --chip-ink: color-mix(in srgb, var(--session-color) 70%, var(--text-strong)); position: relative; display: flex; align-items: center; margin: 0 0 0 8px; }
+:root[data-theme="tabs"] .tabs-strip .session:first-child { margin-left: 0; }
+:root[data-theme="tabs"] .tabs-strip .session + .terminal-entry { margin-left: 8px; }
+:root[data-theme="tabs"] .tabs-strip .session::after { content: ""; position: absolute; right: 0; bottom: 0; left: 0; z-index: 1; height: 2px; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--session-color) 62%, transparent); pointer-events: none; }
+:root[data-theme="tabs"] .tabs-strip .session-row, :root[data-theme="tabs"] .tabs-strip .session-row > .row-actions { display: contents; }
+:root[data-theme="tabs"] .tabs-strip .session-row > .nav-item { flex: none; gap: 0; width: auto; max-width: 176px; height: 22px; padding: 0 49px 0 8px; border-radius: 7px; background: color-mix(in srgb, var(--session-color) 15%, transparent); color: var(--chip-ink); font-size: 11.5px; font-weight: 600; letter-spacing: 0.01em; }
+:root[data-theme="tabs"] .tabs-strip .session-row:hover > .nav-item { background: color-mix(in srgb, var(--session-color) 22%, transparent); }
+:root[data-theme="tabs"] .tabs-strip .session-row > .nav-item[aria-current="true"] { background: var(--session-color); color: var(--on-session); }
+:root[data-theme="tabs"] .tabs-strip .session-row > .nav-item .nav-icon { display: none; }
+:root[data-theme="tabs"] .tabs-strip .session-row > .session-name { flex: none; width: 128px; height: 24px; margin-right: 6px; padding: 0 8px; border-radius: 7px; font-size: 12px; }
+/* The chip's buttons lie over its end and take more room than they show: a transparent border insets their hover fill. */
+:root[data-theme="tabs"] .tabs-strip .session-row > .row-actions > .icon-button { position: relative; z-index: 1; width: 22px; height: 24px; border: solid transparent; border-width: 4px 3px; border-radius: 8px; background-clip: padding-box; color: var(--chip-ink); opacity: 1; }
+:root[data-theme="tabs"] .tabs-strip .session-row > .row-actions > .row-new { margin-left: -46px; }
+:root[data-theme="tabs"] .tabs-strip .session-row > .row-actions > .row-close { margin-right: 6px; }
+:root[data-theme="tabs"] .tabs-strip .session-row.current > .row-actions > .icon-button { color: var(--on-session); }
+:root[data-theme="tabs"] .tabs-strip .session-row > .row-actions > .icon-button:is(:hover, :focus-visible) { background-color: color-mix(in srgb, currentColor 18%, transparent); }
+:root[data-theme="tabs"] .tabs-strip .session-row > .row-actions .icon { width: 12px; height: 12px; }
+:root[data-theme="tabs"] .tabs-strip .tab-items { align-self: stretch; gap: 0; margin: 0; }
+:root[data-theme="tabs"] .tabs-strip .tab-items::before { display: none; }
+
+/* The end of the tab tier holds the status and commands of the connection in view. */
+:root[data-theme="tabs"] .tabs-trail { position: relative; z-index: 1; display: flex; align-items: center; gap: 1px; flex: none; padding: 5px 8px 0 6px; }
+:root[data-theme="tabs"] .tabs-trail .icon-button { width: 26px; height: 26px; }
+/* Add opens a menu, which the chevron beside its plus says. */
+:root[data-theme="tabs"] .tabs-trail .connection-add[aria-haspopup="menu"] { grid-auto-flow: column; gap: 0; width: 38px; padding-left: 2px; }
+:root[data-theme="tabs"] .tabs-trail .connection-add[aria-haspopup="menu"]::after { content: ""; width: 12px; height: 16px; background: var(--chevron) center / 14px no-repeat; }
+/* The connection name is in its pill; the tab strip carries its status. */
+:root[data-theme="tabs"] .tabs-context {
+  display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex: none; height: 18px; margin-right: 4px; padding-right: 10px; border-right: 1px solid var(--border-strong);
+  width: 25px;
+}
+:root[data-theme="tabs"] .tabs-context:has(> .titlebar-titles[hidden]) { border-color: transparent; }
+:root[data-theme="tabs"] .tabs-context .titlebar-marker { width: 14px; height: 14px; }
+/* A browser session's view shows its connection's status where a terminal's shows its own; a session's marker adds nothing to the session's tabs. */
+:root[data-theme="tabs"] .tabs-context .titlebar-marker:has(> .icon), :root[data-theme="tabs"] .tabs-context > .tabs-status { display: none; }
+:root[data-theme="tabs"] .tabs-context:has(> .titlebar-marker:not([hidden]) > .icon) > .tabs-status { display: block; margin: 0 3px; }
+/* The heading names the view for assistive technology and the window; the tabs already show it. */
+:root[data-theme="tabs"] .tabs-context .titlebar-titles { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* Shared surfaces, in the theme's shapes. */
+:root[data-theme="tabs"] .browser-toolbar { height: 42px; padding: 0 10px 0 8px; box-shadow: none; }
+/* The tabs above the toolbar open and close tabs. */
+:root[data-theme="tabs"] .browser-toolbar > .icon-button:is([aria-label="New Tab"], [aria-label="Close Tab"]) { display: none; }
+:root[data-theme="tabs"] .address-icon { top: 7px; color: color-mix(in srgb, var(--session-color) 70%, var(--text-faint)); }
+:root[data-theme="tabs"] .address { height: 30px; border-color: transparent; border-radius: 15px; }
+:root[data-theme="tabs"] .address:hover:not(:focus) { border-color: var(--border); }
+:root[data-theme="tabs"] .zoom-level { top: 4px; }
+:root[data-theme="tabs"] .find-input { border-radius: 14px; }
+:root[data-theme="tabs"] .connect-destination, :root[data-theme="tabs"] .profile-item { border-radius: 8px; }
+:root[data-theme="tabs"] .home .connect .icon { left: 13px; }
+:root[data-theme="tabs"] .home .connect-input { height: 36px; padding-left: 37px; border-radius: 18px; }
+:root[data-theme="tabs"] .connect-list .connect-option { border-radius: 12px; }
+:root[data-theme="tabs"] .connect-tile { border-radius: 11px; }
+:root[data-theme="tabs"] .empty-mark { border-radius: 16px; }
+:root[data-theme="tabs"] dialog::backdrop { background: var(--backdrop); }
+:root[data-theme="tabs"] .dialog-icon { border-radius: 10px; }
+:root[data-theme="tabs"] .dialog-titles h2 { font-size: 16px; letter-spacing: -0.012em; }
+:root[data-theme="tabs"] select.input::picker(select) { border-radius: 10px; }
+:root[data-theme="tabs"] .popover { border-radius: 12px; box-shadow: var(--float-shadow); }
+:root[data-theme="tabs"] .link-status { border-radius: 0 8px 0 0; }
+:root[data-theme="tabs"] .link-status-box[data-side="right"] > .link-status { border-radius: 8px 0 0; }
+:root[data-theme="tabs"] .theme-option { border-radius: 10px; }
+:root[data-theme="tabs"] .field-body > input[type="checkbox"]:first-child { flex: none; margin-top: 8px; }
+:root[data-theme="tabs"] .tag { border-radius: 8px; padding: 0 6px; }
+:root[data-theme="tabs"] .error-toaster[data-sonner-toaster][data-sonner-theme] { --border-radius: 12px; }
+:root[data-theme="tabs"] .error-toaster [data-sonner-toast] { box-shadow: var(--float-shadow); }

@@ -100,6 +100,7 @@ await withDirectory('browsing', async (directory, cleanup) => {
   const tab = tabOf(await waitState(s => tabOf(s), 'tab')).id;
   await api('browser', session, 'navigate', tab, `${origin}/`);
   await waitState(s => tabOf(s).title === 'Fixture /' && !tabOf(s).loading, 'page');
+  await app.chooseConnection(connection);
   const row = page.locator(`.nav-item[data-kind="tab"][data-id="${tab}"]`);
   await row.click();
   await expect.poll(async () => (await views()).length).toBe(1);

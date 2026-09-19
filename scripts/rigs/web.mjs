@@ -52,6 +52,8 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   const connection = await api('connect', { profileId: 'fixture' });
   await page.waitForFunction(() => window.rigState?.terminals[0]?.status === 'connected');
   const terminal = await page.evaluate(() => window.rigState.terminals[0].id);
+  // A connection made through the API is chosen from the rail, which brings its items into view.
+  await page.locator(`.connection-chip[data-id="${connection}"] .connection-titles`).click();
   await page.locator(`[data-kind="terminal"][data-id="${terminal}"]`).click();
   await api('input', terminal, "printf 'WEB_%s\\n' READY\n");
   await page.waitForFunction(() => window.rigOutput.includes('WEB_READY'));
@@ -68,16 +70,35 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   const popupEvent = page.waitForEvent('popup');
   await page.evaluate(() => window.bartizan.openLink('', 'https://example.com/'));
   const popup = await popupEvent; await popup.close();
-  for (const appearance of ['light', 'dark', 'system']) {
-    await api('settings', { appearance });
-    const effective = appearance === 'system' ? await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : appearance;
-    await expect(page.locator('html')).toHaveAttribute('data-appearance', effective);
-    await api('reportError', { source: 'rig', message: `Web error ${appearance}` });
-    await page.getByRole('button', { name: 'Errors', exact: true }).click();
-    await expect(page.locator('#errors-dialog')).toBeVisible();
-    await page.locator('#errors-dialog').getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(page.locator('#errors-dialog')).toBeHidden();
+  for (const theme of ['rail', 'tabs', 'console']) {
+    await api('settings', { theme });
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    await expect(page.getByRole('button', { name: 'New Browser Tab', exact: true })).toBeHidden();
+    const count = await page.evaluate(() => window.rigState.terminals.length);
+    await page.locator('.connection-add').click();
+    await page.waitForFunction(count => window.rigState.terminals.length === count + 1, count);
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    await page.locator('.connection-chip').click({ button: 'right' });
+    await expect(page.getByRole('menuitem', { name: 'New Terminal', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'New Browser Session', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    const backgrounds = {};
+    for (const appearance of ['light', 'dark', 'system']) {
+      await page.emulateMedia({ colorScheme: appearance === 'light' ? 'dark' : 'light' });
+      await api('settings', { appearance });
+      const effective = appearance === 'system' ? await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : appearance;
+      await expect(page.locator('html')).toHaveAttribute('data-appearance', effective);
+      backgrounds[appearance] = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bg-main'));
+      if (appearance === 'dark') assert.notEqual(backgrounds.light, backgrounds.dark, 'Theme colors follow appearance despite the opposite OS preference');
+      if (appearance === 'system') assert.equal(backgrounds.system, backgrounds.light);
+      await api('reportError', { source: 'rig', message: `Web error ${appearance}` });
+      await page.getByText(`Web error ${appearance}`, { exact: true }).last().click();
+      await expect(page.locator('#errors-dialog')).toBeVisible();
+      await page.locator('#errors-dialog').getByRole('button', { name: 'Close', exact: true }).click();
+      await expect(page.locator('#errors-dialog')).toBeHidden();
+    }
   }
+  assert.equal(browser.contexts().flatMap(context => context.pages()).length, 1, 'Notifications stay in the app page');
   const second = await browser.newPage(); await second.goto(url);
   await second.waitForFunction(() => window.bartizan);
   const firstDraft = await api('profileDraft');

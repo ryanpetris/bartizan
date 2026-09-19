@@ -62,6 +62,7 @@ await withDirectory('tls', async (directory, cleanup) => {
   });
   const connection = await api('connect', { profileId: 'fixture' });
   await waitState(s => s.connections[0]?.status === 'connected', 'connection');
+  await app.chooseConnection(connection);
 
   const tabOf = (s, tabId) => s.workspaces.flatMap(workspace => workspace.tabs).find(tab => tab.id === tabId);
   const warning = async tabId => tabOf(await waitState(s => tabOf(s, tabId)?.certificate, 'certificate warning'), tabId).certificate;

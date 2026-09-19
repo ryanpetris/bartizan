@@ -26,9 +26,27 @@ export async function testProfileLaunch(app, config, url) {
     return (await state()).connections.find(c => c.profileId === 'rig').id;
   };
   const gone = id => expect.poll(async () => (await state()).connections.some(c => c.id === id)).toBe(false);
+  const chosen = () => results.getByRole('option', { selected: true });
   try {
+    // At home, Connect lists every profile and chooses none until the arrow keys choose one.
     await connect.focus();
-    await expect(results).toBeHidden();
+    await expect(results).toBeVisible();
+    await expect(chosen()).toHaveCount(0);
+    await connect.press('Enter');
+    await page.waitForTimeout(200);
+    assert.equal((await state()).connections.length, 0);
+    await connect.press('ArrowDown');
+    await expect(page.locator('#connect-profile-rig')).toHaveAttribute('aria-selected', 'true');
+    await expect(connect).toHaveAttribute('aria-activedescendant', 'connect-profile-rig');
+    await connect.press('ArrowUp');
+    await expect(page.locator('#connect-profile-rig')).toHaveAttribute('aria-selected', 'true');
+    await connect.press('Escape');
+    await expect(chosen()).toHaveCount(0);
+    await expect(connect).not.toHaveAttribute('aria-activedescendant');
+    await connect.press('ArrowUp');
+    await expect(results.getByRole('option').last()).toHaveAttribute('aria-selected', 'true');
+    await connect.press('Escape');
+    await expect(chosen()).toHaveCount(0);
     await connect.fill('127.0.0.1');
     await expect(results.getByRole('option')).toHaveCount(4);
     await expect(results.getByRole('option').last()).toHaveId('connect-destination');
@@ -37,26 +55,30 @@ export async function testProfileLaunch(app, config, url) {
     await expect(page.locator('#connect-profile-other')).toHaveAttribute('aria-selected', 'true');
     await expect(connect).toHaveAttribute('aria-activedescendant', 'connect-profile-other');
     await connect.press('Escape');
-    await expect(results).toBeHidden();
-    await expect(connect).toHaveValue('127.0.0.1');
-    await connect.blur();
-    await connect.focus();
-    await page.waitForTimeout(200);
-    await expect(results).toBeHidden();
-    await connect.press('ArrowDown');
-    await expect(results).toBeVisible();
-    await page.locator('.sidebar').click({ position: { x: 20, y: 20 } });
-    await expect(results).toBeHidden();
+    await expect(connect).toHaveValue('');
+    await expect(results.getByRole('option')).toHaveCount(5);
+    await expect(chosen()).toHaveCount(0);
     await connect.fill('rig');
-    await expect(results).toBeVisible();
     await connect.evaluate(input => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true, cancelable: true })));
     await page.waitForTimeout(300);
     assert.equal((await state()).connections.length, 0);
     await expect(page.locator('#connection-dialog')).not.toBeVisible();
     await connect.press('Escape');
-    await connect.press('Escape');
     await expect(connect).toHaveValue('');
-    console.log('Connect results open only for typed input and support arrows, Escape, outside dismissal and composition without connecting.');
+    // A profile's Edit opens its settings without connecting.
+    await page.locator('#connect-profile-other').hover();
+    await page.locator('#connect-profile-other .connect-edit').click();
+    const editing = page.locator('#connection-dialog');
+    await expect(editing).toBeVisible();
+    await expect(editing.locator('.dialog-context')).toHaveText('other');
+    await expect(editing.locator('#field-profile-id')).toHaveCount(0);
+    await expect(editing.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+    for (const name of ['Save and Connect', 'Connect']) await expect(editing.getByRole('button', { name, exact: true })).toHaveCount(0);
+    await page.waitForTimeout(200);
+    assert.equal((await state()).connections.length, 0);
+    await editing.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(editing).toBeHidden();
+    console.log('At home, Connect lists every profile, narrows the list as it is typed in, and supports arrows, Escape and composition without connecting; Edit opens a profile without connecting.');
 
     await connect.fill('unmatched profile query');
     await expect(results.getByRole('option', { name: 'No Results Found', exact: true })).toHaveAttribute('aria-disabled', 'true');
@@ -87,6 +109,29 @@ export async function testProfileLaunch(app, config, url) {
     await form.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(form).toBeHidden();
     assert.equal((await api('details', direct)).username, userInfo().username);
+
+    // With a connection in view, Connect is in the panel and its results open over the window only for typed input.
+    await connect.focus();
+    await expect(results).toBeHidden();
+    await connect.fill('127.0.0.1');
+    await expect(results.getByRole('option')).toHaveCount(4);
+    await expect(page.locator('#connect-profile-rig')).toHaveAttribute('aria-selected', 'true');
+    await connect.press('ArrowDown');
+    await expect(page.locator('#connect-profile-other')).toHaveAttribute('aria-selected', 'true');
+    await connect.press('Escape');
+    await expect(results).toBeHidden();
+    await expect(connect).toHaveValue('127.0.0.1');
+    await connect.blur();
+    await connect.focus();
+    await page.waitForTimeout(200);
+    await expect(results).toBeHidden();
+    await connect.press('ArrowDown');
+    await expect(results).toBeVisible();
+    await page.locator('.rail-panel').click({ position: { x: 20, y: 20 } });
+    await expect(results).toBeHidden();
+    await connect.fill('');
+    console.log('With a connection in view, Connect results open only for typed input and support arrows, Escape and outside dismissal.');
+
     await (await profileRow('rig')).locator('.profile-item').click();
     await expect(page.locator('#profiles-dialog')).toBeHidden();
     assert.equal((await state()).connections.filter(c => c.profileId === 'rig').length, 1);
@@ -106,7 +151,7 @@ export async function testProfileLaunch(app, config, url) {
     await expect.poll(async () => (await state()).workspaces.find(w => w.id === workspace)?.tabs.length).toBe(0);
     await api('browser', workspace, 'close-workspace');
     assert.equal((await state()).connections.find(c => c.id === direct)?.status, 'connected');
-    await expect(page.locator(`.connection[data-id="${direct}"]`)).toHaveCount(1);
+    await expect(page.locator(`.connection-chip[data-id="${direct}"]`)).toHaveCount(1);
 
     await connect.fill('rig');
     await connect.press('Enter');

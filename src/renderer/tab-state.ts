@@ -17,10 +17,6 @@ export function setFindText(tabId: string, text: string | undefined) {
   else finds.set(tabId, text);
   render();
 }
-/** Forgets the link under the pointer in a tab that is no longer showing. */
-export function clearTarget(tabId: string) {
-  if (targets.delete(tabId)) render();
-}
 /** Forgets an icon that does not decode. */
 export function dropFavicon(tabId: string) {
   if (favicons.delete(tabId)) render();

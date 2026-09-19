@@ -1,0 +1,471 @@
+/* Styles of the console theme, each under :root[data-theme="console"]. */
+:root[data-theme="console"] {
+  --radius-sm: 0px;
+  --radius: 0px;
+  --radius-lg: 0px;
+  --titlebar-height: env(titlebar-area-height, 29px);
+  --chrome-top: calc(var(--titlebar-height) + 1px);
+  /* The height of the windows line and of the status line, each with the rule above it. */
+  --console-line: 26px;
+  /* Where text starts on every line, and in a terminal. */
+  --console-inset: 8px;
+  /* What the lines below the view take of the window's height; a dialog stays clear of it. */
+  --console-bottom: calc(2 * var(--console-line));
+  /* The terminal font is the font of everything; the chrome sets --console-font to the configured one. */
+  --font-mono: var(--console-font, "Bartizan JetBrains Mono", monospace);
+
+  --bg-app: #f3efe3;
+  --bg-panel: #ece7d8;
+  --bg-main: #f3efe3;
+  --bg-header: #f3efe3;
+  --bg-toolbar: #f3efe3;
+  --bg-page: #f3efe3;
+  --bg-dialog: #f7f4ea;
+  --text: #2b2a24;
+  --text-strong: #14130f;
+  --text-muted: #565243;
+  --text-faint: #676251;
+  --border: #d6cfba;
+  --border-subtle: #e3ddcc;
+  --border-strong: #a59c83;
+  --border-control: #bdb59d;
+  --control: #f7f4ea;
+  --control-hover: #ece7d8;
+  --control-active: #e1dbc8;
+  --field: #fbf9f3;
+  --field-muted: #ece7d8;
+  --hover: rgba(43, 42, 36, 0.07);
+  --selected: rgba(23, 96, 58, 0.14);
+  --accent: #17603a;
+  --accent-hover: #114b2d;
+  --on-accent: #f7f4ea;
+  --accent-soft: rgba(23, 96, 58, 0.12);
+  --accent-text: #17603a;
+  --focus: #17603a;
+  --focus-ring: rgba(23, 96, 58, 0.3);
+  --ok: #1d7a45;
+  --warn: #9a5f00;
+  --warn-soft: rgba(154, 95, 0, 0.14);
+  --warn-text: #7a4a00;
+  --danger: #b3261e;
+  --danger-soft: rgba(179, 38, 30, 0.08);
+  --danger-text: #96201a;
+  --danger-border: rgba(179, 38, 30, 0.3);
+  --on-danger: #fbf9f3;
+  --chip-bg: rgba(43, 42, 36, 0.08);
+  --brand-band: var(--accent);
+  --brand-plate: var(--accent);
+  --brand-tower: var(--on-accent);
+  --brand-glyph: var(--accent);
+  --scroll-thumb: #8f866e;
+  --scroll-thumb-hover: #766e58;
+  --scroll-size: 8px;
+  --scroll-radius: 0px;
+  --preview-accent: var(--accent);
+  --shadow: none;
+  --menu-shadow: none;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23565243' stroke-width='1.5' stroke-linecap='square'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
+  --session-0: #1f57a8;
+  --session-1: #7a3fc0;
+  --session-2: #0b6b76;
+  --session-3: #a84f0c;
+  --session-4: #a8246a;
+  --session-5: #4f6f12;
+  --session-6: #856000;
+  --session-7: #b03030;
+  --session-8: #565f6a;
+  /* The status line, a hovered entry of a line, and the text of an entry in inverse video. */
+  --console-status: #eae5d5;
+  --console-hover: #e6e0cf;
+  --console-inverse: var(--bg-main);
+  --console-backdrop: rgba(43, 42, 36, 0.45);
+}
+
+:root[data-theme="console"][data-appearance="dark"] {
+    --bg-app: #0b0f0d;
+    --bg-panel: #0e1411;
+    --bg-main: #0b0f0d;
+    --bg-header: #0b0f0d;
+    --bg-toolbar: #0b0f0d;
+    --bg-page: #0b0f0d;
+    --bg-dialog: #0e1411;
+    --text: #b9c9be;
+    --text-strong: #e8f5ec;
+    --text-muted: #8a9c90;
+    --text-faint: #788b7f;
+    --border: #1e2b24;
+    --border-subtle: #161f1a;
+    --border-strong: #3a5244;
+    --border-control: #2b3c32;
+    --control: #111915;
+    --control-hover: #17221c;
+    --control-active: #1e2c24;
+    --field: #080b09;
+    --field-muted: #111814;
+    --hover: rgba(134, 239, 172, 0.07);
+    --selected: rgba(74, 222, 128, 0.16);
+    --accent: #4ade80;
+    --accent-hover: #6ee79a;
+    --on-accent: #06140b;
+    --accent-soft: rgba(74, 222, 128, 0.13);
+    --accent-text: #6ee79a;
+    --focus: #4ade80;
+    --focus-ring: rgba(74, 222, 128, 0.35);
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --warn-soft: rgba(251, 191, 36, 0.13);
+    --warn-text: #fcd34d;
+    --danger: #f87171;
+    --danger-soft: rgba(248, 113, 113, 0.1);
+    --danger-text: #fca5a5;
+    --danger-border: rgba(248, 113, 113, 0.35);
+    --on-danger: #1c0606;
+    --chip-bg: rgba(185, 201, 190, 0.1);
+    --scroll-thumb: #4a6b58;
+    --scroll-thumb-hover: #5d8570;
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238a9c90' stroke-width='1.5' stroke-linecap='square'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
+    --session-0: #6cb2f7;
+    --session-1: #c49bf5;
+    --session-2: #3fd3c0;
+    --session-3: #f59e5b;
+    --session-4: #f08abf;
+    --session-5: #a3d977;
+    --session-6: #e8c65a;
+    --session-7: #f58a8a;
+    --session-8: #a3b0a8;
+    --console-status: #0f1612;
+    --console-hover: #151f19;
+    --console-backdrop: rgba(4, 6, 5, 0.66);
+}
+
+:root[data-theme="console"] {
+  /* Everything is monospace text. Outside a terminal each character shows as it is; a terminal and the font sample follow Terminal Ligatures. */
+  body { font: 12px/1.5 var(--font-mono); }
+  #app > :not(.main), .main > :not(.terminal-view), .overlay-surface { font-variant-ligatures: none; font-feature-settings: "calt" 0, "liga" 0; }
+  .font-sample:not(.no-ligatures) { font-variant-ligatures: normal; font-feature-settings: normal; }
+  .mono { font-size: 12px; }
+  ::selection { background: var(--accent); color: var(--on-accent); }
+  ::-webkit-scrollbar-thumb { border: 0; }
+  ::-webkit-scrollbar-thumb:active { background-color: var(--accent); }
+
+  /* With no connection there is no windows line. */
+  &:has(.console-windows[hidden]) { --console-bottom: var(--console-line); }
+
+  /* A title line, the view, the windows line and the status line. */
+  #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--chrome-top) minmax(0, 1fr) auto var(--console-line); }
+  .console-title { grid-row: 1; }
+  .main { grid-row: 2; }
+  .console-windows { grid-row: 3; }
+  .console-status { grid-row: 4; }
+
+  /* Controls */
+  .button { height: 26px; padding: 0 12px; }
+  .button.primary { font-weight: 700; }
+  .button:focus-visible, .icon-button:focus-visible { outline-offset: 0; }
+  .icon-button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+  .icon-button[aria-pressed="true"]:not(.row-mute):focus-visible, .button.primary:focus-visible { outline-offset: -4px; outline-color: var(--on-accent); }
+  .icon-button:disabled { opacity: 0.55; }
+  .input { height: 26px; padding: 0 8px; }
+  .input:focus { box-shadow: 0 0 0 1px var(--focus); }
+  select.input { padding-right: 28px; }
+  select.input::picker(select) { margin-block: 2px; padding: 0; border-radius: 0; }
+  select.input option { min-height: 24px; padding: 0 10px 0 6px; }
+  select.input option:is(:hover, :focus-visible):not(:disabled) { background: var(--accent); color: var(--on-accent); }
+  select.input option:is(:hover, :focus-visible):not(:disabled)::checkmark { color: inherit; }
+  /* A checkbox is a ruled box that fills when checked. */
+  input[type="checkbox"] { appearance: none; flex: none; width: 14px; height: 14px; border: 1px solid var(--border-strong); background: var(--field); }
+  input[type="checkbox"]:checked { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 2px var(--field); }
+  input[type="checkbox"]:disabled { opacity: 0.5; }
+  .field-body > input[type="checkbox"] { margin-top: 6px; }
+  progress { height: 2px; }
+  .status-dot { width: 7px; height: 7px; }
+  .status-dot[data-status="closed"] { box-shadow: inset 0 0 0 1px var(--text-faint); }
+  /* Loading shows as a blinking cursor. */
+  .spinner { width: 6px; height: 11px; border: 0; border-radius: 0; background: currentColor; animation: console-blink 1s steps(1) infinite; }
+
+  /* Title line: the brand, then what is in view as a path; the native window controls draw over its right end. */
+  .console-title {
+    display: flex; align-items: stretch; min-width: 0; padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+    border-bottom: 1px solid var(--border); background: var(--bg-header); user-select: none; white-space: nowrap; app-region: drag;
+  }
+  .console-brand { display: flex; flex: none; padding-left: env(titlebar-area-x, 0px); border-right: 1px solid var(--border); }
+  /* Home is the brand, in inverse video while it is current. */
+  .home-button { display: flex; align-items: center; gap: 7px; padding: 0 12px 0 var(--console-inset); border: 0; background: transparent; color: var(--accent-text); app-region: no-drag; }
+  .home-button:hover { background: var(--console-hover); }
+  .home-button[aria-current="page"] { background: var(--accent); color: var(--on-accent); }
+  .home-button:focus-visible { outline-offset: -2px; }
+  .home-button[aria-current="page"]:focus-visible { outline-color: var(--console-inverse); }
+  .brand-mark { width: 15px; height: 15px; }
+  .brand-mark rect { rx: 0; }
+  .console-wordmark { font-weight: 700; text-transform: lowercase; }
+  .console-context { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding-left: 12px; }
+  .titlebar-marker { width: 12px; height: 12px; }
+  .titlebar-marker .icon { width: 12px; height: 12px; }
+  .titlebar-titles { flex-direction: row; align-items: baseline; }
+  .titlebar-heading { flex: 0 1 auto; font-size: 12px; font-weight: 700; line-height: 18px; }
+  .titlebar-group { flex: none; max-width: calc(24ch + 1px); }
+  .titlebar-item { flex: 0 1 auto; min-width: 0; color: var(--text); font-weight: 400; }
+  .titlebar-item::before { content: "▸" / ""; margin: 0 0.75ch; position: relative; top: 1px; color: var(--text-muted); font-size: 15px; line-height: 0; }
+  /* The view's commands end the line, as the commands of the lines below end theirs. */
+  .titlebar-actions { align-self: stretch; gap: 0; margin-left: auto; padding: 0 2px; border-inline: 1px solid var(--border); }
+
+  /* The lines below the view. */
+  .console-windows, .console-status { display: flex; align-items: stretch; min-width: 0; border-top: 1px solid var(--border); background: var(--console-bg); user-select: none; white-space: nowrap; }
+  .console-windows { height: var(--console-line); --console-bg: var(--bg-header); }
+  .console-status { --console-bg: var(--console-status); }
+  :is(.console-title, .console-windows, .console-status) .icon-button { width: 26px; height: 100%; app-region: no-drag; }
+  :is(.console-title, .console-windows, .console-status) .icon-button .icon { width: 14px; height: 14px; }
+  :is(.console-title, .console-windows, .console-status) .icon-button:hover:not(:disabled) { background: var(--console-hover); color: var(--text-strong); }
+  :is(.console-title, .console-windows, .console-status) .icon-button:focus-visible { outline-offset: -2px; }
+  /* A list scrolls along its line without a scroll bar; a mark at either end shows that more lies beyond it, and an item brought into view stops flush with the mark. */
+  .console-strip { position: relative; display: flex; flex: 1; min-width: 0; }
+  .console-scroll { display: flex; flex: 1; min-width: 0; overflow: auto hidden; scrollbar-width: none; scroll-padding-inline: calc(2ch + 1px); }
+  .console-strip::before, .console-strip::after { position: absolute; top: 0; bottom: 0; z-index: 3; display: none; align-items: center; padding: 0 0.5ch; background: var(--console-bg); color: var(--text-muted); font-weight: 700; pointer-events: none; }
+  .console-strip::before { content: "«" / ""; left: 0; border-right: 1px solid var(--border); }
+  .console-strip::after { content: "»" / ""; right: 0; border-left: 1px solid var(--border); }
+  .console-strip[data-more-before]::before, .console-strip[data-more-after]::after { display: flex; }
+  .console-scroll :is(.nav-item, .connection-titles):focus-visible { outline-offset: -2px; }
+  .console-scroll :is(.nav-item[aria-current="page"], .connection-titles[aria-current="true"]):focus-visible { outline-color: var(--console-inverse); }
+  :is(.console-windows, .console-status) :is(.drop-before, .drop-after) { box-shadow: none; }
+  :is(.console-windows, .console-status) .drop-before::before, :is(.console-windows, .console-status) .drop-after::after { content: ""; position: absolute; top: 3px; bottom: 3px; z-index: 2; width: 2px; background: var(--warn); }
+  :is(.console-windows, .console-status) .drop-before::before { left: 0; }
+  :is(.console-windows, .console-status) .drop-after::after { right: 0; }
+
+  /* Windows line: the shown connection's terminals and browser sessions, numbered in order; the current one is in inverse video. */
+  .console-windows .connection-items { display: flex; flex: none; gap: 0; counter-reset: console-window -1; }
+  .console-windows .connection-items > li { position: relative; display: flex; flex: none; counter-increment: console-window; }
+  .console-windows .row { display: flex; flex: none; }
+  /* An entry always holds room for its buttons at its end, and a numbered one a cell for the flag of the current one: showing them moves nothing and covers nothing. The first entry starts at the lines' inset. */
+  .console-windows .nav-item { gap: 6px; width: auto; min-width: 6ch; height: 100%; padding: 0 calc(var(--actions) * 3.5ch - 0.5ch) 0 0.5ch; border-radius: 0; font-weight: 400; }
+  .console-windows .terminal-entry:first-child .nav-item { padding-left: var(--console-inset); }
+  .console-windows .row:hover > .nav-item:not([aria-current="page"]) { background: var(--console-hover); }
+  .console-windows .nav-item[aria-current="page"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .console-windows .nav-item[aria-current="page"]::before { content: none; }
+  .console-windows .nav-item:is([data-kind="terminal"], [data-kind="browser"])::after { content: "*" / ""; order: 1; margin-left: -6px; visibility: hidden; }
+  .console-windows .nav-item:is([data-kind="terminal"], [data-kind="browser"])[aria-current]::after { visibility: visible; }
+  /* A label's limit is a whole number of characters and a pixel of slack, so that a cut one ends flush with its ellipsis. */
+  .console-windows .nav-label { flex: none; max-width: calc(26ch + 1px); }
+  .console-windows .nav-meta { order: 2; color: inherit; font-size: inherit; }
+  .console-windows .nav-meta:not(:empty)::before { content: "(" / ""; }
+  .console-windows .nav-meta:not(:empty)::after { content: ")" / ""; }
+  .console-windows :is([data-kind="terminal"], [data-kind="browser"]) .nav-icon { display: none; }
+  .console-windows :is([data-kind="terminal"], [data-kind="browser"]) .nav-label::before { content: counter(console-window) ":" / ""; color: var(--text-muted); }
+  .console-windows .nav-item:is([aria-current="page"], [data-status="closed"]) .nav-label::before { color: inherit; }
+  /* A browser session is a bracketed group in its colour: its name, then its tabs. */
+  .console-windows .session { margin-left: 1ch; color: var(--session-color); }
+  .console-windows .session:first-child { margin-left: var(--console-inset); }
+  .console-windows .session > .session-row::before { content: "[" / ""; align-self: center; font-weight: 700; }
+  .console-windows .session > .tab-items::after { content: "]" / ""; align-self: center; font-weight: 700; }
+  .console-windows .session-row > .nav-item { min-width: 0; padding-left: 0.5ch; color: var(--session-color); font-weight: 700; }
+  .console-windows .session-row > .nav-item[aria-current="true"] { color: var(--session-color); }
+  .console-windows .session-name { align-self: center; width: 18ch; height: 20px; margin: 0 1ch 0 0.5ch; padding: 0 6px; color: var(--text); }
+  .console-windows .tab-items { display: flex; flex: none; gap: 0; margin: 0; }
+  .console-windows .tab-items::before { content: none; }
+  .console-windows .tab-items > li { position: relative; }
+  .console-windows .tab-items .nav-item { min-width: 6ch; height: 100%; padding-left: 0.5ch; border-radius: 0; color: var(--text); }
+  .console-windows .tab-items .nav-label { max-width: calc(20ch + 1px); }
+  .console-windows .tab-items .nav-item[aria-current="page"] { background: var(--session-color); color: var(--console-inverse); }
+  .console-windows .nav-icon { width: 12px; height: 12px; color: inherit; }
+  .console-windows .nav-icon .icon { width: 12px; height: 12px; }
+  .console-windows .favicon { width: 12px; height: 12px; border-radius: 0; }
+  .console-windows .nav-item[data-kind="tab"][data-state="error"] .nav-icon { color: var(--danger); }
+  .console-windows .nav-item[data-kind="tab"][data-state="certificate"] .nav-icon { color: var(--warn); }
+  .console-windows .nav-item[data-kind="tab"][aria-current="page"] .nav-icon { color: inherit; }
+  /* A closed terminal is faint, and in a muted inverse when it is the current one. */
+  .console-windows .nav-item[data-kind="terminal"][data-status="closed"] { color: var(--text-faint); }
+  .console-windows .nav-item[data-kind="terminal"][data-status="closed"] .nav-label { color: inherit; }
+  .console-windows .nav-item[data-kind="terminal"][data-status="closed"][aria-current="page"] { background: var(--text-muted); color: var(--console-inverse); }
+  .console-windows .nav-item[data-kind="terminal"][data-status="connecting"] .nav-label { animation: pulse 1.2s ease-in-out infinite; }
+  /* Buttons side by side stand half a cell apart. */
+  .console-windows .row-actions { top: 0; right: 0; bottom: 0; gap: 0.5ch; align-items: stretch; transform: none; color: var(--text-muted); }
+  .console-windows .row-actions .icon-button { width: 3ch; height: 100%; color: inherit; }
+  .console-windows .row-actions .icon-button .icon { width: 12px; height: 12px; }
+  .console-windows .row-actions .icon-button:hover:not(:disabled) { background: var(--text-strong); color: var(--bg-main); }
+  /* A session's New Tab always shows after its name; its Close waits for the pointer, focus or the session being current. */
+  .console-windows .session-row > .row-actions { color: var(--session-color); }
+  .console-windows .session-row > .row-actions > .row-new { opacity: 1; }
+  .console-windows .row.current:not(.session-row) > .row-actions { color: var(--console-inverse); }
+  .console-windows .row.current:not(.session-row) > .row-actions .icon-button:hover:not(:disabled) { background: var(--console-inverse); color: var(--text-strong); }
+  .console-windows .row.current:not(.session-row) > .row-actions .icon-button:focus-visible { outline-color: var(--console-inverse); }
+  .console-windows .row-mute[aria-pressed="true"] { background: transparent; color: inherit; opacity: 0.7; }
+  .console-windows .connection-tools { align-items: stretch; padding: 0 2px; border-left: 1px solid var(--border); }
+  .console-windows .connection-tools:not(:has(> :not([hidden]))) { display: none; }
+  .console-windows .connection-remove:hover:not(:disabled) { background: var(--danger); color: var(--on-danger); }
+
+  /* Status line: every connection, a hovered link's address, the Connect prompt and the application's commands. */
+  .console-places { position: relative; display: flex; flex: 1; min-width: 0; }
+  .console-connections { display: flex; flex: 0 1 auto; min-width: 0; }
+  .connection-chips { display: flex; flex: none; }
+  .connection-chip { position: relative; display: flex; flex: none; }
+  .connection-chip .connection-titles { flex-direction: row; align-items: center; height: 100%; padding: 0 10px 0 var(--console-inset); }
+  .connection-chip .connection-titles:hover { background: var(--console-hover); }
+  .connection-chip .connection-initials { display: none; }
+  .connection-chip .connection-name { gap: 7px; }
+  .connection-chip .connection-label { max-width: calc(24ch + 1px); color: inherit; font-weight: 400; }
+  .connection-chip[data-status="closed"] .connection-titles { color: var(--text-faint); }
+  .connection-chip[data-status="closed"] .connection-label { color: inherit; }
+  .connection-chip .connection-titles[aria-current="true"] { background: var(--accent); color: var(--on-accent); }
+  .connection-chip .connection-titles[aria-current="true"] .connection-label { font-weight: 700; }
+  .connection-chip .connection-titles[aria-current="true"] .status-dot { background: currentColor; }
+  .connection-chip .connection-titles[aria-current="true"] .status-dot[data-status="closed"] { background: transparent; box-shadow: inset 0 0 0 1px currentColor; }
+  .connection-chip[data-status="closed"] .connection-titles[aria-current="true"] { background: var(--text-muted); color: var(--console-inverse); }
+  /* A connection's problem is a cell of its own, which reads the same inside the current connection's. */
+  .connection-chip .connection-alert { padding: 0 0.5ch; background: var(--danger); color: var(--on-danger); font-weight: 700; line-height: 16px; }
+  .connection-chip .connection-alert .icon { display: none; }
+  .connection-chip .connection-alert::after { content: "!" / ""; }
+  .console-empty { align-self: center; margin: 0; padding: 0 var(--console-inset); color: var(--text-faint); }
+  /* A hovered link's address shows beside the prompt, over the connections only when it needs their room. */
+  .console-link { pointer-events: none; position: absolute; top: 0; right: 0; bottom: 0; z-index: 4; max-width: 100%; padding: 0 1.5ch; overflow: hidden; border-left: 1px solid var(--border); background: var(--console-bg); color: var(--text-muted); line-height: calc(var(--console-line) - 1px); text-overflow: ellipsis; }
+  .console-link:empty, .console-places:is(:hover, :focus-within) > .console-link { display: none; }
+  .console-prompt, .console-app { display: flex; flex: none; border-left: 1px solid var(--border); }
+  .console-app { padding-right: 2px; }
+  .connect { display: flex; flex: none; width: 26ch; }
+  .connect .icon { display: none; }
+  .connect::before { content: ">" / ""; position: absolute; top: 0; bottom: 0; left: 1.5ch; display: flex; align-items: center; color: var(--accent-text); font-weight: 700; pointer-events: none; }
+  .connect-input { height: 100%; padding: 0 1ch 0 4ch; border: 0; border-radius: 0; background: transparent; }
+  .connect-input:hover { background: var(--console-hover); }
+  .connect-input:focus { background: var(--field); box-shadow: inset 0 0 0 1px var(--focus); }
+  .connect-results { position-area: top span-left; margin: 0; padding: 0; border-radius: 0; }
+  .connect-results .connect-option[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
+  .connect-results .connect-option[aria-selected="true"] :is(.icon, .profile-endpoint) { color: inherit; }
+  .connect-results .connect-option[aria-selected="true"] .tag { background: transparent; box-shadow: inset 0 0 0 1px currentColor; color: inherit; }
+  .connect-results .connect-option[aria-selected="true"] .status-dot { background: currentColor; }
+  .connect-results .section-empty { margin: 6px 10px; }
+  .errors-button { display: inline-flex; align-items: center; justify-content: center; gap: 0.75ch; }
+  .console-status .errors-button:has(> .error-count:not([hidden])) { width: auto; padding: 0 1ch; background: var(--danger); color: var(--on-danger); }
+  .console-status .errors-button:has(> .error-count:not([hidden])):hover { background: var(--danger); color: var(--on-danger); }
+  .error-count { position: static; min-width: 0; height: auto; padding: 0; border-radius: 0; background: transparent; color: inherit; font-size: 12px; font-weight: 700; line-height: inherit; }
+  @media (max-width: 960px) { .connect { width: 20ch; } }
+  /* A command at the end of a line is a word while the window has room for it, and its icon otherwise. */
+  @media (min-width: 961px) {
+    .console-prompt > .icon-button { width: auto; padding: 0 1ch; border-left: 1px solid var(--border); }
+    .console-prompt > .icon-button .icon { display: none; }
+    .console-prompt > .icon-button::after { content: attr(title) / ""; }
+  }
+  @media (min-width: 1400px) {
+    .connection-tools > .icon-button { width: auto; padding: 0 1ch; }
+    .connection-tools > .icon-button .icon { display: none; }
+    .connection-tools > .icon-button::after { content: attr(title) / ""; }
+  }
+
+  /* Main */
+  .terminal-surface { inset: 6px 0 4px var(--console-inset); }
+  .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { left: 0 !important; width: var(--scroll-size) !important; }
+  .browser-toolbar { gap: 0; height: 34px; padding: 0 6px 0 9px; box-shadow: inset 3px 0 0 var(--session-color); }
+  .browser-toolbar .icon-button { width: 28px; height: 26px; }
+  .browser-toolbar .icon-button .icon, .find-bar .icon-button .icon { width: 14px; height: 14px; }
+  .address-field { margin: 0 6px; }
+  .address-icon { top: 5px; left: 8px; width: 14px; height: 14px; }
+  .address { height: 24px; padding: 0 10px 0 29px; border-color: var(--border-control); border-radius: 0; background: var(--field); }
+  .address:focus { box-shadow: 0 0 0 1px var(--focus); }
+  .address-field.zoomed .address { padding-right: 58px; }
+  .zoom-level { top: 3px; right: 3px; height: 18px; padding: 0 6px; border-radius: 0; background: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .zoom-level:hover { background: var(--accent-hover); }
+  .downloads-button progress { right: 6px; bottom: 3px; left: 6px; }
+  .find-bar { gap: 0; height: 32px; padding: 0 6px; }
+  .find-bar .icon-button { width: 28px; height: 26px; }
+  .find-field .icon { left: 8px; width: 14px; height: 14px; }
+  .find-input { height: 24px; padding-left: 29px; }
+  .find-count { font-size: 12px; }
+  .browser-error { padding: 4px 8px 4px 12px; }
+  .certificate-warning { padding: 32px 24px 24px; }
+  /* Nothing Open is the outline of a terminal over its words. */
+  .empty-view { gap: 12px; color: var(--text-muted); font-weight: 400; }
+  .empty-mark { width: auto; height: auto; background: none; color: var(--border-strong); }
+  .empty-mark .icon { width: 48px; height: 48px; stroke-width: 1; }
+
+  /* Home: the brand's outline over its name, a prompt, and the profiles as a menu whose chosen row is in inverse video. */
+  .home-brand { gap: 10px; margin-bottom: 32px; }
+  .home-brand .brand-mark { width: 56px; height: 56px; }
+  .home-brand .brand-mark rect { fill: transparent; }
+  .home-brand .brand-mark path { fill: none; stroke: var(--accent-text); stroke-width: 1.5px; }
+  .home-title { color: var(--accent-text); font-size: 14px; font-weight: 700; line-height: 20px; letter-spacing: 0; text-transform: lowercase; }
+  .home-head { margin-bottom: 8px; }
+  .home-heading { color: var(--accent-text); font-size: 12px; font-weight: 700; }
+  .home-heading::before { content: "# " / ""; color: var(--text-faint); font-weight: 400; }
+  .home .connect { width: auto; }
+  .home .connect-input { height: 30px; border: 1px solid var(--border-control); background: var(--field); }
+  .home .connect-input:focus { border-color: var(--focus); box-shadow: none; }
+  .connect-list { gap: 0; margin-top: 8px; }
+  .connect-list .connect-option { gap: 1.5ch; padding: 4px 5ch 4px 1ch; }
+  .connect-list .connect-option:hover { background: var(--console-hover); }
+  .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
+  .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] :is(.connect-tile, .profile-label, .profile-endpoint, .connect-target, .icon, .connect-edit) { color: inherit; }
+  .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] .tag { background: transparent; box-shadow: inset 0 0 0 1px currentColor; color: inherit; }
+  .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] .status-dot { background: currentColor; }
+  .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] .connect-edit:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
+  .connect-tile { width: 3ch; height: 36px; background: none; color: var(--accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0; }
+  /* Status stands in the gap after the initials. */
+  .connect-tile .status-dot { top: calc(50% - 3.5px); right: calc(-0.75ch - 3.5px); bottom: auto; width: 7px; height: 7px; border: 0; }
+  .connect-edit { right: 1ch; }
+
+  /* Errors */
+  .error-toaster[data-sonner-toaster][data-sonner-theme] { --border-radius: 0px; font-family: var(--font-mono); }
+  .error-toaster [data-sonner-toast] { border-left: 3px solid var(--danger); box-shadow: none; font-size: 12px; }
+  .error-toaster [data-sonner-toast] [data-title] { font-weight: 700; }
+  .error-toaster [data-sonner-toast] [data-content] { padding-right: 10px; }
+  .error-toaster [data-sonner-toast] [data-close-button] { top: -1px; right: -1px; left: auto; border-radius: 0; transform: none; }
+  .error-toaster [data-sonner-toast] [data-close-button]:focus-visible { box-shadow: none; outline: 2px solid var(--focus); outline-offset: 0; }
+
+  /* Overlays */
+  .popover { box-shadow: none; }
+  .download-list { padding: 0; }
+
+  /* Dialogs are ruled boxes over the view, clear of the lines below it; a heading in one reads as a comment line. */
+  dialog { bottom: var(--console-bottom); max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 24px); }
+  dialog::backdrop { background: var(--console-backdrop); }
+  .form-dialog { height: min(700px, calc(100vh - var(--chrome-top) - var(--console-bottom) - 24px)); max-height: none; }
+  .details, .settings, .profiles, .errors { max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 26px); }
+  .dialog-icon { width: 26px; height: 26px; border: 1px solid var(--border-strong); border-radius: 0; background: transparent; }
+  .dialog-icon.warning { border-color: var(--warn); background: transparent; }
+  .dialog-icon.session-badge { border-color: var(--session-color); background: transparent; }
+  .dialog-icon .icon { width: 14px; height: 14px; }
+  .dialog-titles { padding-top: 0; }
+  .dialog-titles h2 { font-size: 13px; font-weight: 700; line-height: 26px; }
+  .dialog-context { margin-top: -2px; font-size: 11px; }
+  .dialog-form { gap: 12px; padding: 16px; }
+  .prompt { padding: 8px 10px; }
+  .facts { gap: 6px 2ch; padding: 10px 12px; }
+  .connection-form > .dialog-header, .details > .dialog-header, .settings > .dialog-header, .profiles > .dialog-header, .errors > .dialog-header { align-items: center; padding: 10px 16px; }
+  .connection-form > .dialog-actions, .details > .dialog-actions, .settings > .dialog-actions, .profiles > .dialog-actions, .errors > .dialog-actions { padding: 10px 16px; }
+  .form-layout { grid-template-columns: 22ch minmax(0, 1fr); }
+  .section-nav { gap: 0; padding: 8px 0; }
+  .section-tab { min-height: 26px; padding: 0 1.5ch; }
+  .section-tab[aria-selected="true"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
+  .section-tab[aria-selected="true"] .section-count { background: transparent; box-shadow: inset 0 0 0 1px currentColor; color: inherit; }
+  .section-tab:focus-visible { outline-offset: -2px; }
+  .section-tab[aria-selected="true"]:focus-visible { outline-color: var(--on-accent); }
+  .section-count { height: 16px; border-radius: 0; }
+  .section-panels { padding: 2px 20px 20px; }
+  .panel-title, .errors h3 { color: var(--accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+  .panel-title::before, .errors h3::before { content: "# " / ""; color: var(--text-faint); font-weight: 400; }
+  .field { padding: 8px 0; }
+  .field-head { padding-top: 4px; }
+  .field.overridden .field-label::after { border-radius: 0; }
+  .field-reset, .field-reset-space { width: 26px; height: 26px; }
+  .item { min-height: 26px; }
+  .item-add .button, .inline .button { height: 26px; }
+  .command { padding: 10px 16px; }
+  .command.error { font-family: var(--font-mono); font-size: 12px; }
+  .form-notice { padding: 8px 16px 0; }
+  .settings-body { padding: 2px 16px 14px; }
+  /* The header's rule and the actions' frame the list. */
+  .details-body { padding: 4px 16px; }
+  .details-list { margin-top: 0; border-top: 0; }
+  .details-list dt, .details-list dd { padding: 5px 0; }
+  .details-row:last-child > * { border-bottom: 0; }
+  .profiles > .dialog-header { padding-right: 12px; }
+  .profiles-search { margin: 10px 16px 0; }
+  .profiles-search .icon { left: 8px; width: 14px; height: 14px; }
+  .profiles-search .input { padding-left: 29px; }
+  .profiles-body { padding: 8px 16px 14px; }
+  .profile-list { gap: 0; }
+  .profile-item { padding: 4px 8px; }
+  .errors h3 { margin: 10px 16px 2px; }
+  .error-row { padding: 6px 16px; }
+  .theme-option { gap: 5px; padding: 6px 6px 5px; font-size: 11px; font-weight: 400; }
+  .theme-option[aria-checked="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); color: var(--accent-text); font-weight: 700; }
+  .font-sample { margin-top: 10px; padding: 8px 10px; }
+}
+
+@keyframes console-blink { 50% { opacity: 0.2; } }

@@ -9,7 +9,6 @@ import {
   selectTab,
   activeTab,
   groups,
-  endpoint,
   connectionOf,
   terminalName,
   sessionColor,
@@ -26,13 +25,14 @@ import {
   scopeKeys,
   moveKey,
   sessionTabs,
+  revisit,
+  activeManifest,
   type Group,
 } from './store';
 import { openMenu, type MenuItem } from './menu';
 import { faviconOf, dropFavicon } from './tab-state';
-import { Connect } from './connect';
-import { openConnection } from './connection-form';
-import { Toasts, ErrorsButton, hasCurrent } from './errors';
+import { hasCurrent } from './errors';
+import { openDetails } from './details';
 
 const actionsStyle = (count: number) => ({ '--actions': count }) as CSSProperties;
 /** The unit being dragged, and the unit marked where it would land with the key it would land before. */
@@ -54,21 +54,23 @@ document.addEventListener('drop', (event) => {
   if (dragged && marked) moveKey(dragged.scope, dragged.key, marked.before);
   mark();
 });
-/** The sidebar's focusable and draggable items; row buttons belong to the item before them. */
-const sidebarItems = '.nav-item, .connection-titles';
+/** The focusable items of navigation, all draggable but Home; row buttons belong to the item before them. */
+export const navItems = '.nav-item, .connection-titles, .home-button';
+/** Whether the theme's lists run across the window. */
+const horizontal = () => activeManifest().axis === 'horizontal';
 const handleOf = (event: SyntheticEvent<HTMLElement>) => {
-  const handle = (event.target as Element).closest<HTMLElement>(sidebarItems);
+  const handle = (event.target as Element).closest<HTMLElement>(navItems);
   return handle?.closest('[data-order-key]') === event.currentTarget ? handle : undefined;
 };
 /**
- * Lets a sidebar unit move among the units of its scope by dragging its main button or from its context menu, which
- * starts with `actions`. Nested units see events first; a unit leaves events for other scopes to the unit around it.
+ * Lets a unit of navigation move among the units of its scope by dragging its main button or from its context menu,
+ * which starts with `actions`. Nested units see events first; a unit leaves events for other scopes to the unit around it.
  */
-function orderable(scope: string, key: string, actions: MenuItem[] = []) {
+export function orderable(scope: string, key: string, actions: MenuItem[] = []) {
   const place = (event: DragEvent<HTMLElement>) => {
     const keys = scopeKeys(scope),
       box = event.currentTarget.getBoundingClientRect();
-    const after = event.clientY > box.top + box.height / 2;
+    const after = horizontal() ? event.clientX > box.left + box.width / 2 : event.clientY > box.top + box.height / 2;
     const before = after ? keys[keys.indexOf(key) + 1] : key;
     return { after, before, unchanged: before === dragged!.key || keys[keys.indexOf(dragged!.key) + 1] === before };
   };
@@ -110,8 +112,8 @@ function orderable(scope: string, key: string, actions: MenuItem[] = []) {
         index = keys.indexOf(key);
       openMenu(handle, [
         ...actions,
-        { label: 'Move Up', disabled: index <= 0, action: () => moveBy(-1) },
-        { label: 'Move Down', disabled: index < 0 || index >= keys.length - 1, action: () => moveBy(1) },
+        { label: horizontal() ? 'Move Left' : 'Move Up', disabled: index <= 0, action: () => moveBy(-1) },
+        { label: horizontal() ? 'Move Right' : 'Move Down', disabled: index < 0 || index >= keys.length - 1, action: () => moveBy(1) },
       ]);
     },
   } as HTMLAttributes<HTMLElement>;
@@ -269,7 +271,7 @@ function TabRow({
 }
 /** The browser session whose name is being edited. */
 let renaming: string | undefined;
-function renameSession(id: string) {
+export function renameSession(id: string) {
   renaming = id;
   render();
 }
@@ -359,151 +361,173 @@ function Session({ workspace }: { workspace: Workspace }) {
     </>
   );
 }
-function Connection({ group: { connection, entries, profile } }: { group: Group }) {
+/** The buttons that act on a connection: add a terminal or browser session, disconnect or cancel, reconnect and remove. */
+export function ConnectionTools({ connection }: { connection: Group['connection'] }) {
   const id = connection.id;
   const control = (label: string) => `${label} ${connection.label}`;
   const embeddedBrowser = store.state.capabilities.embeddedBrowser;
   return (
-    <li
-      className="connection"
-      data-kind="connection"
-      data-id={id}
-      data-status={connection.status}
-      {...orderable('connections', id)}
-    >
-      <div className="connection-head" title={endpoint(connection)}>
-        <button
-          type="button"
-          draggable
-          className="connection-titles"
-          aria-current={store.selection?.kind === 'connection' && store.selection.id === id ? 'true' : undefined}
-          onClick={() => select({ kind: 'connection', id })}
-        >
-          <span className="connection-name">
-            <span className="status-dot" data-status={connection.status} />
-            <span className="connection-label">{connection.label}</span>
-            {hasCurrent(id) && (
-              <span className="connection-alert" role="img" aria-label="Error">
-                <Icon name="alert" />
-              </span>
-            )}
-          </span>
-          <span className="connection-endpoint">
-            {connection.status === 'connected'
-              ? endpoint(connection)
-              : `${statusText({ status: connection.status })} · ${endpoint(connection)}`}
-          </span>
-          <Tags tags={profile?.tags ?? []} />
-        </button>
-        <span className="connection-tools">
-          <IconButton
-            icon="plus"
-            label={control(embeddedBrowser ? 'Add' : 'New Terminal')}
-            title={embeddedBrowser ? 'Add' : 'New Terminal'}
-            className="connection-add"
-            hidden={connection.status !== 'connected'}
-            aria-haspopup={embeddedBrowser ? 'menu' : undefined}
-            onClick={(event) => embeddedBrowser ?
-              openMenu(event.currentTarget, [
-                { label: 'Terminal', action: () => void openTerminal(id) },
-                { label: 'Browser Session', action: () => void openBrowser(id) },
-              ]) : void openTerminal(id)
-            }
-          />
-          <IconButton
-            icon="power"
-            label={control(connection.status === 'connecting' ? 'Cancel' : 'Disconnect')}
-            title={connection.status === 'connecting' ? 'Cancel' : 'Disconnect'}
-            className="connection-disconnect"
-            hidden={connection.status === 'closed'}
-            onClick={() => void run('session', api.disconnect(id), id)}
-          />
-          <IconButton
-            icon="reload"
-            label={control('Reconnect')}
-            title="Reconnect"
-            className="connection-reconnect"
-            hidden={connection.status !== 'closed'}
-            onClick={() => void reconnect(id)}
-          />
-          <IconButton
-            icon="close"
-            label={control('Remove')}
-            title="Remove"
-            className="connection-remove"
-            hidden={connection.status !== 'closed'}
-            onClick={() => void removeConnection(id)}
-          />
-        </span>
-      </div>
-      <ul className="connection-items">
-        {entries.map((entry) => (
-          <li
-            key={entry.key}
-            className={entry.terminal ? 'terminal-entry' : 'session'}
-            {...orderable(
-              `items:${id}`,
-              entry.key,
-              entry.workspace ? [{ label: 'Rename', action: () => renameSession(entry.workspace!.id) }] : [],
-            )}
-            style={colorStyle(entry.workspace && sessionColor(entry.workspace))}
-          >
-            {entry.terminal ? <TerminalRow terminal={entry.terminal} /> : <Session workspace={entry.workspace!} />}
-          </li>
-        ))}
-      </ul>
-    </li>
+    <span key={id} className="connection-tools">
+      <IconButton
+        icon="plus"
+        label={control(embeddedBrowser ? 'Add' : 'New Terminal')}
+        title={embeddedBrowser ? 'Add' : 'New Terminal'}
+        className="connection-add"
+        hidden={connection.status !== 'connected'}
+        aria-haspopup={embeddedBrowser ? 'menu' : undefined}
+        onClick={(event) => embeddedBrowser ?
+          openMenu(event.currentTarget, [
+            { label: 'Terminal', action: () => void openTerminal(id) },
+            { label: 'Browser Session', action: () => void openBrowser(id) },
+          ]) : void openTerminal(id)
+        }
+      />
+      <IconButton
+        icon="power"
+        label={control(connection.status === 'connecting' ? 'Cancel' : 'Disconnect')}
+        title={connection.status === 'connecting' ? 'Cancel' : 'Disconnect'}
+        className="connection-disconnect"
+        hidden={connection.status === 'closed'}
+        onClick={() => void run('session', api.disconnect(id), id)}
+      />
+      <IconButton
+        icon="reload"
+        label={control('Reconnect')}
+        title="Reconnect"
+        className="connection-reconnect"
+        hidden={connection.status !== 'closed'}
+        onClick={() => void reconnect(id)}
+      />
+      <IconButton
+        icon="close"
+        label={control('Remove')}
+        title="Remove"
+        className="connection-remove"
+        hidden={connection.status !== 'closed'}
+        onClick={() => void removeConnection(id)}
+      />
+    </span>
   );
 }
-let connectionList: HTMLUListElement | null = null;
-export function Sidebar() {
-  const scroller = useRef<HTMLDivElement>(null);
+/** A connection's terminals and browser sessions with their tabs, in the order the user gave them. */
+export function ConnectionItems({ group: { connection, entries } }: { group: Group }) {
+  return (
+    <ul className="connection-items">
+      {entries.map((entry) => (
+        <li
+          key={entry.key}
+          className={entry.terminal ? 'terminal-entry' : 'session'}
+          {...orderable(
+            `items:${connection.id}`,
+            entry.key,
+            entry.workspace ? [{ label: 'Rename', action: () => renameSession(entry.workspace!.id) }] : [],
+          )}
+          style={colorStyle(entry.workspace && sessionColor(entry.workspace))}
+        >
+          {entry.terminal ? <TerminalRow terminal={entry.terminal} /> : <Session workspace={entry.workspace!} />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+/** A connection's status, label and current problem, as the head of its entry shows them. */
+export function ConnectionName({ connection }: { connection: Group['connection'] }) {
+  return (
+    <span className="connection-name">
+      <span className="status-dot" role="img" aria-label={statusText(connection)} data-status={connection.status} />
+      <span className="connection-label">{connection.label}</span>
+      {hasCurrent(connection.id) && (
+        <span className="connection-alert" role="img" aria-label="Error">
+          <Icon name="alert" />
+        </span>
+      )}
+    </span>
+  );
+}
+/** The first letters of a label's first two words, for a connection shown without its label. */
+export const initials = (label: string) =>
+  (label.match(/[\p{L}\p{N}]+/gu) ?? [label]).slice(0, 2).map((word) => [...word][0]!.toUpperCase()).join('') || '?';
+/**
+ * Every connection as a compact button, for themes that list a connection's items elsewhere. Choosing one returns to
+ * what it last showed. Its menu holds the commands of a connection's entry. `current` is the connection in view.
+ */
+export function ConnectionChips({ current }: { current?: string }) {
+  return (
+    <ul className="connection-chips">
+      {groups().map(({ connection }) => {
+        const id = connection.id,
+          connected = connection.status === 'connected',
+          closed = connection.status === 'closed';
+        return (
+          <li
+            key={id}
+            className="connection-chip"
+            data-kind="connection"
+            data-id={id}
+            data-status={connection.status}
+            {...orderable('connections', id, [
+              { label: 'New Terminal', disabled: !connected, action: () => void openTerminal(id) },
+              ...(store.state.capabilities.embeddedBrowser ? [{ label: 'New Browser Session', disabled: !connected, action: () => void openBrowser(id) }] : []),
+              { separator: true },
+              closed
+                ? { label: 'Reconnect', action: () => void reconnect(id) }
+                : { label: connected ? 'Disconnect' : 'Cancel', action: () => void run('session', api.disconnect(id), id) },
+              { label: 'Remove', disabled: !closed, action: () => void removeConnection(id) },
+              { label: 'Connection Details', action: () => void openDetails(id) },
+              { separator: true },
+            ])}
+          >
+            <button
+              type="button"
+              draggable
+              className="connection-titles"
+              data-id={id}
+              title={connection.label}
+              aria-current={current === id ? 'true' : undefined}
+              onClick={() => revisit(id)}
+            >
+              <span className="connection-initials" aria-hidden="true">
+                {initials(connection.label)}
+              </span>
+              <ConnectionName connection={connection} />
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+/**
+ * A region of navigation: arrow keys along the theme's axis, Home and End move among its items, focus lost inside it
+ * stays in it, and a selected connection's button takes focus when the view asks for it.
+ */
+export function NavGroup({ name, className, children }: { name: string; className?: string; children: ReactNode }) {
+  const region = useRef<HTMLDivElement>(null);
   useLayoutEffect(
     () =>
       onFocusRequest(() => {
         const selection = store.selection;
         if (selection?.kind === 'connection' && !dialogOpen())
-          connectionList
-            ?.querySelector<HTMLElement>(`.connection[data-id="${CSS.escape(selection.id)}"] .connection-titles`)
+          region.current
+            ?.querySelector<HTMLElement>(`[data-kind="connection"][data-id="${CSS.escape(selection.id)}"] .connection-titles`)
             ?.focus();
       }),
     [],
   );
   return (
-    <nav className="sidebar" aria-label="Connections">
-      <div
-        ref={scroller}
-        className="sidebar-scroll"
-        data-focus-group="sidebar"
-        data-focus-items={sidebarItems}
-        onKeyDown={(event) => {
-          const items = [...scroller.current!.querySelectorAll<HTMLElement>(sidebarItems)].filter(
-            (item) => item.offsetParent !== null,
-          );
-          if (moveFocus(items, event.key)) event.preventDefault();
-        }}
-      >
-        <ul
-          ref={(node) => {
-            connectionList = node;
-          }}
-          className="connection-list"
-        >
-          {groups().map((group) => (
-            <Connection key={group.connection.id} group={group} />
-          ))}
-        </ul>
-        <div className="sidebar-empty" hidden={groups().length > 0}>
-          <Icon name="terminal" className="icon sidebar-empty-icon" />
-          <p>No Connections</p>
-        </div>
-      </div>
-      <Toasts />
-      <div className="sidebar-footer">
-        <ErrorsButton />
-        <Connect />
-        <IconButton icon="plus" label="New Connection" aria-haspopup="dialog" onClick={() => openConnection()} />
-      </div>
-    </nav>
+    <div
+      ref={region}
+      className={className}
+      data-focus-group={name}
+      data-focus-items={navItems}
+      onKeyDown={(event) => {
+        const items = [...region.current!.querySelectorAll<HTMLElement>(navItems)].filter((item) => item.offsetParent !== null);
+        const across = horizontal();
+        const key = across ? ({ ArrowLeft: 'ArrowUp', ArrowRight: 'ArrowDown', ArrowUp: '', ArrowDown: '' }[event.key] ?? event.key) : event.key;
+        if (key && moveFocus(items, key)) event.preventDefault();
+      }}
+    >
+      {children}
+    </div>
   );
 }

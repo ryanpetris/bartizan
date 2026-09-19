@@ -11,7 +11,8 @@ export async function testProfileTags(app, config, connectionId) {
   const connect = connectSearch(page), results = connectResults(page);
   const option = page.locator('#connect-profile-rig');
   const profile = page.locator('#profiles-dialog .profile-row[data-id="rig"]');
-  const connection = page.locator(`.connection[data-id="${connectionId}"]`);
+  await page.locator(`.connection-chip[data-id="${connectionId}"] .connection-titles`).click();
+  const connection = page.locator('.rail-panel');
   const reload = async tags => {
     await writeFile(config, original.replace('\n  rig:\n', `\n  rig:\n    tags: ${JSON.stringify(tags)}\n`));
     await page.evaluate(() => window.bartizan.reloadConfig());
@@ -26,12 +27,12 @@ export async function testProfileTags(app, config, connectionId) {
     await page.keyboard.press('ArrowDown');
     await expect(page.locator('#profiles-dialog .profile-item').nth(1)).toBeFocused();
     await closeProfiles(page);
-    await expect(connection.locator('.connection-head')).toContainText('Team Blue');
+    await expect(connection.locator('.rail-panel-head')).toContainText('Team Blue');
     assert.deepEqual((await state()).profiles.find(p => p.id === 'rig').tags, ['Operations', 'Team Blue', '<b>literal</b>']);
     await connect.fill('oPERAt');
     await expect(results.locator('.profile-item')).toHaveCount(1);
     await expect(option).toContainText('Operations');
-    await expect(page.locator('.connection')).toHaveCount(before.connections.length);
+    await expect(page.locator('.connection-chip')).toHaveCount(before.connections.length);
     await expect(connection.locator('[data-kind="terminal"]')).toHaveCount(before.terminals.filter(t => t.connectionId === connectionId).length);
     await expect(connection.locator('[data-kind="tab"]')).toHaveCount(before.workspaces.filter(w => w.connectionId === connectionId).reduce((count, w) => count + w.tabs.length, 0));
     await connect.fill('Team Blue');
@@ -50,7 +51,7 @@ export async function testProfileTags(app, config, connectionId) {
       await page.evaluate(appearance => window.bartizan.settings({ appearance }), theme);
       for (const zoom of [1, 1.25]) {
         await application.evaluate(({ BrowserWindow }, zoom) => { const window = BrowserWindow.getAllWindows()[0]; window.setSize(800, 700); window.webContents.setZoomFactor(zoom); }, zoom);
-        await expect.poll(() => page.locator('.sidebar-scroll').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+        await expect.poll(() => page.locator('.rail-panel').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
         await expect(connection.locator('.connection-add')).toBeVisible();
         const dialog = await openProfiles(page);
         await expect(profile).toBeVisible();
@@ -62,7 +63,7 @@ export async function testProfileTags(app, config, connectionId) {
     await openProfiles(page);
     await expect(profile.locator('.tag')).toHaveCount(0);
     await closeProfiles(page);
-    await expect(connection.locator('.connection-head .tag')).toHaveCount(0);
+    await expect(connection.locator('.rail-panel-head .tag')).toHaveCount(0);
     assert.deepEqual((await state()).profiles.find(p => p.id === 'rig').tags, []);
     const after = await state();
     assert.deepEqual(after.connections, before.connections);

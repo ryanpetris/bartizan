@@ -1,6 +1,7 @@
 import type { Spec, PublicSpec, PublicProfile } from './core/config';
 import type { ConnectionInfo } from './main/connection-info';
 import type { Challenge } from './main/askpass';
+import type { ThemeId } from './themes';
 export function shortcutKey({ key, code }: { key: string; code: string }): string {
   return !/^[a-z]$/i.test(key) && /^Key[A-Z]$/.test(code) ? code.slice(3).toLowerCase() : key.toLowerCase();
 }
@@ -92,14 +93,14 @@ export type ErrorEntry = { id: number; source: string; kind: 'current' | 'event'
 export type ErrorLog = { current: ErrorEntry[]; history: ErrorEntry[] };
 export type ErrorReport = { source: string; message: string; connectionId?: string; label?: string };
 export type Appearance = 'dark' | 'light' | 'system';
-export type Settings = { appearance: Appearance; interfaceFont: string; terminalFont: string; terminalFontSize: number; terminalLigatures: boolean };
-export const defaultSettings: Settings = { appearance: 'dark', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true };
+export type Settings = { appearance: Appearance; theme: ThemeId; interfaceFont: string; terminalFont: string; terminalFontSize: number; terminalLigatures: boolean };
+export const defaultSettings: Settings = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true };
 export type ConnectTarget = { profileId: string } | { host: string; username?: string };
 export type ProfileDraft = { token: string; id?: string; file: string; spec: PublicSpec; tags: string[] };
 export type ProfileChanges = { token: string; values: Spec; reset: string[]; tags?: string[] };
 export type ProfileSaveResult = { profileId: string; connectionId?: string; connectionError?: string };
 export type Bounds = { x: number; y: number; width: number; height: number };
-export const overlayNames = ['status', 'popover'] as const;
+export const overlayNames = ['status', 'popover', 'toasts'] as const;
 export type OverlayName = (typeof overlayNames)[number];
 export const browserActions = ['new', 'close', 'select', 'navigate', 'back', 'forward', 'reload', 'hard-reload', 'stop', 'close-workspace', 'devtools', 'mute', 'zoom-in', 'zoom-out', 'zoom-reset', 'print', 'pdf'] as const;
 export type BrowserAction = (typeof browserActions)[number];
@@ -128,7 +129,7 @@ export interface API {
   newBrowserTab(connectionId: string, sessionId?: string): Promise<string>;
   /** An empty name restores the default name. */
   renameBrowser(workspaceId: string, name: string): Promise<void>;
-  /** `sessionId` is the browser session that comes first in the sidebar. */
+  /** `sessionId` is the browser session that comes first in navigation order. */
   openLink(terminalId: string, url: string, sessionId?: string): Promise<void>;
   linkMenu(terminalId: string, url: string | string[], sessionId?: string): Promise<void>;
   copy(text: string): Promise<void>;

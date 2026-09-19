@@ -7,6 +7,7 @@ import type { TerminalSession } from '../shared';
 import { api, store, run, connectionOf, dialogOpen, onFocusRequest, setTerminalTitle, firstSession } from './store';
 import { terminalFontFamily, loadFontStyles } from './fonts';
 import { operatorJoiner } from './ligatures';
+import { activeTheme } from './themes';
 
 /**
  * `link` is the web link under the pointer; `recentLinks` holds recent OSC 8 hyperlink targets, oldest first. `font` is the
@@ -169,55 +170,8 @@ function startGraphics(entry: Entry) {
 }
 
 const dark = matchMedia('(prefers-color-scheme: dark)');
-const themes: Record<'dark' | 'light', ITheme> = {
-  dark: {
-    background: '#111317',
-    foreground: '#d7dce2',
-    cursor: '#7cc0ee',
-    cursorAccent: '#111317',
-    selectionBackground: 'rgba(124, 192, 238, 0.3)',
-    black: '#1f232a',
-    red: '#e5746f',
-    green: '#7cc68f',
-    yellow: '#dcbc6a',
-    blue: '#6aaee6',
-    magenta: '#c38fdc',
-    cyan: '#62c3c7',
-    white: '#c9ced6',
-    brightBlack: '#626a76',
-    brightRed: '#f0908b',
-    brightGreen: '#97d8a8',
-    brightYellow: '#ead08a',
-    brightBlue: '#8cc3f0',
-    brightMagenta: '#d4a9e8',
-    brightCyan: '#86d6d9',
-    brightWhite: '#f1f3f5',
-  },
-  light: {
-    background: '#fbfbfc',
-    foreground: '#1f252c',
-    cursor: '#1f6fb2',
-    cursorAccent: '#fbfbfc',
-    selectionBackground: 'rgba(31, 111, 178, 0.22)',
-    black: '#2a3038',
-    red: '#b93a32',
-    green: '#2d7d46',
-    yellow: '#8a6100',
-    blue: '#1f67a8',
-    magenta: '#8a3fa6',
-    cyan: '#17767d',
-    white: '#737c87',
-    brightBlack: '#58616c',
-    brightRed: '#d0463d',
-    brightGreen: '#35924f',
-    brightYellow: '#a07200',
-    brightBlue: '#2a7cc4',
-    brightMagenta: '#a150c0',
-    brightCyan: '#1f8b93',
-    brightWhite: '#3a414a',
-  },
-};
-const theme = () => themes[store.state.settings.appearance === 'system' ? (dark.matches ? 'dark' : 'light') : store.state.settings.appearance];
+/** Terminal colours come from the chosen theme and follow the appearance. */
+const theme = () => activeTheme().terminal[store.state.settings.appearance === 'system' ? (dark.matches ? 'dark' : 'light') : store.state.settings.appearance];
 export function applyTheme() {
   host.style.backgroundColor = theme().background!;
   for (const entry of entries.values()) entry.terminal.options.theme = theme();

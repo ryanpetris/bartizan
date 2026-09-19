@@ -43,9 +43,9 @@ await withDirectory('titlebar', async (directory, cleanup) => {
   for (const appearance of ['light', 'dark', 'system']) {
     await api('settings', { appearance });
     const dark = await application.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors);
-    await expect.poll(() => page.locator('.titlebar').evaluate(node => getComputedStyle(node).backgroundColor)).toBe(dark ? 'rgb(23, 26, 31)' : 'rgb(247, 248, 250)');
+    await expect.poll(() => page.locator('.rail-topbar').evaluate(node => getComputedStyle(node).backgroundColor)).toBe(dark ? 'rgb(26, 28, 35)' : 'rgb(252, 252, 253)');
     assert.equal(await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches), dark);
-    assert.equal((await overlay()).height, 48);
+    assert.equal((await overlay()).height, 44);
   }
   console.log('The title bar follows the light, dark and system appearance.');
 
@@ -73,15 +73,18 @@ await withDirectory('titlebar', async (directory, cleanup) => {
   for (const zoom of [1, 1.25, 0.8]) {
     await application.evaluate(({ BrowserWindow }, zoom) => { const window = BrowserWindow.getAllWindows()[0]; window.setSize(800, 600); window.webContents.setZoomFactor(zoom); }, zoom);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.getByRole('button', { name: 'New Connection', exact: true }).click();
+    await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
     await expect(page.locator('#connection-dialog')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     for (const control of [page.getByRole('button', { name: 'Profiles', exact: true }), settings]) {
       assert.equal(await control.evaluate(node => {
         const bounds = node.getBoundingClientRect(), area = navigator.windowControlsOverlay.getTitlebarAreaRect();
-        return bounds.left >= area.left && bounds.right <= area.right && bounds.bottom <= area.bottom && getComputedStyle(node).appRegion === 'no-drag';
-      }), true, `Title bar controls stay clear of the native controls at ${zoom}x`);
+        return bounds.left >= 0 && bounds.top >= 0 && bounds.right <= innerWidth && bounds.bottom <= innerHeight && (bounds.top >= area.bottom || bounds.right <= area.right);
+      }), true, `Application controls stay clear of the native controls at ${zoom}x`);
     }
+    await page.getByRole('button', { name: 'Profiles', exact: true }).click();
+    await expect(page.locator('#profiles-dialog')).toBeVisible();
+    await page.locator('#profiles-dialog').getByRole('button', { name: 'Close', exact: true }).click();
     await settings.click();
     await expect(page.locator('#settings-dialog')).toBeVisible();
     await page.locator('#settings-dialog').getByRole('button', { name: 'Close', exact: true }).click();
@@ -89,9 +92,9 @@ await withDirectory('titlebar', async (directory, cleanup) => {
   }
   await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1));
   await page.reload();
-  await expect(page.locator('.titlebar')).toBeVisible();
+  await expect(page.locator('.rail-topbar')).toBeVisible();
   assert.deepEqual(errors, []);
-  console.log('Title bar controls stay usable beside the native controls at every zoom level and after a reload.');
+  console.log('Application controls stay usable beside the native controls at every zoom level and after a reload.');
 
   const exited = application.waitForEvent('close');
   await nativeButton(2);

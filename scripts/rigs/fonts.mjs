@@ -12,7 +12,7 @@ await withDirectory('fonts', async (directory, cleanup) => {
   await writeFile(config, `version: 1\nprofiles:\n  alpha:\n    label: Override\n${sshProfile(sshd, '    terminal:\n      font: ""\n      font_size: 20\n')}  beta:\n    label: Inherited\n${sshProfile(sshd)}`);
   const app = await launch(directory, config);
   cleanup(app.close);
-  const { application, page, api, waitState, errors } = app;
+  const { application, page, api, state, waitState, errors } = app;
   // Terminal sizes the renderer reports, by terminal.
   await application.evaluate(({ ipcMain }) => {
     globalThis.rigSizes = {};
@@ -37,6 +37,8 @@ await withDirectory('fonts', async (directory, cleanup) => {
     return state.terminals.find(t => t.connectionId === connection).id;
   };
   const show = async id => {
+    const { connectionId } = (await state()).terminals.find(terminal => terminal.id === id);
+    await page.locator(`.connection-chip[data-id="${connectionId}"] .connection-titles`).click();
     await page.locator(`.nav-item[data-kind="terminal"][data-id="${id}"]`).click();
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   };

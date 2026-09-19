@@ -5,6 +5,7 @@ import { openSettings, closeSettings, chooseAppearance } from './settings.mjs';
 export async function testBrowserInteractions(app, httpPort, first) {
   const { application, page, state, api } = app;
   const waitState = (_page, predicate) => app.waitState(predicate);
+  const connectionId = (await state()).terminals.find(t => t.id === first).connectionId;
   for (const w of (await state()).workspaces) await api('browser', w.id, 'close-workspace');
   let linkDialogs = 0;
   page.on('dialog', dialog => { linkDialogs++; void dialog.dismiss(); });
@@ -77,7 +78,7 @@ export async function testBrowserInteractions(app, httpPort, first) {
   await expect.poll(nativeViews).toBe(1);
   await chooseAppearance(app, 'system');
   console.log('Settings hides and restores the visible page; browser controls and remote page color preference follow application appearance.');
-  await expect(page.locator('.titlebar').getByRole('heading', { level: 1 })).toContainText('Browser');
+  await expect(page.locator('.rail-topbar').getByRole('heading', { level: 1 })).toContainText('Browser');
   const tabs = async () => (await state()).workspaces.find(w => w.id === workspaceId).tabs;
   const existingTabs = await tabs();
   await page.locator('.browser-toolbar').getByRole('button', { name: 'New Tab', exact: true }).click();
@@ -140,12 +141,13 @@ export async function testBrowserInteractions(app, httpPort, first) {
   await page.waitForTimeout(200);
   assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).length), 1);
   await page.reload();
-  await firstTabRow.waitFor();
+  await page.locator('.home-view').waitFor();
   assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).length), 0);
-  await page.getByRole('button', { name: 'New Connection', exact: true }).click();
+  await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
   await page.locator('#connection-dialog').waitFor({ state: 'visible' });
   assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).length), 0);
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await app.chooseConnection(connectionId);
   await firstTabRow.click();
   await application.evaluate(({ webContents }) => webContents.getAllWebContents().find(w => w.getURL().startsWith('http://localhost:')).focus());
   const challenged = await api('connect', { profileId: 'ask' });
@@ -169,6 +171,7 @@ export async function testBrowserInteractions(app, httpPort, first) {
   await page.waitForFunction(() => document.hasFocus());
   await page.keyboard.press('Escape');
   await waitState(page, s => s.connections.find(c => c.id === challenged)?.status === 'closed');
+  await app.chooseConnection(connectionId);
   await firstTabRow.click();
   console.log('Zoom and modal focus work; UI reload hides browser views and recovers pending authentication.');
   const originalTab = (await state()).workspaces[0].activeTab;

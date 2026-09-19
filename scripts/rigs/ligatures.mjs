@@ -20,7 +20,7 @@ await withDirectory('ligatures', async (directory, cleanup) => {
   await writeFile(config, `version: 1\nprofiles:\n  joined:\n${sshProfile(sshd)}  separate:\n${sshProfile(sshd, '    terminal:\n      ligatures: false\n')}`);
   const app = await launch(directory, config, { args: softwareGL });
   cleanup(app.close);
-  const { application, page, api, waitState, recordOutput, output, errors } = app;
+  const { application, page, api, state, waitState, recordOutput, output, errors } = app;
   await application.evaluate(({ ipcMain }) => {
     globalThis.rigSizes = {};
     const request = ipcMain._invokeHandlers.get('request');
@@ -32,7 +32,11 @@ await withDirectory('ligatures', async (directory, cleanup) => {
   const size = id => application.evaluate((_, id) => globalThis.rigSizes[id], id);
   await recordOutput();
   const view = page.locator('.terminal-surface:not([hidden]) .xterm-screen');
-  const show = id => page.locator(`.nav-item[data-kind="terminal"][data-id="${id}"]`).click();
+  const show = async id => {
+    const { connectionId } = (await state()).terminals.find(terminal => terminal.id === id);
+    await page.locator(`.connection-chip[data-id="${connectionId}"] .connection-titles`).click();
+    await page.locator(`.nav-item[data-kind="terminal"][data-id="${id}"]`).click();
+  };
   /** Opens a profile's terminal, shows it and draws the static screen in it. */
   const open = async profileId => {
     const connection = await api('connect', { profileId });

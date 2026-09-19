@@ -23,7 +23,7 @@ test('destinations share hostname and IP validation with profiles and SSH argume
     const file = join(directory, 'profiles.yaml');
     writeFileSync(file, 'version: 1\nprofiles:\n  example:\n    host: "[::1]"\n');
     assert.equal(resolveSpec(loadCatalog(file), 'example', {}).host, '::1');
-    const catalog = { defaults: {}, profiles: [], file: '', settings: { appearance: 'dark' as const, interfaceFont: 'Inter', terminalLigatures: true, terminalFont: '', terminalFontSize: 13 } };
+    const catalog = { defaults: {}, profiles: [], file: '', settings: { appearance: 'dark' as const, theme: 'rail' as const, interfaceFont: 'Inter', terminalLigatures: true, terminalFont: '', terminalFontSize: 13 } };
     const spec = resolveSpec(catalog, undefined, parseDestination('user@[fe80::1%eth0]'));
     const args = sshArgs(spec, join(directory, 'trust'));
     assert.deepEqual(args.slice(-2), ['--', 'fe80::1%eth0']);

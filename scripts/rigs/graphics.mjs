@@ -22,6 +22,7 @@ await withDirectory('graphics', async (directory, cleanup) => {
   const connection = await api('connect', { profileId: 'fixture' });
   const first = (await waitState(s => s.terminals[0]?.status === 'connected', 'connection')).terminals[0].id;
   const second = await api('newTerminal', connection);
+  await app.chooseConnection(connection);
   const select = id => page.locator(`[data-kind="terminal"][data-id="${id}"]`).click();
   const canvasSelector = '.terminal-surface:not([hidden]) .xterm-screen > canvas:not(.xterm-link-layer)';
   const canvas = page.locator(canvasSelector);
@@ -77,9 +78,12 @@ await withDirectory('graphics', async (directory, cleanup) => {
   await logged('renderer-process-gone');
   await waitFor(() => application.evaluate(() => globalThis.rigReloaded), 'reload after the crash');
   assert.deepEqual((await waitState(s => s.terminals.length === 2)).connections.map(item => [item.id, item.status]), [[connection, 'connected']]);
-  await inWindow(`(() => {
+  // The reloaded window opens on the home page, so the connection is chosen before its terminal.
+  await inWindow(`(async () => {
     window.recovered = '';
     window.bartizan.onEvent(event => { if (event.type === 'data') window.recovered += event.data; });
+    document.querySelector('.connection-chip[data-id=${JSON.stringify(connection)}] .connection-titles').click();
+    await new Promise(resolve => requestAnimationFrame(resolve));
     document.querySelector('[data-kind="terminal"][data-id=${JSON.stringify(first)}]').click();
     window.bartizan.input(${JSON.stringify(first)}, 'echo RENDERER_RECOVERY_OK\\n');
   })()`);

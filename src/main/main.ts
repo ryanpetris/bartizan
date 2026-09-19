@@ -9,6 +9,7 @@ import { graphicsLog, observeGraphics } from './graphics';
 import { Browsers } from './browser';
 import { LinkMenus } from './link-menu';
 import { Overlays } from './overlays';
+import { themes } from '../themes';
 import { defaultSettings, browserActions, overlayNames, pageShortcuts, type PageShortcut, type Event } from '../shared';
 
 const args = process.argv.slice(app.isPackaged ? 1 : 2);
@@ -34,7 +35,8 @@ else void app.whenReady().then(async () => {
   catch (error) { console.error(String(error)); app.exit(1); return; }
   let settings = { ...defaultSettings };
   nativeTheme.themeSource = settings.appearance;
-  const titleBarOverlay = () => ({ height: 48, color: nativeTheme.shouldUseDarkColors ? '#171a1f' : '#f7f8fa', symbolColor: nativeTheme.shouldUseDarkColors ? '#dde1e6' : '#1d2329' });
+  // The native window controls follow the theme's title bar and the appearance.
+  const titleBarOverlay = () => { const { height, dark, light } = themes[settings.theme].controls; return { height, ...(nativeTheme.shouldUseDarkColors ? dark : light) }; };
   const window = new BrowserWindow({ width: 1250, height: 820, minWidth: 800, minHeight: 500, title: 'Bartizan', titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(), webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false } });
   const updateTitleBar = () => { if (!window.isDestroyed()) window.setTitleBarOverlay(titleBarOverlay()); };
   nativeTheme.on('updated', updateTitleBar);

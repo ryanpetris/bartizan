@@ -1,8 +1,10 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useLayoutEffect, useRef, useState, type ComponentProps, type CSSProperties } from 'react';
 import { Toaster, toast } from 'sonner';
 import type { ErrorEntry, ErrorLog } from '../shared';
 import { Button, Icon } from './ui';
-import { api, render, run } from './store';
+import { api, render, run, activeManifest, dialogOpen, store } from './store';
+import { resultsOpen } from './connect';
+import { Overlay } from './overlay';
 import { openModal } from './dialogs';
 
 const visible = 3;
@@ -14,6 +16,19 @@ export const hasCurrent = (connectionId: string) => log.current.some((entry) => 
 /** Shown toasts, oldest first. Each showing has its own toast id, so one still leaving never takes a newer one with it. */
 type Shown = { key: string; entry: ErrorEntry };
 let shown: Shown[] = [];
+const pending = new Map<number, ErrorEntry>();
+const toastPlacement = () => {
+  const placement = activeManifest().toasts;
+  return placement.overlay && !store.state.capabilities.embeddedBrowser
+    ? { overlay: false as const, position: 'top-right' as const, offset: { top: 64, right: 16 }, width: '356px' }
+    : placement;
+};
+const obscured = () => toastPlacement().overlay && (dialogOpen() || resultsOpen());
+function defer(entry: ErrorEntry) {
+  pending.delete(entry.id);
+  pending.set(entry.id, entry);
+  while (pending.size > visible) pending.delete(pending.keys().next().value!);
+}
 let keys = 0;
 /** Each logged entry's count and message in the last snapshot; unset until the initial snapshot arrives. */
 let seen: Map<number, string> | undefined;
@@ -33,6 +48,7 @@ export function receive(next: ErrorLog, initial = false) {
   const current = new Set(next.current.map((entry) => entry.id));
   const live = (entry: ErrorEntry) => entry.kind !== 'current' || current.has(entry.id);
   for (const item of shown) if (!live(item.entry)) hide(item);
+  for (const [id, entry] of pending) if (!live(entry)) pending.delete(id);
   const entries = new Map<number, ErrorEntry>();
   for (const entry of [...next.history, ...next.current]) entries.set(entry.id, entry);
   const arrivals =
@@ -46,12 +62,15 @@ export function receive(next: ErrorLog, initial = false) {
 /** Shows an entry as the newest toast, replacing its earlier showing; the oldest toast gives way. */
 function show(entry: ErrorEntry) {
   for (const item of shown) if (item.entry.id === entry.id) hide(item);
+  if (obscured()) { defer(entry); return; }
   const key = `error-toast-${++keys}`;
   const forget = () => {
     shown = shown.filter((item) => item.key !== key);
   };
   shown.push({ key, entry });
-  toast.error(entry.count > 1 ? `${entry.label} ×${entry.count}` : entry.label, {
+  toast.error(<button className="error-toast-title" type="button" aria-haspopup="dialog" onClick={openToastErrors}>
+    {entry.count > 1 ? `${entry.label} ×${entry.count}` : entry.label}
+  </button>, {
     id: key,
     className: key,
     description: entry.message,
@@ -63,29 +82,147 @@ function show(entry: ErrorEntry) {
 /** Removes a toast; focus inside it moves to the newest toast left, or to the Errors button. */
 function hide(item: Shown) {
   shown = shown.filter((other) => other !== item);
-  if (document.querySelector(`.${item.key}`)?.contains(document.activeElement))
+  if (toastRoot.hasFocus() && toastRoot.querySelector(`.${item.key}`)?.contains(toastRoot.activeElement))
     (
       shown
-        .map((other) => document.querySelector<HTMLElement>(`.${other.key} [data-close-button]`))
+        .map((other) => toastRoot.querySelector<HTMLElement>(`.${other.key} [data-close-button]`))
         .reverse()
         .find(Boolean) ?? button
     )?.focus();
   toast.dismiss(item.key);
 }
-/** Toasts sit above Connect in the sidebar, which a native page view never covers. Alt+T is left to terminal sessions. */
-export function Toasts() {
+/** The document the toasts are in: the application's, or an overlay's. */
+let toastRoot: Document = document;
+const toastWidth = 356,
+  toastGap = 14,
+  toastInset = 16;
+function openToastErrors() { button?.focus(); openErrors(); }
+function ErrorToaster(props: ComponentProps<typeof Toaster>) {
   return (
-    <Toaster
+    <div
+      style={{ display: 'contents' }}
+      onClick={(event) => {
+        const target = event.target as Element;
+        if (target.closest('[data-sonner-toast][data-removed="false"]:not([data-swiped="true"])') && !target.closest('button')) openToastErrors();
+      }}
+      onKeyDown={(event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && (event.target as Element).matches('[data-sonner-toast]')) {
+          event.preventDefault();
+          openToastErrors();
+        }
+      }}
+    >
+      <Toaster {...props} />
+    </div>
+  );
+}
+/** Toasts in an overlay's document, in a box as tall as they are; the overlay takes the box's size. */
+function ToastSurface() {
+  const box = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+  const [compact, setCompact] = useState(() => window.matchMedia('(max-height: 560px)').matches);
+  useLayoutEffect(() => {
+    const query = window.matchMedia('(max-height: 560px)');
+    const update = () => setCompact(query.matches);
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  useLayoutEffect(() => {
+    const root = box.current!.ownerDocument,
+      view = root.defaultView!;
+    toastRoot = root;
+    // Toasts come and go as elements, and each can grow with its text.
+    const sizes = new view.ResizeObserver(() => measure());
+    const measure = () => {
+      const toasts = [...root.querySelectorAll<HTMLElement>('[data-sonner-toast]')];
+      setHeight(toasts.length ? toasts.reduce((sum, toast) => sum + toast.offsetHeight, 0) + toastGap * (toasts.length - 1) + toastInset * 2 : 0);
+    };
+    const track = () => {
+      sizes.disconnect();
+      for (const toast of root.querySelectorAll('[data-sonner-toast]')) sizes.observe(toast);
+      measure();
+    };
+    const elements = new view.MutationObserver(track);
+    elements.observe(root.body, { childList: true, subtree: true });
+    track();
+    return () => {
+      elements.disconnect();
+      sizes.disconnect();
+      toastRoot = document;
+    };
+  }, []);
+  return (
+    <div ref={box} data-compact={compact || undefined} style={{ width: toastWidth + toastInset * 2, height }}>
+      <ErrorToaster
+        className="error-toaster"
+        position="top-right"
+        theme="system"
+        duration={6000}
+        visibleToasts={visible}
+        expand
+        closeButton
+        hotkey={[]}
+        customAriaLabel="Notifications"
+        offset={toastInset}
+        mobileOffset={toastInset}
+        gap={toastGap}
+        style={{ '--width': `${toastWidth}px` } as CSSProperties}
+        toastOptions={{ closeButtonAriaLabel: 'Dismiss' }}
+      />
+    </div>
+  );
+}
+/**
+ * Error notifications, where the theme puts them: inside the application page beside a corner that no page view
+ * covers, or in an overlay over the top right corner of the view, or of the page in a browser session, from where
+ * they grow downwards. Alt+T is left to terminal sessions.
+ */
+export function Toasts() {
+  const placement = toastPlacement();
+  useLayoutEffect(() => {
+    if (obscured()) {
+      for (const item of shown) { defer(item.entry); hide(item); }
+    } else {
+      const entries = [...pending.values()];
+      pending.clear();
+      for (const entry of entries) show(entry);
+    }
+  });
+  // Toasts on show belong to the toaster that showed them.
+  useLayoutEffect(
+    () => () => {
+      for (const item of shown) toast.dismiss(item.key);
+      shown = [];
+    },
+    [placement.overlay],
+  );
+  if (placement.overlay)
+    return (
+      <Overlay
+        name="toasts"
+        place={(size) => {
+          // Below a browser session's toolbar, whose controls stay in reach, and otherwise at the top of the view.
+          if (resultsOpen()) return undefined;
+          const area = document.querySelector('.browser-view:not([hidden]) .browser-body') ?? document.querySelector('.main');
+          const view = area?.getBoundingClientRect();
+          return view ? { x: view.right - size.width - toastInset, y: view.top, ...size } : undefined;
+        }}
+      >
+        <ToastSurface />
+      </Overlay>
+    );
+  return (
+    <ErrorToaster
       className="error-toaster"
-      position="bottom-left"
+      position={placement.position}
       theme="system"
       duration={6000}
       visibleToasts={visible}
       closeButton
       hotkey={[]}
       customAriaLabel="Notifications"
-      offset={{ bottom: 60, left: 12 }}
-      style={{ '--width': 'calc(var(--sidebar-width) - 24px)' } as CSSProperties}
+      offset={placement.offset}
+      style={{ '--width': placement.width } as CSSProperties}
       toastOptions={{ closeButtonAriaLabel: 'Dismiss' }}
     />
   );

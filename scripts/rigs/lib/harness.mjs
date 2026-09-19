@@ -101,5 +101,7 @@ export async function launch(directory, config, { args = [], env = {}, colorSche
     window.bartizan.onEvent(event => { if (event.type === 'data') window.rigOutputs[event.id] = (window.rigOutputs[event.id] ?? '') + event.data; });
   });
   const output = id => page.evaluate(id => window.rigOutputs[id] ?? '', id);
-  return { application, page, errors, state, api, waitState, recordOutput, output, close: () => application.close() };
+  /** Chooses a connection on the rail, which brings its items into view; a connection made through the API is not chosen by itself. */
+  const chooseConnection = id => page.locator(`.connection-chip[data-id="${id}"] .connection-titles`).click();
+  return { application, page, errors, state, api, waitState, recordOutput, output, chooseConnection, close: () => application.close() };
 }

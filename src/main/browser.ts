@@ -332,7 +332,11 @@ export class Browsers {
       if (!view.webContents || view.webContents.isDestroyed()) return;
       if (bounds) { view.setBounds(scaled(bounds)); view.setVisible(true); return; }
       if (view.webContents.isFocused()) this.window.webContents.focus();
+      if (!view.getVisible()) return;
       view.setVisible(false);
+      // A page reports the pointer leaving a link only while it shows.
+      const tabId = [...this.entries.values()].flatMap(entry => [...entry.views]).find(([, candidate]) => candidate === view)?.[0];
+      if (tabId) this.send({ type: 'target-url', tabId, url: '' });
     };
     for (const entry of this.entries.values()) {
       const shown = (id: string) => entry.info.id === this.visible && id === entry.info.activeTab;

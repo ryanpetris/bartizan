@@ -22,10 +22,10 @@ await withDirectory('errors', async (directory, cleanup) => {
     await page.clock.runFor(50);
   };
 
-  await expect(page.locator('.sidebar-footer').getByRole('button', { name: 'Errors', exact: true })).toBeVisible();
+  await expect(page.locator('.rail-actions').getByRole('button', { name: 'Errors', exact: true })).toBeVisible();
   const errorBounds = await button().boundingBox();
   const connectBounds = await page.getByRole('combobox', { name: 'Connect', exact: true }).boundingBox();
-  assert.ok(errorBounds.x + errorBounds.width <= connectBounds.x, 'Errors sits to the left of Connect');
+  assert.ok(errorBounds.x + errorBounds.width <= connectBounds.x, 'Errors sits on the rail beside Connect');
   await expect(page.locator('#error-count')).toHaveText('1');
   await button().click();
   await expect(panel()).toHaveJSProperty('open', true);
@@ -59,9 +59,10 @@ await withDirectory('errors', async (directory, cleanup) => {
   await report('failure three');
   await expect(toasts()).toHaveCount(3);
   await expect(page.locator('[data-sonner-toaster]')).toHaveAttribute('data-y-position', 'bottom');
-  const sidebarBounds = await page.locator('.sidebar').boundingBox();
+  // With no connection in view there is no panel; toasts stand where it would, beside the rail.
+  const railBounds = await page.locator('.rail').boundingBox();
   const toastBounds = await toasts().first().boundingBox();
-  assert.ok(toastBounds.x >= sidebarBounds.x && toastBounds.x + toastBounds.width <= sidebarBounds.x + sidebarBounds.width, 'Toasts stay inside the sidebar');
+  assert.ok(toastBounds.x >= railBounds.x + railBounds.width && toastBounds.x + toastBounds.width <= railBounds.x + railBounds.width + await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--panel-width'))), 'Toasts stay in the panel\'s column');
   await toasts().first().hover();
   await page.clock.runFor(7000);
   await expect(toasts()).toHaveCount(3);

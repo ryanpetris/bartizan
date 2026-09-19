@@ -21,15 +21,31 @@ await withDirectory('connect', async (directory, cleanup) => {
   const search = page.getByRole('combobox', { name: 'Connect', exact: true });
   const results = page.locator('#connect-results');
   const options = results.locator('.connect-option');
-  const add = page.locator('.sidebar').getByRole('button', { name: 'New Connection', exact: true });
+  const add = page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true });
+  const home = page.getByRole('button', { name: 'Home', exact: true });
+  const nothingOpen = page.getByRole('region', { name: 'Nothing Open', exact: true });
   await recordOutput();
 
+  // The home page has no panel: Connect is on it, over every profile, and Home is current.
   await expect(search).toBeFocused();
-  await expect(results).toBeHidden();
+  await expect(page.locator('.home-view')).toBeVisible();
+  await expect(page.locator('.rail-panel')).toHaveCount(0);
+  await expect(home).toHaveAttribute('aria-current', 'page');
+  await expect(options).toHaveCount(1);
+  await expect(options.first()).toContainText('IPv6 profile');
+  await expect(options.first()).toHaveAttribute('aria-selected', 'false');
+  const checkHome = async width => {
+    const field = await search.boundingBox(), list = await results.boundingBox(), rail = await page.locator('.rail').boundingBox();
+    assert.ok(field.x >= rail.x + rail.width, 'Connect sits on the home page beside the rail');
+    assert.ok(list.y >= field.y + field.height, 'Connect lists its results below the field');
+    assert.ok(Math.abs(list.x - field.x) < 2 && Math.abs(list.width - field.width) < 2, 'Connect results align with the field');
+    assert.ok(list.x + list.width <= width, 'Connect results fit the window');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'The home page fits the window');
+  };
   const checkLayout = async width => {
-    const field = await search.boundingBox(), sidebar = await page.locator('.sidebar').boundingBox(), button = await add.boundingBox();
-    assert.ok(field.y > sidebar.y + sidebar.height - 70, 'Connect sits in the sidebar footer');
-    assert.ok(button.x >= field.x + field.width && Math.abs(button.y - field.y) < 10, 'New Connection follows Connect');
+    const field = await search.boundingBox(), panel = await page.locator('.rail-panel').boundingBox(), button = await add.boundingBox();
+    assert.ok(field.y > panel.y + panel.height - 70, 'Connect sits in the panel footer');
+    assert.ok(button.x >= 0 && button.x + button.width <= panel.x, 'New Connection sits in the rail');
     const list = await results.boundingBox();
     assert.ok(list.y >= 0 && list.y + list.height <= field.y, 'Connect results open above the field');
     assert.ok(Math.abs(list.x - field.x) < 2, 'Connect results align with the field');
@@ -50,20 +66,45 @@ await withDirectory('connect', async (directory, cleanup) => {
     await expect(options).toHaveCount(2);
     await expect(options.first()).toContainText('IPv6 profile');
     await expect(options.last()).toHaveAttribute('aria-label', 'Connect to ::1');
-    await checkLayout(bounds.width);
+    await checkHome(bounds.width);
   }
+  await search.fill('');
   await resize(original);
-  console.log('Connect sits in the sidebar footer and its results open above it, aligned and inside the window, at two window sizes; profiles are listed before the destination.');
+  console.log('At home, Connect lists its results below it, aligned and inside the window, at two window sizes; profiles are listed before the destination.');
 
-  const verify = async (host, profileId, username) => {
+  // A connection made through the interface is shown; one made through the API is chosen from the rail.
+  const verify = async (host, profileId, username, { choose = false } = {}) => {
     const state = await waitState(s => s.connections.length === 1 && s.terminals[0]?.status === 'connected', `connection to ${host}`);
     const [connection] = state.connections, [terminal] = state.terminals;
     assert.deepEqual({ host: connection.host, profileId: connection.profileId, username: connection.username }, { host, profileId, username });
     await expect(page.locator('#connection-dialog')).toBeHidden();
+    if (choose) await page.locator(`.connection-chip[data-id="${connection.id}"] .connection-titles`).click();
+    // The terminal takes focus once it has opened in view, so Connect is used after that.
+    await expect(page.locator(`[data-kind="terminal"][data-id="${terminal.id}"]`)).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('.terminal-surface:not([hidden]) .xterm-helper-textarea')).toBeFocused();
+    await expect(home).not.toHaveAttribute('aria-current');
+    await search.fill('::1');
+    await expect(results).toBeVisible();
+    await checkLayout(await page.evaluate(() => innerWidth));
+    await search.press('Escape');
+    await search.fill('');
     await api('input', terminal.id, "printf 'DIRECT_%s\\n' READY\n");
     await waitFor(async () => (await output(terminal.id)).includes('DIRECT_READY'), 'terminal output');
     await api('closeTerminal', terminal.id);
     assert.equal((await waitState(s => !s.terminals.length, 'terminal closed')).connections[0].status, 'connected');
+    // The connection stays in view with nothing open; Home returns to the home page, and arrow keys run from it down the rail.
+    await expect(nothingOpen).toBeVisible();
+    await expect(nothingOpen).toContainText('Nothing Open');
+    await expect(page.locator('.rail-panel')).toHaveCount(1);
+    await home.click();
+    await expect(page.locator('.home-view')).toBeVisible();
+    await expect(nothingOpen).toBeHidden();
+    await expect(page.locator('.rail-panel')).toHaveCount(0);
+    await expect(home).toHaveAttribute('aria-current', 'page');
+    await expect(search).toBeFocused();
+    await home.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator(`.connection-chip[data-id="${connection.id}"] .connection-titles`)).toBeFocused();
     await api('disconnect', connection.id);
     await api('removeConnection', connection.id);
     await waitState(s => !s.connections.length, 'connection removed');
@@ -93,7 +134,7 @@ await withDirectory('connect', async (directory, cleanup) => {
   await page.locator('#connection-dialog').getByRole('button', { name: 'Connect', exact: true }).click();
   await verify('::1', undefined, undefined);
   await api('connect', { host: '[::1]' });
-  await verify('::1', undefined, undefined);
+  await verify('::1', undefined, undefined, { choose: true });
   console.log('The New Connection form and a host target connect to a bracketed IPv6 address.');
 
   for (const invalid of ['@host', 'host:22', '[::1', '999.1.1.1']) {

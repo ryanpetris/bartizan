@@ -23,14 +23,16 @@ import {
 import * as terminals from './terminals';
 import * as browser from './browser';
 import * as tabState from './tab-state';
-import { Sidebar } from './sidebar';
 import * as errors from './errors';
-import { Titlebar } from './titlebar';
+import { activeTheme } from './themes';
+import { windowTitle } from './chrome';
 import { Challenges } from './challenges';
 import { Settings } from './settings';
 import * as connect from './connect';
 import { Profiles } from './profiles';
 import { Details } from './details';
+import { Home } from './home';
+import { Icon } from './ui';
 import { chooseMenuItem } from './menu';
 import { ConnectionForm, openConnection } from './connection-form';
 import { onDialogChange, onRefocusView } from './dialogs';
@@ -69,7 +71,7 @@ function applyState(state: State) {
   }
   const after = rows(state);
   if (shown && !after.some((row) => sameRow(row, shown))) {
-    // The shown row, or a browser session's active tab, went away: show the row that took its place in sidebar order, or
+    // The shown row, or a browser session's active tab, went away: show the row that took its place in navigation order, or
     // the one before it, within the same connection.
     const before = rows(earlier);
     const index = before.findIndex((row) => sameRow(row, shown));
@@ -80,15 +82,9 @@ function applyState(state: State) {
     store.selection = next && { kind: next.kind, id: next.id };
     if (next?.tab) activateTab(next.id, next.tab);
   }
+  loaded = true;
   render();
   stateApplied();
-  if (!loaded) {
-    loaded = true;
-    // The first state completes the initial load; focus Connect once it has rendered unless something else took focus.
-    queueMicrotask(() => {
-      if (!dialogOpen() && (!document.activeElement || document.activeElement === document.body)) connect.focus();
-    });
-  }
 }
 
 const focusables = (container: HTMLElement) =>
@@ -145,7 +141,21 @@ function App() {
     update(); system.addEventListener('change', update);
     return () => system.removeEventListener('change', update);
   }, [store.state.settings.appearance]);
-  useLayoutEffect(() => { if (loaded) terminals.applyTheme(); }, [loaded, store.state.settings.appearance]);
+  const theme = store.state.settings.theme,
+    { Chrome } = activeTheme();
+  // The root element names the theme for its stylesheet before the views measure themselves.
+  useInsertionEffect(() => {
+    if (loaded) document.documentElement.dataset.theme = theme;
+  }, [theme, loaded]);
+  useLayoutEffect(() => {
+    if (loaded) terminals.applyTheme();
+  }, [theme, loaded, store.state.settings.appearance]);
+  useLayoutEffect(() => {
+    document.title = windowTitle();
+  });
+  useLayoutEffect(() => {
+    if (loaded && !dialogOpen() && document.activeElement === document.body) connect.focus();
+  }, [loaded]);
   useLayoutEffect(() => {
     const unsubscribe = api.onEvent((event) => {
       switch (event.type) {
@@ -202,29 +212,22 @@ function App() {
     };
   }, []);
   if (!loaded && startupError) return <main className="startup-error" role="alert">{startupError}</main>;
+  if (!loaded) return null;
   return (
     <FocusRecovery>
-      <Titlebar />
-      <Sidebar />
+      <Chrome />
       <main className="main">
         <terminals.Terminals />
         <browser.Browser />
-        <section
-          className="view empty-view"
-          aria-label="Nothing Selected"
-          hidden={!!store.selection && store.selection.kind !== 'connection'}
-        >
-          <svg className="empty-mark" viewBox="0 0 32 32" width="72" height="72" aria-hidden="true" focusable="false">
-            <path
-              d="M8 9V5h4v3h2V5h4v3h2V5h4v4l-2 3v10l-6 6-6-6V12ZM10 12h12M10 22h12M13 14v5m6-5v5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-          </svg>
-          <p>Nothing Selected</p>
+        <section className="view empty-view" aria-label="Nothing Open" hidden={store.selection?.kind !== 'connection'}>
+          <span className="empty-mark">
+            <Icon name="terminal" />
+          </span>
+          <p>Nothing Open</p>
         </section>
+        {!store.selection && <Home />}
       </main>
+      <errors.Toasts />
       <ConnectionForm />
       <Challenges />
       <Details />

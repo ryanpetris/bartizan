@@ -68,7 +68,9 @@ await withDirectory('integration', async (directory, cleanup) => {
   cleanup(() => app.close());
   const { application, page, errors, state, api, waitState } = app;
   await expect(page.getByRole('combobox', { name: 'Connect', exact: true })).toBeFocused();
-  await expect(page.getByRole('listbox', { name: 'Profiles', exact: true })).toBeHidden();
+  // The home page lists every profile under Connect, with none chosen.
+  await expect(page.getByRole('listbox', { name: 'Profiles', exact: true }).getByRole('option')).toHaveCount(5);
+  await expect(page.getByRole('listbox', { name: 'Profiles', exact: true }).getByRole('option', { selected: true })).toHaveCount(0);
   await testProfileLaunch(app, config, url('autoclose'));
   await testHostKeyPins(app, config, sshd.hostKey, `${sshd.identity}.pub`);
   // The application menu stays hidden and holds only the accelerators of the shortcuts a page sees first: no roles, and nothing to choose.

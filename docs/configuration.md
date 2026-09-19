@@ -45,10 +45,13 @@ After editing the file, choose **Reload Configuration** in Profiles. Connection 
 | Setting | Default | Accepted values |
 | --- | --- | --- |
 | `appearance` | `dark` | `dark`, `light`, `system` |
+| `theme` | `rail` | `rail`, `tabs`, `console` |
 | `interfaceFont` | `Inter` | Font family, or `""` for the system font |
 | `terminalFont` | `JetBrains Mono` | Font family, or `""` for system monospace |
 | `terminalFontSize` | `13` | Integer from 8 to 32 |
 | `terminalLigatures` | `true` | Boolean |
+
+Console uses `terminalFont` for its interface as well; `interfaceFont` applies to the other themes.
 
 ## Connection fields
 

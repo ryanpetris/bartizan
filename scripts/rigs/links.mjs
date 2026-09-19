@@ -65,12 +65,13 @@ await withDirectory('links', async (directory, cleanup) => {
   const connection = await api('connect', { profileId: 'rig' });
   const terminal = (await waitState(s => s.terminals[0]?.status === 'connected', 'terminal')).terminals[0].id;
   await waitFor(async () => (await output(terminal)).includes('$ '), 'shell prompt');
+  await app.chooseConnection(connection);
   const showTerminal = async () => {
     await page.locator(`.nav-item[data-kind="terminal"][data-id="${terminal}"]`).click();
     await expect(page.locator('.terminal-surface:not([hidden]) .xterm-screen')).toBeVisible();
   };
   await showTerminal();
-  const newBrowserTab = page.locator('.titlebar').getByRole('button', { name: 'New Browser Tab', exact: true });
+  const newBrowserTab = page.locator('.rail-topbar').getByRole('button', { name: 'New Browser Tab', exact: true });
   await newBrowserTab.click();
   const blank = (await waitState(s => s.workspaces.length === 1 && s.workspaces[0].tabs.length === 1, 'session from the title bar')).workspaces[0];
   await api('browser', blank.id, 'close-workspace');
@@ -202,19 +203,19 @@ await withDirectory('links', async (directory, cleanup) => {
   await expect(page.locator('.session-row .nav-item').first()).toHaveAttribute('data-id', second.id);
   await showTerminal();
   await leftClick(0);
-  await waitState(s => s.workspaces.find(w => w.id === second.id).tabs.length === 4, 'link in the first session in the sidebar');
+  await waitState(s => s.workspaces.find(w => w.id === second.id).tabs.length === 4, 'link in the first session in the panel');
   await showTerminal();
   await menu(rightClick(1), ['Open Link', 'Open in New Browser Session', 'Open in Browser 1', 'Open in Browser 2', 'Open in External Browser', '-', 'Copy Link']);
   await choose('Open Link');
-  await waitState(s => s.workspaces.find(w => w.id === second.id).tabs.length === 5, 'menu link in the first session in the sidebar');
+  await waitState(s => s.workspaces.find(w => w.id === second.id).tabs.length === 5, 'menu link in the first session in the panel');
   await showTerminal();
   await newBrowserTab.click();
-  await waitState(s => s.workspaces.find(w => w.id === second.id).tabs.length === 6, 'title bar tab in the first session in the sidebar');
+  await waitState(s => s.workspaces.find(w => w.id === second.id).tabs.length === 6, 'title bar tab in the first session in the panel');
   await page.locator(`.nav-item[data-kind="tab"][data-workspace="${first}"]`).first().click();
   await newBrowserTab.click();
   await waitState(s => s.workspaces.find(w => w.id === first).tabs.length === 4, 'title bar tab in the selected session');
   assert.deepEqual(await tabCounts(), { [first]: 4, [second.id]: 6 });
-  console.log('Terminal links and New Browser Tab use the session highest in the sidebar, and New Browser Tab uses the session on screen.');
+  console.log('Terminal links and New Browser Tab use the session highest in the panel, and New Browser Tab uses the session on screen.');
 
   await showTerminal();
   await menu(rightClick(0), ['Open Link', 'Open in New Browser Session', 'Open in Browser 1', 'Open in Browser 2', 'Open in External Browser', '-', 'Copy Link']);

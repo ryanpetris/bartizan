@@ -12,10 +12,10 @@ export async function testTerminalRendering(app, first, second) {
   const waitBackground = value => page.waitForFunction(value => getComputedStyle(document.querySelector('.terminal-host')).backgroundColor === value, value);
   await select(first);
   assert.equal((await settings()).appearance, 'dark');
-  assert.equal(await background(), 'rgb(17, 19, 23)');
+  assert.equal(await background(), 'rgb(26, 28, 35)');
   await page.waitForFunction(selector => document.querySelectorAll(selector).length === 1, renderer);
-  await chooseAppearance(app, 'light'); await waitBackground('rgb(251, 251, 252)');
-  await select(second); assert.equal(await background(), 'rgb(251, 251, 252)');
+  await chooseAppearance(app, 'light'); await waitBackground('rgb(252, 252, 253)');
+  await select(second); assert.equal(await background(), 'rgb(252, 252, 253)');
   await page.waitForFunction(selector => document.querySelectorAll(selector).length === 1, renderer);
   assert.equal(await page.locator(renderer).count(), 1);
   await chooseAppearance(app, 'system');
@@ -23,14 +23,14 @@ export async function testTerminalRendering(app, first, second) {
   const systemDark = await application.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors);
   await expect.poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches)).toBe(systemDark);
   await page.emulateMedia({ colorScheme: 'dark' });
-  await waitBackground('rgb(17, 19, 23)');
-  assert.equal(await page.locator('.sidebar').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(22, 25, 29)');
+  await waitBackground('rgb(26, 28, 35)');
+  assert.equal(await page.locator('.rail-panel').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(21, 23, 29)');
   await page.emulateMedia({ colorScheme: 'light' });
-  await waitBackground('rgb(251, 251, 252)');
-  assert.equal(await page.locator('.sidebar').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(238, 240, 243)');
+  await waitBackground('rgb(252, 252, 253)');
+  assert.equal(await page.locator('.rail-panel').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(241, 242, 247)');
   await page.emulateMedia({ colorScheme: null });
-  await chooseAppearance(app, 'dark'); await waitBackground('rgb(17, 19, 23)');
-  assert.equal(await page.locator('.sidebar').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(22, 25, 29)');
+  await chooseAppearance(app, 'dark'); await waitBackground('rgb(26, 28, 35)');
+  assert.equal(await page.locator('.rail-panel').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(21, 23, 29)');
   await select(first);
 
   const draw = async () => {
@@ -46,7 +46,7 @@ export async function testTerminalRendering(app, first, second) {
         for (let x = 0; x < width; x++) {
           const i = (y * width + x) * 4, b = data[i], g = data[i + 1], r = data[i + 2];
           if (r === 231 && g === 37 && b === 53) { count++; firstX = Math.min(firstX, x); lastX = x; rows.add(y); minX = Math.min(x, minX); maxX = Math.max(x, maxX); minY = Math.min(y, minY); maxY = Math.max(y, maxY); }
-          if (r === 229 && g === 116 && b === 111) ansi++;
+          if (r === 240 && g === 113 && b === 122) ansi++;
           if (r === 255 && g === 0 && b === 0) indexed++;
           if (r === 12 && g === 200 && b === 34) rgb++;
         }
@@ -85,7 +85,7 @@ export async function testTerminalRendering(app, first, second) {
   await dialog.getByRole('combobox', { name: 'Terminal Font', exact: true }).selectOption('JetBrains Mono');
   await dialog.getByRole('spinbutton', { name: 'Terminal Font Size', exact: true }).fill('13');
   await closeSettings(page);
-  await expect.poll(settings).toEqual({ appearance: 'dark', interfaceFont: 'Inter', terminalLigatures: true, terminalFont: 'JetBrains Mono', terminalFontSize: 13 });
+  await expect.poll(settings).toEqual({ appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalLigatures: true, terminalFont: 'JetBrains Mono', terminalFontSize: 13 });
   await expect.poll(async () => (await terminalSize()).join('x')).toBe(initialSize.join('x'));
   await draw();
   console.log('Terminal font family and size apply live, keep the session, fall back for a missing family and restore the terminal size.');
@@ -96,19 +96,18 @@ export async function testTerminalRendering(app, first, second) {
   const chromeFits = () => page.evaluate(() => {
     const box = selector => document.querySelector(selector).getBoundingClientRect();
     const overlay = navigator.windowControlsOverlay, area = overlay.visible ? overlay.getTitlebarAreaRect() : { left: 0, right: innerWidth };
-    const heading = document.querySelector('.titlebar-heading'), item = box('.titlebar-item'), actions = box('.titlebar-actions'), settings = box('.titlebar-end .icon-button:last-child');
-    return document.documentElement.scrollWidth <= innerWidth && heading.scrollWidth <= heading.clientWidth && box('.titlebar-titles').right <= actions.left && item.right <= actions.left && actions.right < settings.left && settings.left >= area.left && settings.right <= area.right;
+    const heading = document.querySelector('.titlebar-heading'), item = box('.titlebar-item'), actions = box('.titlebar-actions'), settings = box('.rail-actions .icon-button:last-child');
+    return document.documentElement.scrollWidth <= innerWidth && heading.scrollWidth <= heading.clientWidth && box('.titlebar-titles').right <= actions.left && item.right <= actions.left && actions.right <= area.right && settings.left >= 0 && settings.right <= innerWidth;
   });
-  const titlebar = page.locator('.titlebar');
-  const owner = (await state()).terminals.find(t => t.id === first).connectionId;
-  // The selected terminal's name, which a shell may set, matches in the sidebar, title bar heading and window title.
+  const titlebar = page.locator('.rail-topbar');
+  // The selected terminal's name, which a shell may set, matches in the panel, title bar heading and window title.
   await expect.poll(() => page.evaluate(() => {
     const row = document.querySelector('.nav-item[data-kind="terminal"][aria-current="page"] .nav-label')?.textContent ?? '';
     return Boolean(row) && document.querySelector('.titlebar-heading .titlebar-item')?.textContent === row && document.title.includes(` · ${row} — `);
   })).toBe(true);
   const topButtons = await titlebar.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label')));
-  for (const name of ['New Terminal', 'New Browser Tab', 'Connection Details', 'Settings']) assert.ok(topButtons.includes(name), name);
-  await expect(page.locator(`.connection[data-id="${owner}"] .connection-disconnect`)).toBeVisible();
+  for (const name of ['New Terminal', 'New Browser Tab', 'Connection Details']) assert.ok(topButtons.includes(name), name);
+  await expect(page.locator('.rail-panel .connection-disconnect')).toBeVisible();
   const detailsButton = titlebar.getByRole('button', { name: 'Connection Details', exact: true });
   await detailsButton.click();
   await expect(page.locator('#details-dialog')).toBeVisible();
@@ -156,11 +155,12 @@ export async function testTerminalRendering(app, first, second) {
   await page.waitForFunction(() => document.querySelector('.terminal-surface:not([hidden]) .xterm-rows')?.textContent.includes('FALLBACK_ALIVE'));
   await chooseAppearance(app, 'light');
   await page.reload();
+  await app.chooseConnection((await state()).terminals.find(t => t.id === first).connectionId);
   await select(first);
   await expect((await openSettings(page)).getByRole('combobox', { name: 'Appearance', exact: true })).toHaveValue('light');
   await closeSettings(page);
   await select(first);
-  await waitBackground('rgb(251, 251, 252)');
+  await waitBackground('rgb(252, 252, 253)');
   await page.waitForFunction(selector => document.querySelectorAll(selector).length === 1, renderer);
   await chooseAppearance(app, 'system');
   console.log('Application and terminal appearance, continuous borders, ANSI/256/RGB backgrounds, zoom, resize and context-loss recovery passed.');

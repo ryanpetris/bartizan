@@ -6,9 +6,9 @@ import { parse } from 'yaml';
 import { withDirectory, launch } from './lib/harness.mjs';
 import { openSettings, closeSettings, chooseAppearance, pickerBackground } from './lib/settings.mjs';
 
-const defaults = { appearance: 'dark', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true };
-const dialogBackground = { dark: 'rgb(26, 29, 34)', light: 'rgb(255, 255, 255)' };
-const sidebarBackground = { dark: 'rgb(22, 25, 29)', light: 'rgb(238, 240, 243)' };
+const defaults = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true };
+const dialogBackground = { dark: 'rgb(30, 32, 41)', light: 'rgb(255, 255, 255)' };
+const railBackground = { dark: 'rgb(15, 16, 21)', light: 'rgb(228, 229, 238)' };
 
 await withDirectory('appearance', async (directory, cleanup) => {
   const config = join(directory, 'config.yaml');
@@ -43,13 +43,13 @@ await withDirectory('appearance', async (directory, cleanup) => {
     await chooseAppearance(app, mode);
     await colorScheme(mode);
     assert.equal(await themeSource(), mode);
-    await expect(page.locator('.sidebar')).toHaveCSS('background-color', sidebarBackground[mode]);
+    await expect(page.locator('.rail')).toHaveCSS('background-color', railBackground[mode]);
     dialog = await openSettings(page);
     await expect(dialog).toHaveCSS('background-color', dialogBackground[mode]);
     for (const select of [appearance(), fontChoice()]) assert.equal(await pickerBackground(app, select), dialogBackground[mode], `Settings options follow ${mode} appearance`);
     await expect(dialog).toHaveJSProperty('open', true);
     await closeSettings(page);
-    await page.getByRole('button', { name: 'New Connection', exact: true }).click();
+    await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
     const form = page.locator('#connection-dialog');
     await expect(form).toHaveCSS('background-color', dialogBackground[mode]);
     await form.getByRole('tab', { name: 'Authentication', exact: true }).click();
@@ -59,7 +59,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   }
   await chooseAppearance(app, 'dark');
   await colorScheme('dark');
-  console.log('Appearance is chosen in Settings without connections and themes the sidebar, dialogs and option lists.');
+  console.log('Appearance is chosen in Settings without connections and themes the rail, dialogs and option lists.');
 
   for (const patch of [{ appearance: 'invalid' }, { terminalFontSize: 7 }, { terminalFontSize: 33 }, { terminalFontSize: 12.5 }, { terminalFont: 'x'.repeat(257) }, { terminalFont: 'Bad\nFont' }, { unknown: true }]) {
     await assert.rejects(api('settings', patch), undefined, JSON.stringify(patch));
@@ -99,7 +99,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   ({ page, state } = await start());
   assert.equal(await themeSource(), 'light');
   assert.deepEqual((await state()).settings, { ...defaults, appearance: 'light', terminalFont: 'Bartizan Rig Mono', terminalFontSize: 21 });
-  await expect(page.locator('.sidebar')).toHaveCSS('background-color', sidebarBackground.light);
+  await expect(page.locator('.rail')).toHaveCSS('background-color', railBackground.light);
   await chooseAppearance(app, 'system');
   await expect.poll(themeSource).toBe('system');
   const systemDark = await app.application.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors);

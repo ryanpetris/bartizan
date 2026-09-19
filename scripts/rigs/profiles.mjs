@@ -69,7 +69,7 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
     await expect(form).toBeVisible();
   };
   const newConnection = async () => {
-    await page.locator('.sidebar').getByRole('button', { name: 'New Connection', exact: true }).click();
+    await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
     await expect(form).toBeVisible();
   };
 

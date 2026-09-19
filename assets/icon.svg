@@ -1,1 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 32 32"><rect width="32" height="32" rx="6.5" fill="#18232e"/><path d="M8 9V5h4v3h2V5h4v3h2V5h4v4l-2 3v10l-6 6-6-6V12Z" fill="#526c81"/><path d="M10 12h12M10 22h12" fill="none" stroke="#83c8ef" stroke-width="1.5"/><path d="M13 14v5m6-5v5" stroke="#83c8ef" stroke-width="2"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="edge" x1="12" x2="116" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="0.05" stop-color="#2c5bd0"/>
+      <stop offset="0.1" stop-color="#1d4ed8"/>
+      <stop offset="0.9" stop-color="#1d4ed8"/>
+      <stop offset="0.95" stop-color="#2c5bd0"/>
+      <stop offset="1" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0" x2="0" y1="12" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4f8ff8"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="tower" x1="8" x2="24" y1="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dbe7fe"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="20" width="104" height="96" rx="14" fill="url(#edge)"/>
+  <rect x="12" y="12" width="104" height="96" rx="14" fill="url(#face)"/>
+  <rect x="12.5" y="12.5" width="103" height="95" rx="13.5" fill="none" stroke="#ffffff" stroke-opacity="0.18"/>
+  <g transform="translate(16 12) scale(3)">
+    <path d="M8 9V5h4v3h2V5h4v3h2V5h4v4l-2 3v10l-6 6-6-6V12Z" fill="#1e40af" opacity="0.35" transform="translate(0 0.9)"/>
+    <path d="M8 9V5h4v3h2V5h4v3h2V5h4v4l-2 3v10l-6 6-6-6V12Z" fill="url(#tower)"/>
+    <path d="M10 12h12M10 22h12" fill="none" stroke="#2f6ef0" stroke-width="1.5"/>
+    <path d="M13 14v5m6-5v5" stroke="#2f6ef0" stroke-width="2"/>
+  </g>
+</svg>

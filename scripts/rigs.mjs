@@ -11,6 +11,7 @@ const rigs = {
   sandbox: [],
   integration: ['sshd', 'vim', 'python3'],
   appearance: [],
+  themes: ['sshd', 'openbox', 'xprop'],
   config: [],
   connect: ['sshd'],
   errors: [],

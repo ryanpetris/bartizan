@@ -7,11 +7,12 @@ import {
   type TerminalSession,
 } from '../shared';
 import type { PublicProfile as Profile } from '../core/config';
+import { themes } from '../themes';
 
 import { createWebAPI } from './web-api';
 export const api = (window.bartizan ??= createWebAPI());
 export type Selection = { kind: 'terminal' | 'browser' | 'connection'; id: string } | undefined;
-/** A terminal or a browser session, keyed as in the sidebar order. */
+/** A terminal or a browser session, keyed as in the navigation order. */
 type Entry = { key: string; terminal?: TerminalSession; workspace?: Workspace };
 export type Group = { connection: Connection; entries: Entry[]; profile?: Profile };
 
@@ -29,6 +30,9 @@ export const store = {
   } as State,
   selection: undefined as Selection,
 };
+
+/** What both processes know of the chosen theme. */
+export const activeManifest = () => themes[store.state.settings.theme];
 
 const renderers = new Set<() => void>();
 let revision = 0;
@@ -92,6 +96,31 @@ const selectionConnection = (selection: Selection) =>
       : selection.kind === 'terminal'
         ? store.state.terminals.find((t) => t.id === selection.id)?.connectionId
         : store.state.workspaces.find((w) => w.id === selection.id)?.connectionId;
+
+/** What each connection last showed. */
+const lastShown = new Map<string, NonNullable<Selection>>();
+onRender(() => {
+  const connectionId = selectionConnection(store.selection);
+  if (connectionId && store.selection && store.selection.kind !== 'connection') lastShown.set(connectionId, store.selection);
+});
+/** Shows what a connection last showed, or else its first terminal or browser session with tabs, or the connection itself; it opens nothing. */
+export function revisit(connectionId: string) {
+  const last = lastShown.get(connectionId);
+  const first = groups()
+    .find((group) => group.connection.id === connectionId)
+    ?.entries.find((entry) => entry.terminal || entry.workspace?.tabs.length);
+  select(
+    last && exists(store.state, last)
+      ? last
+      : first?.terminal
+        ? { kind: 'terminal', id: first.terminal.id }
+        : first?.workspace
+          ? { kind: 'browser', id: first.workspace.id }
+          : { kind: 'connection', id: connectionId },
+  );
+}
+/** The connection in view: the one the selection belongs to. */
+export const currentConnection = () => selectionConnection(store.selection);
 
 /** Each connection's shown terminals, most recent first. */
 const recentTerminals = new Map<string, string[]>();
@@ -225,12 +254,12 @@ export function matchProfiles(query: string, profiles = store.state.profiles) {
 export const dialogOpen = () => document.querySelector('dialog[open]') !== null;
 
 /**
- * Sidebar order the user chose, by scope: `connections`, `items:<connection>` and `tabs:<browser session>`. It lasts for
+ * Navigation order the user chose, by scope: `connections`, `items:<connection>` and `tabs:<browser session>`. It lasts for
  * the application launch, including renderer reloads.
  */
 const orders: Record<string, string[]> = (() => {
   try {
-    return JSON.parse(sessionStorage.getItem('sidebar-order') ?? '{}');
+    return JSON.parse(sessionStorage.getItem('navigation-order') ?? '{}');
   } catch {
     return {};
   }
@@ -247,7 +276,7 @@ function ordered<T>(scope: string, items: T[], key: (item: T) => string): T[] {
     .sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index)
     .map(({ item }) => item);
 }
-/** The keys a scope currently shows, in sidebar order. */
+/** The keys a scope currently shows, in navigation order. */
 export function scopeKeys(scope: string): string[] {
   const [kind, id] = scope.split(':');
   if (kind === 'connections') return groups().map((group) => group.connection.id);
@@ -261,7 +290,7 @@ export function moveKey(scope: string, key: string, before?: string) {
   keys.splice(before === undefined ? keys.length : keys.indexOf(before), 0, key);
   orders[scope] = keys;
   try {
-    sessionStorage.setItem('sidebar-order', JSON.stringify(orders));
+    sessionStorage.setItem('navigation-order', JSON.stringify(orders));
   } catch {
     /* The order still applies until the page reloads. */
   }
@@ -269,7 +298,7 @@ export function moveKey(scope: string, key: string, before?: string) {
 }
 export const sessionTabs = (workspace: Workspace) => ordered(`tabs:${workspace.id}`, workspace.tabs, (tab) => tab.id);
 
-/** A connection's terminals and browser sessions, in sidebar order. */
+/** A connection's terminals and browser sessions, in navigation order. */
 function entries(connection: Connection, state: State): Entry[] {
   const found = new Map<string, Entry>();
   for (const terminal of state.terminals)
@@ -280,7 +309,7 @@ function entries(connection: Connection, state: State): Entry[] {
       found.set(`session:${workspace.id}`, { key: `session:${workspace.id}`, workspace });
   return ordered(`items:${connection.id}`, [...found.values()], (entry) => entry.key);
 }
-/** Each connection in sidebar order with its entries. */
+/** Each connection in navigation order with its entries. */
 export function groups(state = store.state): Group[] {
   return ordered('connections', state.connections, (connection) => connection.id).map((connection) => ({
       connection,
@@ -288,7 +317,7 @@ export function groups(state = store.state): Group[] {
       profile: state.profiles.find((p) => p.id === connection.profileId),
     }));
 }
-/** The connection's first browser session in sidebar order. */
+/** The connection's first browser session in navigation order. */
 export const firstSession = (connectionId: string) =>
   groups()
     .find((group) => group.connection.id === connectionId)
@@ -297,10 +326,10 @@ export const firstSession = (connectionId: string) =>
 export const activeConnection = (profileId?: string) =>
   profileId ? store.state.connections.find((c) => c.profileId === profileId && c.status !== 'closed') : undefined;
 
-/** A visible sidebar row: a connection, a terminal, or a browser tab. */
+/** A visible navigation row: a connection, a terminal, or a browser tab. */
 export type Row = { kind: 'connection' | 'terminal' | 'browser'; id: string; tab?: string; connectionId: string };
 export const sameRow = (a: Row, b: Row) => a.kind === b.kind && a.id === b.id && a.tab === b.tab;
-/** Visible rows in sidebar order, each connection first; a browser session contributes its tabs in session order. */
+/** Visible rows in navigation order, each connection first; a browser session contributes its tabs in session order. */
 export function rows(state = store.state): Row[] {
   return groups(state).flatMap(({ connection, entries }) => [
     { kind: 'connection' as const, id: connection.id, connectionId: connection.id },
@@ -362,6 +391,7 @@ function whenPresent(ready: (state: State) => boolean, action: () => void) {
 }
 /** Forgets terminals that no longer exist and runs waiting actions after each applied state. */
 export function stateApplied() {
+  for (const id of lastShown.keys()) if (!store.state.connections.some((c) => c.id === id)) lastShown.delete(id);
   for (const [connectionId, recent] of recentTerminals) {
     const kept = recent.filter((id) => store.state.terminals.some((t) => t.id === id));
     if (kept.length) recentTerminals.set(connectionId, kept);
@@ -403,8 +433,8 @@ function requestTerminal(connectionId: string) {
 }
 /**
  * Shows a connection's most recently shown live terminal or another live one. A connected connection without one gets a
- * new terminal, and a connecting one gets it once connected unless another selection is made first; otherwise its most
- * recent terminal, first browser session with tabs or the connection itself is shown.
+ * new terminal. A connecting one shows what `revisit` would until it connects, then gets one unless another selection is
+ * made first. Otherwise its most recent terminal, first browser session with tabs or the connection itself is shown.
  */
 export function focusConnection(id: string) {
   whenPresent(
@@ -425,7 +455,7 @@ export function focusConnection(id: string) {
       if (live) select({ kind: 'terminal', id: live.id });
       else if (status === 'connected') requestTerminal(id);
       else if (status === 'connecting') {
-        if (selectionConnection(store.selection) !== id) select({ kind: 'connection', id });
+        if (selectionConnection(store.selection) !== id) revisit(id);
         whenPresent(
           (state) => state.connections.find((c) => c.id === id)?.status !== 'connecting',
           () => focusConnection(id),
@@ -436,12 +466,12 @@ export function focusConnection(id: string) {
     },
   );
 }
-/** Shows a connection without opening anything, keeping a selection that already belongs to it. */
+/** Shows a connection as `revisit` does, keeping a selection that already belongs to it; it opens nothing. */
 function showConnection(id: string) {
   whenPresent(
     (state) => state.connections.some((c) => c.id === id),
     () => {
-      if (selectionConnection(store.selection) !== id) select({ kind: 'connection', id });
+      if (selectionConnection(store.selection) !== id) revisit(id);
     },
   );
 }

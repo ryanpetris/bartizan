@@ -16,7 +16,7 @@ Keep a shell, build output, logs and browser tabs together for each remote conne
 - Open several terminals over one SSH connection.
 - Browse through the connection's SOCKS forward, including DNS lookups. If SSH drops, browser traffic stops until you reconnect.
 - Keep separate browser sessions with their own in-memory cookies and site storage.
-- Save connection profiles, search by tags and arrange the sidebar to match your work.
+- Save connection profiles, search by tags and arrange your connections to match your work.
 - Choose your fonts and theme, with terminal ligatures and JetBrains Mono bundled.
 
 Bartizan keeps its own SSH configuration and trust store. Your existing SSH configuration and known hosts stay untouched.
@@ -40,7 +40,7 @@ You need OpenSSH and a working Chromium sandbox. See the [installation guide](do
 
 Open **New Connection**, enter your SSH details and connect. Use the connection's add menu for more terminals or a browser session. Each browser session can hold several tabs, and its traffic goes through that connection.
 
-Save a profile to connect again from the sidebar search. Profiles can also inherit shared defaults in a [YAML configuration file](docs/configuration.md).
+Save a profile to connect again from Connect. Profiles can also inherit shared defaults in a [YAML configuration file](docs/configuration.md).
 
 See [Using Bartizan](docs/usage.md) for browser sessions, terminal controls and keyboard shortcuts.
 

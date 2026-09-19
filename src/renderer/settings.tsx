@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Settings as SettingsValue } from '../shared';
-import { Icon, Button } from './ui';
+import { Icon, Button, moveFocus } from './ui';
+import { themeIds, themes } from '../themes';
+import { registry } from './themes';
 import { api, store, render, report } from './store';
 import { openModal } from './dialogs';
 import {
@@ -158,9 +160,51 @@ function SettingsDialog() {
               <option value="system">System</option>
             </select>
           </Field>
-          <Field label="Interface Font" id="settings-interface-font">
-            {picker('interfaceFont', 'settings-interface-font', 'Interface Font', bundledInterfaceFont)}
-          </Field>
+          <div className="field">
+            <div className="field-head">
+              <span className="field-label" id="settings-theme-label">
+                Theme
+              </span>
+            </div>
+            <div className="field-body">
+              <div
+                className="theme-picker"
+                role="radiogroup"
+                aria-labelledby="settings-theme-label"
+                onKeyDown={(event) => {
+                  const options = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]')];
+                  const key = { ArrowLeft: 'ArrowUp', ArrowRight: 'ArrowDown' }[event.key] ?? event.key;
+                  if (!moveFocus(options, key, true)) return;
+                  event.preventDefault();
+                  (document.activeElement as HTMLElement).click();
+                }}
+              >
+                {themeIds.map((id) => {
+                  const { Preview } = registry[id];
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      id={`settings-theme-${id}`}
+                      className="theme-option"
+                      aria-checked={settings.theme === id}
+                      tabIndex={settings.theme === id ? 0 : -1}
+                      onClick={() => settings.theme !== id && save({ theme: id })}
+                    >
+                      <Preview />
+                      <span>{themes[id].name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          {themes[settings.theme].interfaceFont !== false && (
+            <Field label="Interface Font" id="settings-interface-font">
+              {picker('interfaceFont', 'settings-interface-font', 'Interface Font', bundledInterfaceFont)}
+            </Field>
+          )}
           <Field label="Terminal Font" id="settings-font">
             {picker('terminalFont', 'settings-font', 'Terminal Font', bundledTerminalFont)}
           </Field>

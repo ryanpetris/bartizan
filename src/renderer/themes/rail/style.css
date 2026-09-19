@@ -1,0 +1,398 @@
+/* Styles of the rail theme, each under :root[data-theme="rail"] but for the colour Home's badge animates, which is registered for the whole page. */
+@property --rail-badge { syntax: "<color>"; inherits: true; initial-value: transparent; }
+:root[data-theme="rail"] {
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 14px;
+  --field-radius: 10px;
+  --rail-width: 60px;
+  --panel-width: 248px;
+  --panel-footer-height: 55px;
+  --titlebar-height: env(titlebar-area-height, 44px);
+  --chrome-top: calc(var(--titlebar-height) + 1px);
+
+  --bg-app: #e4e5ee;
+  --bg-rail: #e4e5ee;
+  --bg-panel: #f1f2f7;
+  --bg-main: #fcfcfd;
+  --bg-header: #fcfcfd;
+  --bg-toolbar: #fcfcfd;
+  --bg-page: #ffffff;
+  --bg-dialog: #ffffff;
+  --text: #23252f;
+  --text-strong: #12131a;
+  --text-muted: #52566a;
+  --text-faint: #686c7d;
+  --border: #dfe0ea;
+  --border-subtle: #e8e9f0;
+  --border-strong: #c5c7d6;
+  --border-control: #cdcfdc;
+  --border-field: #8d91a8;
+  --border-field-hover: #6c7088;
+  --control: #ffffff;
+  --control-hover: #f4f4f9;
+  --control-active: #e9eaf2;
+  --field: #ffffff;
+  --field-muted: #f3f3f8;
+  --hover: rgba(20, 28, 56, 0.06);
+  --selected: rgba(37, 99, 235, 0.11);
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --on-accent: #ffffff;
+  --accent-soft: rgba(37, 99, 235, 0.1);
+  --accent-text: #1d4ed8;
+  --focus: #3b76ea;
+  --focus-ring: rgba(37, 99, 235, 0.24);
+  --ok: #188f58;
+  --warn: #ad7303;
+  --warn-soft: rgba(173, 115, 3, 0.14);
+  --warn-text: #7f5604;
+  --danger: #d63d52;
+  --danger-soft: #fdeff1;
+  --danger-text: #ae2b3e;
+  --danger-border: #f4cfd5;
+  --on-danger: #ffffff;
+  --chip-bg: rgba(20, 28, 56, 0.07);
+  --card: #fafafd;
+  --backdrop: rgba(18, 28, 60, 0.34);
+  --badge: #ffffff;
+  --badge-hover: #ffffff;
+  --badge-text: #52566a;
+  --badge-shadow: 0 1px 2px rgba(20, 28, 56, 0.1), 0 0 0 1px rgba(20, 28, 56, 0.05);
+  --brand-band: #2563eb;
+  --brand-plate: #2563eb;
+  --brand-tower: #ffffff;
+  --brand-glyph: #2563eb;
+  --scroll-thumb: rgba(20, 28, 56, 0.1);
+  --scroll-thumb-near: rgba(20, 28, 56, 0.22);
+  --scroll-thumb-hover: rgba(20, 28, 56, 0.34);
+  --scroll-size: 9px;
+  --scroll-radius: 999px;
+  --preview-surface: var(--field-muted);
+  --preview-line: var(--border-strong);
+  --preview-ink: var(--text-faint);
+  --preview-accent: var(--accent);
+  --shadow: 0 28px 70px rgba(16, 26, 60, 0.24), 0 2px 10px rgba(16, 26, 60, 0.08);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2352566a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
+  --spinner: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' fill='none' stroke='%2352566a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 9.5 3-3 3 3M5 14.5l3 3 3-3'/%3E%3C/svg%3E");
+  --menu-shadow: 0 12px 32px rgba(16, 26, 60, 0.16), 0 1px 3px rgba(16, 26, 60, 0.1);
+  --toast-shadow: 0 6px 12px -6px rgba(16, 26, 60, 0.3), 0 1px 2px rgba(16, 26, 60, 0.08);
+  --session-0: #2b63d9;
+  --session-1: #a23fc4;
+  --session-2: #0b7d8a;
+  --session-3: #c05a12;
+  --session-4: #c52a6e;
+  --session-5: #25824a;
+  --session-6: #946600;
+  --session-7: #c93a3a;
+  --session-8: #5c6275;
+}
+:root[data-theme="rail"][data-appearance="dark"] {
+    --bg-app: #0f1015;
+    --bg-rail: #0f1015;
+    --bg-panel: #15171d;
+    --bg-main: #1a1c23;
+    --bg-header: #1a1c23;
+    --bg-toolbar: #1a1c23;
+    --bg-page: #1a1c23;
+    --bg-dialog: #1e2029;
+    --text: #dcdee6;
+    --text-strong: #f4f5f9;
+    --text-muted: #a3a7b6;
+    --text-faint: #858a9b;
+    --border: #282b35;
+    --border-subtle: #22252e;
+    --border-strong: #3b3f4c;
+    --border-control: #363a47;
+    --border-field: #666b7e;
+    --border-field-hover: #858a9b;
+    --control: #262933;
+    --control-hover: #2d303c;
+    --control-active: #343846;
+    --field: #121318;
+    --field-muted: #15171d;
+    --hover: rgba(216, 228, 255, 0.06);
+    --selected: rgba(94, 158, 247, 0.18);
+    --accent: #5e9ef7;
+    --accent-hover: #78aff9;
+    --on-accent: #06142b;
+    --accent-soft: rgba(94, 158, 247, 0.16);
+    --accent-text: #9cc4fb;
+    --focus: #78aff9;
+    --focus-ring: rgba(94, 158, 247, 0.32);
+    --ok: #3fcf8e;
+    --warn: #e5b454;
+    --warn-soft: rgba(229, 180, 84, 0.14);
+    --warn-text: #efc877;
+    --danger: #f0717a;
+    --danger-soft: rgba(240, 113, 122, 0.1);
+    --danger-text: #f6a0a6;
+    --danger-border: rgba(240, 113, 122, 0.26);
+    --on-danger: #24070a;
+    --chip-bg: rgba(216, 228, 255, 0.08);
+    --card: rgba(216, 228, 255, 0.045);
+    --backdrop: rgba(5, 5, 10, 0.52);
+    --badge: #1f222b;
+    --badge-hover: #2a2d3a;
+    --badge-text: #b4b8c6;
+    --badge-shadow: none;
+    --brand-band: #5e9ef7;
+    --brand-plate: #3f86ee;
+    --brand-tower: #ffffff;
+    --brand-glyph: #3f86ee;
+    --scroll-thumb: rgba(216, 228, 255, 0.08);
+    --scroll-thumb-near: rgba(216, 228, 255, 0.18);
+    --scroll-thumb-hover: rgba(216, 228, 255, 0.3);
+    --shadow: 0 28px 70px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.35);
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23a3a7b6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
+    --spinner: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' fill='none' stroke='%23a3a7b6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 9.5 3-3 3 3M5 14.5l3 3 3-3'/%3E%3C/svg%3E");
+    --menu-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.35);
+    --toast-shadow: 0 6px 12px -6px rgba(0, 0, 0, 0.7), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --session-0: #7aa7f7;
+    --session-1: #d48ff0;
+    --session-2: #5cc8d6;
+    --session-3: #f09a5c;
+    --session-4: #f07fb4;
+    --session-5: #5fd39a;
+    --session-6: #e5b96a;
+    --session-7: #f0717a;
+    --session-8: #a3a7b6;
+}
+@media (max-width: 1040px) { :root[data-theme="rail"] { --panel-width: 216px; } }
+
+/* Scroll bars stay faint until the pointer is over what they scroll, and stand out under the pointer itself. */
+:root[data-theme="rail"] :hover::-webkit-scrollbar-thumb { background-color: var(--scroll-thumb-near); }
+:root[data-theme="rail"] ::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
+:root[data-theme="rail"] ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* Layout: the rail and the panel run the window's height; the bar over the view is the row the window controls share.
+   The home page has no panel. */
+:root[data-theme="rail"] #app { grid-template-columns: var(--rail-width) var(--panel-width) minmax(0, 1fr); grid-template-rows: var(--chrome-top) minmax(0, 1fr); }
+:root[data-theme="rail"] #app:not(:has(> .rail-panel)) { grid-template-columns: var(--rail-width) 0 minmax(0, 1fr); }
+:root[data-theme="rail"] .rail { grid-column: 1; grid-row: 1 / 3; }
+:root[data-theme="rail"] .rail-panel { grid-column: 2; grid-row: 1 / 3; }
+:root[data-theme="rail"] .rail-topbar { grid-column: 3; grid-row: 1; }
+:root[data-theme="rail"] .main { grid-column: 3; grid-row: 2; }
+
+/* Rail */
+:root[data-theme="rail"] .rail { display: flex; flex-direction: column; min-height: 0; background: var(--bg-rail); user-select: none; }
+:root[data-theme="rail"] .rail-nav { display: contents; }
+/* Home stands as far from the first connection as the connections stand from each other. */
+:root[data-theme="rail"] .rail-brand { display: grid; place-items: center; flex: none; padding-top: 8px; app-region: drag; }
+/* Home is a badge like a connection's, and the mark on it takes the badge's colours: the mark's windows are cut from its tower. */
+:root[data-theme="rail"] .home-button {
+  --rail-badge: var(--badge);
+  position: relative; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 14px;
+  background: var(--rail-badge); box-shadow: var(--badge-shadow); color: var(--badge-text); app-region: no-drag;
+  transition: --rail-badge 0.16s ease, color 0.16s ease;
+}
+:root[data-theme="rail"] .home-button:hover { --rail-badge: color-mix(in srgb, var(--accent) 16%, var(--badge-hover)); color: var(--text-strong); }
+:root[data-theme="rail"] .home-button[aria-current="page"] { --rail-badge: var(--accent); box-shadow: none; color: var(--on-accent); }
+:root[data-theme="rail"] .home-button .brand-mark { --brand-plate: transparent; --brand-tower: currentColor; --brand-glyph: var(--rail-badge); width: 32px; height: 32px; }
+:root[data-theme="rail"] .home-button:focus-visible { outline: none; }
+:root[data-theme="rail"] .home-button:focus-visible::after { content: ""; position: absolute; inset: -5px; border: 2px solid var(--focus); border-radius: 19px; pointer-events: none; }
+/* The pill on the rail's edge, as a connection's. */
+:root[data-theme="rail"] .home-button::before { content: ""; position: absolute; top: 50%; left: calc((40px - var(--rail-width)) / 2); width: 4px; height: 0; border-radius: 0 4px 4px 0; background: var(--accent); opacity: 0; transform: translateY(-50%); transition: height 0.16s ease, opacity 0.16s ease; }
+:root[data-theme="rail"] .home-button:hover::before { height: 14px; opacity: 0.7; }
+:root[data-theme="rail"] .home-button[aria-current="page"]::before { height: 28px; opacity: 1; }
+:root[data-theme="rail"] .rail-connections { flex: 0 1 auto; min-height: 0; padding: 10px 0 6px; overflow-y: auto; scroll-padding-block: 12px; }
+/* Without connections, Home and New Connection stand the same gap apart as any two badges. */
+:root[data-theme="rail"] .rail-connections:not(:has(.connection-chip)) { padding: 6px 0 0; }
+:root[data-theme="rail"] .rail-connections::-webkit-scrollbar { display: none; }
+/* Badges scrolled out of the rail fade into its edge. A sticky box holds to its scroller's content box, so a fade's
+   inset takes it across the padding. */
+:root[data-theme="rail"] .rail-connections { container-type: scroll-state; }
+:root[data-theme="rail"] .rail-connections::before, :root[data-theme="rail"] .rail-connections::after { content: ""; position: sticky; z-index: 1; display: block; height: 18px; opacity: 0; pointer-events: none; transition: opacity 0.16s ease; }
+:root[data-theme="rail"] .rail-connections::before { top: -10px; margin: -10px 0 -8px; background: linear-gradient(var(--bg-rail) 20%, transparent); }
+:root[data-theme="rail"] .rail-connections::after { bottom: -6px; margin: -12px 0 -6px; background: linear-gradient(transparent, var(--bg-rail) 80%); }
+@container scroll-state(scrollable: top) { :root[data-theme="rail"] .rail-connections::before { opacity: 1; } }
+@container scroll-state(scrollable: bottom) { :root[data-theme="rail"] .rail-connections::after { opacity: 1; } }
+:root[data-theme="rail"] .connection-chips { display: grid; gap: 10px; }
+:root[data-theme="rail"] .connection-chip { position: relative; display: grid; place-items: center; }
+/* The pill on the rail's edge grows from a hovered connection's to the current one's. */
+:root[data-theme="rail"] .connection-chip::before { content: ""; position: absolute; top: 50%; left: 0; width: 4px; height: 0; border-radius: 0 4px 4px 0; background: var(--accent); opacity: 0; transform: translateY(-50%); transition: height 0.16s ease, opacity 0.16s ease; }
+:root[data-theme="rail"] .connection-chip:hover::before { height: 14px; opacity: 0.7; }
+:root[data-theme="rail"] .connection-chip:has(> .connection-titles[aria-current="true"])::before { height: 28px; opacity: 1; }
+:root[data-theme="rail"] .connection-chip > .connection-titles {
+  position: relative; display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 14px;
+  background: var(--badge); box-shadow: var(--badge-shadow); color: var(--badge-text); font-size: 13px; font-weight: 650; letter-spacing: 0.02em; text-align: center;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+:root[data-theme="rail"] .connection-chip > .connection-titles:hover { background: color-mix(in srgb, var(--accent) 16%, var(--badge-hover)); color: var(--text-strong); }
+:root[data-theme="rail"] .connection-chip > .connection-titles[aria-current="true"] { background: var(--accent); box-shadow: none; color: var(--on-accent); }
+/* The focus ring is drawn over the status and problem markers, whose cut-outs would break an outline. */
+:root[data-theme="rail"] .connection-chip > .connection-titles:focus-visible { outline: none; }
+:root[data-theme="rail"] .connection-chip > .connection-titles:focus-visible::after { content: ""; position: absolute; inset: -5px; border: 2px solid var(--focus); border-radius: 19px; pointer-events: none; }
+:root[data-theme="rail"] .connection-chip[data-status="closed"] > .connection-titles:not([aria-current]) { color: var(--text-faint); }
+:root[data-theme="rail"] .connection-chip .connection-name { position: absolute; inset: 0; display: block; pointer-events: none; }
+:root[data-theme="rail"] .connection-chip .connection-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+/* Status and the problem marker sit on the badge's corners, each ringed in the rail's colour and clear of the next badge's. */
+:root[data-theme="rail"] .connection-chip .status-dot { position: absolute; right: -3px; bottom: -3px; width: 16px; height: 16px; border: 3px solid var(--bg-rail); }
+/* A connecting connection keeps its colour and sends out a ring. */
+:root[data-theme="rail"] .status-dot[data-status="connecting"] { animation: rail-ping 1.4s ease-out infinite; }
+:root[data-theme="rail"] .connection-chip .status-dot[data-status="closed"] { background: var(--bg-rail); box-shadow: inset 0 0 0 2px var(--text-faint); }
+:root[data-theme="rail"] .connection-chip .connection-alert { position: absolute; top: -4px; right: -4px; place-items: center; width: 18px; height: 18px; border: 2px solid var(--bg-rail); border-radius: 50%; background: var(--danger); color: var(--on-danger); }
+:root[data-theme="rail"] .connection-chip .connection-alert .icon { display: none; }
+:root[data-theme="rail"] .connection-chip .connection-alert::after { content: "!" / ""; font-size: 10px; font-weight: 800; line-height: 1; }
+/* A dragged badge lands on a line in the gap between two others. */
+:root[data-theme="rail"] .connection-chip:is(.drop-before, .drop-after) { box-shadow: none; }
+:root[data-theme="rail"] .connection-chip:is(.drop-before, .drop-after)::after { content: ""; position: absolute; right: 14px; left: 14px; height: 2px; border-radius: 1px; background: var(--accent); }
+:root[data-theme="rail"] .connection-chip.drop-before::after { top: -6px; }
+:root[data-theme="rail"] .connection-chip.drop-after::after { bottom: -6px; }
+@keyframes rail-ping { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 70%, transparent); } 75%, to { box-shadow: 0 0 0 5px transparent; } }
+:root[data-theme="rail"] .rail-new { display: grid; place-items: center; flex: none; padding: 4px 0 8px; }
+:root[data-theme="rail"] .rail-new .icon-button { width: 40px; height: 40px; border: 1.5px dashed color-mix(in srgb, var(--text-faint) 60%, transparent); border-radius: 14px; color: var(--text-muted); transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease; }
+:root[data-theme="rail"] .rail-new .icon-button:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+:root[data-theme="rail"] .rail-new .icon-button:focus-visible { outline-offset: 2px; }
+:root[data-theme="rail"] .rail-actions { display: grid; justify-items: center; gap: 2px; flex: none; margin-top: auto; padding: 8px 0 10px; }
+:root[data-theme="rail"] .rail-actions .icon-button { width: 36px; height: 36px; border-radius: 10px; }
+:root[data-theme="rail"] .rail-actions .icon { width: 18px; height: 18px; }
+:root[data-theme="rail"] .rail-actions .error-count { top: -1px; right: -2px; min-width: 19px; height: 19px; padding: 0 4px; border: 2px solid var(--bg-rail); border-radius: 10px; line-height: 15px; }
+
+/* Panel */
+:root[data-theme="rail"] .rail-panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-right: 1px solid var(--border); background: var(--bg-panel); }
+:root[data-theme="rail"] .rail-panel-nav { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+:root[data-theme="rail"] .rail-panel-head { flex: none; }
+:root[data-theme="rail"] .rail-panel-title { display: flex; align-items: center; gap: 4px; height: var(--chrome-top); padding: 0 10px 0 19px; border-bottom: 1px solid var(--border); user-select: none; app-region: drag; }
+:root[data-theme="rail"] .rail-panel-title .connection-name { flex: 1; gap: 8px; }
+:root[data-theme="rail"] .rail-panel-title .status-dot { margin: 0 4px; }
+:root[data-theme="rail"] .rail-panel-title .connection-label { color: var(--text-strong); font-size: 15px; font-weight: 650; line-height: 18px; letter-spacing: -0.01em; }
+:root[data-theme="rail"] .rail-panel-title .icon-button { app-region: no-drag; }
+/* The narrower panel sets the label a size down, which keeps an ordinary one whole beside the connection's commands. */
+@media (max-width: 1040px) { :root[data-theme="rail"] .rail-panel-title .connection-label { font-size: 14px; } }
+:root[data-theme="rail"] .rail-panel-meta { display: grid; grid-template-columns: minmax(0, 1fr); gap: 7px; margin: 9px 9px 1px; padding: 8px 9px 9px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--card); }
+:root[data-theme="rail"] .rail-panel-head[data-status="closed"] .connection-label { color: var(--text-muted); }
+:root[data-theme="rail"] .rail-panel-meta .tag-list { gap: 5px; height: auto; margin-top: 0; overflow: visible; }
+:root[data-theme="rail"] .rail-panel-scroll { flex: 1; min-height: 0; padding: 8px 0 12px 9px; overflow-y: auto; scrollbar-gutter: stable; scroll-padding-block: 10px; container-type: scroll-state; }
+/* Rows scrolled out of the list fade into the panel under its head and over its foot. */
+:root[data-theme="rail"] .rail-panel-scroll::before, :root[data-theme="rail"] .rail-panel-scroll::after { content: ""; position: sticky; z-index: 2; display: block; height: 14px; opacity: 0; pointer-events: none; transition: opacity 0.16s ease; }
+:root[data-theme="rail"] .rail-panel-scroll::before { top: -8px; margin: -8px 0 -6px -9px; background: linear-gradient(var(--bg-panel) 15%, transparent); }
+:root[data-theme="rail"] .rail-panel-scroll::after { bottom: -12px; margin: -2px 0 -12px -9px; background: linear-gradient(transparent, var(--bg-panel) 85%); }
+@container scroll-state(scrollable: top) { :root[data-theme="rail"] .rail-panel-scroll::before { opacity: 1; } }
+@container scroll-state(scrollable: bottom) { :root[data-theme="rail"] .rail-panel-scroll::after { opacity: 1; } }
+:root[data-theme="rail"] .rail-panel-footer { display: flex; flex: none; height: var(--panel-footer-height); padding: 10px 9px; border-top: 1px solid var(--border-subtle); }
+
+:root[data-theme="rail"] .nav-item, :root[data-theme="rail"] .icon-button, :root[data-theme="rail"] .button, :root[data-theme="rail"] .section-tab, :root[data-theme="rail"] .theme-option { transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease; }
+:root[data-theme="rail"] .connection-items { gap: 2px; }
+:root[data-theme="rail"] .connection-items > .session:not(:first-child) { margin-top: 6px; }
+:root[data-theme="rail"] .connection-items > .session + .terminal-entry { margin-top: 6px; }
+:root[data-theme="rail"] .nav-item { height: 32px; padding: 0 8px 0 10px; border-radius: var(--radius); color: var(--text-muted); font-weight: 500; }
+:root[data-theme="rail"] .row:hover > .nav-item:not([aria-current]) { color: var(--text); }
+:root[data-theme="rail"] .nav-item[aria-current="page"] { color: var(--text-strong); font-weight: 550; }
+:root[data-theme="rail"] .row:hover > .nav-item[aria-current="page"] { background: var(--selected); }
+:root[data-theme="rail"] .nav-item[aria-current="page"]::before { content: none; }
+:root[data-theme="rail"] .nav-item[data-kind="terminal"][aria-current="page"] .nav-icon { color: var(--accent-text); }
+:root[data-theme="rail"] .nav-item[data-kind="terminal"][data-status="closed"][aria-current="page"] :is(.nav-icon, .nav-label) { color: var(--text-muted); }
+:root[data-theme="rail"] .session-row > .nav-item { color: var(--text); font-weight: 550; }
+:root[data-theme="rail"] .session-row > .nav-item[aria-current="true"] { color: var(--text-strong); }
+:root[data-theme="rail"] .input.session-name { height: 32px; padding: 0 8px 0 33px; }
+/* The list clips at its rows' right edge, so a row's focus ring and the rename field's are drawn inside them. */
+:root[data-theme="rail"] .rail-panel-scroll .nav-item:focus-visible { outline-offset: -2px; }
+:root[data-theme="rail"] .rail-panel-scroll .input:focus { box-shadow: inset 0 0 0 1px var(--focus); }
+/* A session's tabs hang from a line in its colour that runs down from its icon. */
+:root[data-theme="rail"] .tab-items { gap: 2px; margin: 2px 0 0 17px; padding-left: 9px; }
+:root[data-theme="rail"] .tab-items:empty { margin-top: 0; }
+:root[data-theme="rail"] .tab-items::before { top: 2px; bottom: 2px; background: color-mix(in srgb, var(--session-color) 40%, transparent); }
+:root[data-theme="rail"] .tab-items .nav-item { height: 30px; padding-left: 8px; border-radius: var(--radius); font-weight: 450; }
+:root[data-theme="rail"] .tab-items .nav-item[aria-current="page"], :root[data-theme="rail"] .tab-items .row:hover > .nav-item[aria-current="page"] { background: color-mix(in srgb, var(--session-color) 16%, transparent); font-weight: 550; }
+:root[data-theme="rail"] .tab-items .nav-item[aria-current="page"]::before { content: ""; top: 3px; bottom: 3px; left: -9px; }
+:root[data-theme="rail"] .favicon { border-radius: 4px; }
+
+/* Connect: a well in the panel's foot, whose results open above it across the view. */
+:root[data-theme="rail"] .connect-input { height: 34px; padding-left: 33px; border-color: var(--border-field); border-radius: var(--field-radius); background: var(--field); }
+:root[data-theme="rail"] .connect-input:hover:not(:focus) { border-color: var(--border-field-hover); }
+:root[data-theme="rail"] .connect .icon { left: 10px; }
+:root[data-theme="rail"] .connect-results { margin-bottom: 6px; padding: 6px; border-radius: 12px; }
+:root[data-theme="rail"] .connect-destination { min-height: 36px; }
+
+@supports (corner-shape: squircle) {
+  :root[data-theme="rail"] :is(.connection-chip > .connection-titles, .rail-new .icon-button, .home-button) { border-radius: 20px; corner-shape: squircle; }
+  :root[data-theme="rail"] :is(.connection-chip > .connection-titles, .home-button):focus-visible::after { border-radius: 26px; corner-shape: squircle; }
+  :root[data-theme="rail"] .empty-mark { border-radius: 28px; corner-shape: squircle; }
+  :root[data-theme="rail"] .connect-tile { border-radius: 18px; corner-shape: squircle; }
+}
+:root[data-theme="rail"] .connect-input:focus { border-color: var(--focus); }
+
+/* Home: the rows are badges beside their names, and the bar over the view draws no rule. */
+:root[data-theme="rail"] #app:not(:has(> .rail-panel)) > .rail-topbar { border-bottom-color: transparent; }
+:root[data-theme="rail"] .home .connect-input { height: 38px; }
+:root[data-theme="rail"] .connect-tile { border-radius: 12px; background: var(--badge); box-shadow: var(--badge-shadow); color: var(--badge-text); }
+:root[data-theme="rail"] .connect-list .connect-option { border-radius: 12px; }
+
+/* The bar over the view: what it shows on the left, the connection's commands beside the window controls. */
+:root[data-theme="rail"] .rail-topbar {
+  display: flex; align-items: center; gap: 12px; min-width: 0; border-bottom: 1px solid var(--border); background: var(--bg-header); user-select: none; app-region: drag;
+  padding: 0 max(12px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 6px)) 0 16px;
+}
+/* A browser session's colour line is the edge between the bar and its toolbar, on the row of the panel's rule. */
+:root[data-theme="rail"] #app:has(> .main > .browser-view:not([hidden])) > .rail-topbar { border-bottom-color: transparent; }
+:root[data-theme="rail"] .browser-toolbar { margin-top: -1px; }
+:root[data-theme="rail"] .rail-topbar-context { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+:root[data-theme="rail"] .titlebar-titles { flex-direction: row; align-items: center; gap: 12px; }
+:root[data-theme="rail"] .titlebar-heading { flex: 0 1 auto; font-size: 14px; font-weight: 650; line-height: 20px; letter-spacing: -0.005em; }
+/* The panel names the connection, so the heading shows the item alone; a connection in view by itself keeps its label. */
+:root[data-theme="rail"] .titlebar-heading:has(> .titlebar-item:not([hidden])) > .titlebar-group { position: absolute; width: 1px; height: 1px; clip-path: inset(50%); }
+:root[data-theme="rail"] .titlebar-item { flex: 0 1 auto; color: var(--text-strong); font-weight: 650; }
+:root[data-theme="rail"] .titlebar-item::before { content: none; }
+:root[data-theme="rail"] .titlebar-actions { gap: 2px; }
+:root[data-theme="rail"] .rail-topbar .icon-button { width: 30px; height: 30px; app-region: no-drag; }
+
+/* Controls */
+:root[data-theme="rail"] .icon-button:disabled { opacity: 1; color: color-mix(in srgb, var(--text-faint) 65%, transparent); }
+:root[data-theme="rail"] .button { height: 30px; padding: 0 13px; font-weight: 550; }
+:root[data-theme="rail"] .input { height: 32px; border-color: var(--border-field); }
+:root[data-theme="rail"] .input:hover:not(:focus, :disabled) { border-color: var(--border-field-hover); }
+:root[data-theme="rail"] .input:focus { border-color: var(--focus); }
+:root[data-theme="rail"] .field.invalid .input { border-color: var(--danger); }
+/* A number field's steppers are drawn in the theme's ink. */
+:root[data-theme="rail"] input[type="number"].input::-webkit-inner-spin-button { appearance: none; align-self: stretch; width: 16px; margin-right: -3px; background: var(--spinner) center no-repeat; opacity: 0.75; cursor: pointer; }
+:root[data-theme="rail"] input[type="number"].input::-webkit-inner-spin-button:hover { opacity: 1; }
+:root[data-theme="rail"] select.input { padding-right: 30px; background-position: right 8px center; }
+:root[data-theme="rail"] select.input::picker(select) { padding: 5px; border-radius: 10px; }
+:root[data-theme="rail"] select.input option { min-height: 30px; }
+:root[data-theme="rail"] .item-add .button, :root[data-theme="rail"] .inline .button { height: 32px; }
+:root[data-theme="rail"] .field-reset, :root[data-theme="rail"] .field-reset-space { width: 32px; height: 32px; }
+:root[data-theme="rail"] .field-head { padding-top: 7px; }
+:root[data-theme="rail"] .item { min-height: 32px; }
+:root[data-theme="rail"] .tag-list { gap: 0 5px; height: 18px; }
+:root[data-theme="rail"] .tag { height: 18px; padding: 0 7px; border-radius: 9px; font-weight: 500; line-height: 18px; }
+
+/* Browser */
+:root[data-theme="rail"] .browser-toolbar { gap: 2px; padding: 2px 10px 0; }
+:root[data-theme="rail"] .browser-toolbar .icon-button, :root[data-theme="rail"] .find-bar .icon-button { width: 30px; height: 30px; }
+:root[data-theme="rail"] .address { border-color: var(--border-field); border-radius: var(--field-radius); }
+:root[data-theme="rail"] .address:hover:not(:focus) { border-color: var(--border-field-hover); }
+:root[data-theme="rail"] .address:focus { border-color: var(--focus); }
+:root[data-theme="rail"] .zoom-level { border-radius: 7px; }
+:root[data-theme="rail"] .find-input { height: 30px; border-radius: var(--field-radius); }
+:root[data-theme="rail"] .link-status { height: 24px; padding: 0 10px; border-radius: 0 10px 0 0; line-height: 23px; }
+:root[data-theme="rail"] .link-status-box[data-side="right"] > .link-status { border-radius: 10px 0 0; }
+:root[data-theme="rail"] .popover { border-radius: var(--radius-lg); }
+:root[data-theme="rail"] .download-list { padding: 6px; }
+
+/* Errors: toasts and their shadows end inside the panel, short of the view. */
+:root[data-theme="rail"] .error-toaster[data-sonner-toaster] { --border-radius: 12px; clip-path: inset(-100vh -9px -64px -69px); }
+:root[data-theme="rail"] .error-toaster [data-sonner-toast] { box-shadow: var(--toast-shadow); }
+/* The mark stands beside the title, and the message is set small enough for a host name to stay whole in the panel's width. */
+:root[data-theme="rail"] .error-toaster [data-sonner-toast][data-styled="true"] { align-items: flex-start; gap: 8px; padding: 12px 14px 13px 12px; }
+:root[data-theme="rail"] .error-toaster [data-sonner-toast][data-styled="true"] [data-icon] { margin: 2px 0 0; }
+:root[data-theme="rail"] .error-toaster[data-sonner-toaster] [data-sonner-toast] [data-description] { font-size: 12px; line-height: 17px; max-height: 68px; }
+/* A short window keeps a message to two lines, which leaves the list above it in view. */
+@media (max-height: 560px) { :root[data-theme="rail"] .error-toaster[data-sonner-toaster] [data-sonner-toast] [data-description] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; } }
+
+/* Dialogs */
+:root[data-theme="rail"] dialog::backdrop { background: var(--backdrop); }
+:root[data-theme="rail"] .dialog-icon { width: 34px; height: 34px; border-radius: 11px; }
+@supports (corner-shape: squircle) { :root[data-theme="rail"] .dialog-icon { border-radius: 17px; corner-shape: squircle; } }
+:root[data-theme="rail"] .dialog-titles h2 { line-height: 34px; letter-spacing: -0.01em; }
+:root[data-theme="rail"] .section-nav { padding: 12px 10px; }
+:root[data-theme="rail"] .section-tab { min-height: 34px; font-weight: 500; }
+:root[data-theme="rail"] .section-tab[aria-selected="true"] { color: var(--accent-text); font-weight: 600; }
+:root[data-theme="rail"] .prompt, :root[data-theme="rail"] .facts, :root[data-theme="rail"] .font-sample { border-radius: 10px; }
+:root[data-theme="rail"] .theme-picker { gap: 10px; }
+:root[data-theme="rail"] .theme-option { padding: 10px 6px 8px; border-radius: 12px; }
+/* Settings keep their heading and Close in view; the fields between them scroll. */
+:root[data-theme="rail"] .settings { display: flex; flex-direction: column; max-height: calc(100vh - var(--chrome-top) - 2em - 8px); }
+:root[data-theme="rail"] .settings-body { flex: 1; min-height: 0; overflow-y: auto; }
+:root[data-theme="rail"] .field-body > input[type="checkbox"] { flex: none; margin: 8px 0; }
+@media (prefers-reduced-motion: reduce) { :root[data-theme="rail"] *, :root[data-theme="rail"] *::before, :root[data-theme="rail"] *::after { transition-duration: 0.01ms !important; } }

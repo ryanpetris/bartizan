@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 
 export async function testSessionUI(app, connectionId) {
   const { application, page, state } = app;
-  const connection = page.locator(`.connection[data-id="${connectionId}"]`);
+  await page.locator(`.connection-chip[data-id="${connectionId}"] .connection-titles`).click();
+  const connection = page.locator('.rail-panel');
   await application.evaluate(({ Menu }) => {
     globalThis.rigPopup = Menu.prototype.popup;
     globalThis.rigMenus = [];
@@ -23,7 +24,7 @@ export async function testSessionUI(app, connectionId) {
     await expect(page.locator(`[data-kind="terminal"][data-id="${terminal.id}"]`)).toHaveAttribute('aria-current', 'page');
     await page.locator(`[data-kind="terminal"][data-id="${terminal.id}"]`).locator('..').getByRole('button', { name: /^Close / }).click();
     await expect.poll(async () => (await state()).terminals.some(t => t.id === terminal.id)).toBe(false);
-    await expect.poll(() => page.evaluate(() => Boolean(document.activeElement?.closest('.sidebar')))).toBe(true);
+    await expect.poll(() => page.evaluate(() => Boolean(document.activeElement?.closest('.rail-panel')))).toBe(true);
     assert.equal((await state()).connections.find(c => c.id === connectionId).status, 'connected');
 
     const names = await connection.locator('.session-row .row-new').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label').replace('New Tab in ', '')));
@@ -108,7 +109,7 @@ export async function testSessionUI(app, connectionId) {
     assert.ok(colors.length && colors.every(Boolean));
     for (const tab of tabs) {
       await connection.locator(`[data-kind="tab"][data-id="${tab.id}"]`).locator('..').getByRole('button', { name: /^Close Tab/ }).click();
-      await expect.poll(() => page.evaluate(() => Boolean(document.activeElement?.closest('.sidebar')))).toBe(true);
+      await expect.poll(() => page.evaluate(() => Boolean(document.activeElement?.closest('.rail-panel')))).toBe(true);
     }
     const tabCount = async () => (await state()).workspaces.find(w => w.id === workspace.id)?.tabs.length;
     await expect.poll(tabCount).toBe(0);
@@ -119,7 +120,7 @@ export async function testSessionUI(app, connectionId) {
     await sessionItem.locator('..').getByRole('button', { name: `Close ${name}`, exact: true }).click();
     await expect.poll(async () => (await state()).workspaces.some(w => w.id === workspace.id)).toBe(false);
     await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1280, 800));
-    console.log('Sidebar controls open and close terminals, browser sessions and tabs; tab selection, session numbering, session rows above their tabs, renaming, session rows opening their first tab or a new one when empty, and address focus after late tab state passed.');
+    console.log('Navigation controls open and close terminals, browser sessions and tabs; tab selection, session numbering, session rows above their tabs, renaming, session rows opening their first tab or a new one when empty, and address focus after late tab state passed.');
   } finally {
     await application.evaluate(({ Menu }) => { Menu.prototype.popup = globalThis.rigPopup; });
   }

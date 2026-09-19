@@ -24,7 +24,7 @@ export class LinkMenus {
 
   /**
    * Shows the link menu for a page in the `current` session, or for a terminal, where Open Link uses the `first`
-   * session in the sidebar.
+   * session in the navigation.
    */
   show(connectionId: string, url: string | string[], sessions: { current?: string; first?: string }) {
     const urls = Array.isArray(url) ? [...new Set(url)].map(linkURL) : [linkURL(url)];

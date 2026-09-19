@@ -1,6 +1,6 @@
 import { useLayoutEffect, useState } from 'react';
 import type { BrowserTab } from '../shared';
-import { targetOf, clearTarget } from './tab-state';
+import { targetOf } from './tab-state';
 import { Overlay } from './overlay';
 
 /**
@@ -16,8 +16,6 @@ export function LinkStatus({ tab, visible, area }: { tab: BrowserTab; visible: b
     const timer = setTimeout(() => setSide('left'), 1000);
     return () => clearTimeout(timer);
   }, [url]);
-  // A page reports the pointer leaving a link only while it is showing.
-  useLayoutEffect(() => () => clearTarget(tab.id), [tab.id]);
   const width = Math.max(0, Math.min(640, Math.floor((area()?.width ?? 0) * 0.6)));
   return (
     <Overlay
