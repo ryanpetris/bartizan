@@ -386,8 +386,8 @@
   .home .connect { width: auto; }
   .home .connect-input { height: 30px; border: 1px solid var(--border-control); background: var(--field); }
   .home .connect-input:focus { border-color: var(--focus); box-shadow: none; }
-  .connect-list { gap: 0; margin-top: 8px; }
-  .connect-list .connect-option { gap: 1.5ch; padding: 4px 5ch 4px 1ch; }
+  .connect-list { --connect-row: 44px; --connect-gap: 0px; margin-top: 8px; }
+  .connect-list .connect-option { gap: 1.5ch; padding: 0 5ch 0 1ch; }
   .connect-list .connect-option:hover { background: var(--console-hover); }
   .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] { background: var(--accent); color: var(--on-accent); }
   .connect:has(> .connect-input:focus) + .connect-list .connect-option[aria-selected="true"] :is(.connect-tile, .profile-label, .profile-endpoint, .connect-target, .icon, .connect-edit) { color: inherit; }

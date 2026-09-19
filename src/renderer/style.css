@@ -370,18 +370,34 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 .empty-mark { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 18px; background: var(--accent-soft); color: var(--accent-text); }
 .empty-mark .icon { width: 26px; height: 26px; stroke-width: 1.25; }
 
-/* Home: the brand over Connect, whose results list every profile below it. */
+/* Home: the brand over Connect, whose results list every profile below it in a box that scrolls on its own. */
 .home-view { overflow-y: auto; }
-.home { display: flex; flex-direction: column; width: min(560px, 100% - 48px); margin: auto; padding: 40px 0 48px; }
+.home { display: flex; flex-direction: column; width: min(560px, 100% - 48px); max-height: 100%; margin: auto; padding: 40px 0 48px; }
+.home > * { flex: none; }
 .home-brand { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-bottom: 36px; }
 .home-brand .brand-mark { width: 64px; height: 64px; }
 .home-title { margin: 0; color: var(--text-strong); font-size: 22px; font-weight: 650; line-height: 28px; letter-spacing: -0.01em; }
 .home-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .home-heading { margin: 0; color: var(--text-strong); font-size: 14px; font-weight: 600; }
-.home .connect { flex: none; }
 .home .connect-input { height: 34px; background: var(--field); border-color: var(--border-control); }
-.connect-list { display: grid; gap: 2px; margin-top: 12px; }
-.connect-list .connect-option { position: relative; display: flex; align-items: center; gap: 12px; padding: 7px 44px 7px 7px; border-radius: var(--radius); }
+/* The box is as tall as every profile and a destination would be, whatever it shows, up to the room the page leaves. Its
+   rows have one height, so filtering and resizing never depend on what is shown. */
+.connect-list {
+  --connect-row: 50px; --connect-gap: 2px;
+  --connect-height: calc(var(--connect-rows) * var(--connect-row) + (var(--connect-rows) - 1) * var(--connect-gap));
+  flex: 0 1 auto; height: var(--connect-height); min-height: min(var(--connect-height), 2.5 * var(--connect-row));
+  margin-top: 12px; overflow-y: auto; scrollbar-gutter: stable; scroll-padding-block: 16px; container-type: scroll-state;
+  /* The scroll bar's room lies outside the column, so the rows line up with Connect whether or not it shows. */
+  margin-right: calc(-1 * var(--scroll-size));
+}
+.connect-list .connect-option { position: relative; display: flex; align-items: center; gap: 12px; height: var(--connect-row); padding: 0 44px 0 7px; border-radius: var(--radius); }
+.connect-list > .connect-option + .connect-option { margin-top: var(--connect-gap); }
+/* Rows scrolled out of the box fade into the page at its edges. */
+.connect-list::before, .connect-list::after { content: ""; position: sticky; z-index: 1; display: block; height: 16px; opacity: 0; pointer-events: none; transition: opacity 0.16s ease; }
+.connect-list::before { top: 0; margin-bottom: -16px; background: linear-gradient(var(--bg-main), transparent); }
+.connect-list::after { bottom: 0; margin-top: -16px; background: linear-gradient(transparent, var(--bg-main)); }
+@container scroll-state(scrollable: top) { .connect-list::before { opacity: 1; } }
+@container scroll-state(scrollable: bottom) { .connect-list::after { opacity: 1; } }
 .connect-list .connect-option[aria-selected="true"] { background: none; color: inherit; }
 .connect-list .connect-option:hover { background: var(--hover); }
 /* The chosen row shows while Connect has focus, as Enter would connect it. */

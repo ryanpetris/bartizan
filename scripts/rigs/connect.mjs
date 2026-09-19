@@ -35,10 +35,10 @@ await withDirectory('connect', async (directory, cleanup) => {
   await expect(options.first()).toContainText('IPv6 profile');
   await expect(options.first()).toHaveAttribute('aria-selected', 'false');
   const checkHome = async width => {
-    const field = await search.boundingBox(), list = await results.boundingBox(), rail = await page.locator('.rail').boundingBox();
+    const field = await search.boundingBox(), list = await results.boundingBox(), row = await options.first().boundingBox(), rail = await page.locator('.rail').boundingBox();
     assert.ok(field.x >= rail.x + rail.width, 'Connect sits on the home page beside the rail');
     assert.ok(list.y >= field.y + field.height, 'Connect lists its results below the field');
-    assert.ok(Math.abs(list.x - field.x) < 2 && Math.abs(list.width - field.width) < 2, 'Connect results align with the field');
+    assert.ok(Math.abs(row.x - field.x) < 2 && Math.abs(row.width - field.width) < 2, 'Connect results align with the field');
     assert.ok(list.x + list.width <= width, 'Connect results fit the window');
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'The home page fits the window');
   };
@@ -58,10 +58,54 @@ await withDirectory('connect', async (directory, cleanup) => {
     await expect.poll(() => page.evaluate(() => [innerWidth, innerHeight])).toEqual([bounds.width, bounds.height]);
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   };
+  const box = () => page.evaluate(() => {
+    const list = document.querySelector('.connect-list'), view = document.querySelector('.home-view');
+    return { height: list.getBoundingClientRect().height, scrolls: list.scrollHeight > list.clientHeight, page: view.scrollHeight > view.clientHeight };
+  });
+  // A long list scrolls in a box of its own, whose height stays put while filtering and follows the window while filtered.
+  await writeFile(config, source + Array.from({ length: 30 }, (_, i) => `  s${i}:\n    label: Server ${i + 1}\n    host: s${i}.example.test\n`).join(''));
+  await api('reloadConfig');
+  await expect(options).toHaveCount(31);
+  const full = await box();
+  assert.ok(full.scrolls && !full.page, 'A long list scrolls in its box and the page does not');
+  for (const query of ['Server 30', 's5.example.test', 'nothing matches']) {
+    await search.fill(query);
+    assert.equal((await box()).height, full.height, `The box keeps its height for "${query}"`);
+  }
+  // Far fewer results than fit, so a box sized to what it shows would shrink.
+  await search.fill('Server 30');
+  await resize({ width: 950, height: 650 });
+  const filtered = await box();
+  await search.fill('');
+  assert.equal((await box()).height, filtered.height, 'A box resized while filtered has its unfiltered height');
+  // A row the arrow keys choose comes clear of the fades at the box's edges.
+  const chosenClear = () => page.evaluate(() => {
+    const list = document.querySelector('.connect-list'), chosen = list.querySelector('[aria-selected="true"]').getBoundingClientRect(), bounds = list.getBoundingClientRect();
+    return chosen.top >= bounds.top + 15.5 && chosen.bottom <= bounds.bottom - 15.5;
+  });
+  for (let i = 0; i < 9; i++) await search.press('ArrowDown');
+  await expect.poll(chosenClear, 'a row chosen past the bottom edge is clear of the fade').toBe(true);
+  for (let i = 0; i < 4; i++) await search.press('ArrowUp');
+  await expect.poll(chosenClear, 'a row chosen past the top edge is clear of the fade').toBe(true);
+  await search.press('Escape');
+  await search.press('ArrowUp');
+  await expect.poll(() => page.evaluate(() => {
+    const list = document.querySelector('.connect-list'), last = [...list.querySelectorAll('.connect-option')].at(-1).getBoundingClientRect(), bounds = list.getBoundingClientRect();
+    return last.top >= bounds.top - 0.5 && last.bottom <= bounds.bottom + 0.5;
+  }), 'the last profile scrolls into the box').toBe(true);
+  assert.equal(await page.evaluate(() => document.querySelector('.home-view').scrollTop), 0, 'Choosing the last profile leaves the page where it is');
+  await search.press('Escape');
+  await resize(original);
+  await writeFile(config, source);
+  await api('reloadConfig');
+  await expect(options).toHaveCount(1);
+  console.log('A long profile list scrolls in its own box, which keeps its height while filtering and after a resize while filtered.');
   for (const bounds of [{ width: 950, height: 650 }, { width: 800, height: 500 }]) {
     await resize(bounds);
     await search.fill('');
+    const unfiltered = (await box()).height;
     await search.fill('::1');
+    assert.equal((await box()).height, unfiltered, 'The box keeps room for the destination row');
     await expect(results).toBeVisible();
     await expect(options).toHaveCount(2);
     await expect(options.first()).toContainText('IPv6 profile');

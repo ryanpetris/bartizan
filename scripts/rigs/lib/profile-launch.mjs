@@ -65,6 +65,11 @@ export async function testProfileLaunch(app, config, url) {
     await expect(page.locator('#connection-dialog')).not.toBeVisible();
     await connect.press('Escape');
     await expect(connect).toHaveValue('');
+    // A moving pointer chooses the row it moves onto.
+    const other = page.locator('#connect-profile-other'), place = await other.boundingBox();
+    await page.mouse.move(place.x + 20, place.y - 30);
+    await page.mouse.move(place.x + 20, place.y + place.height / 2, { steps: 4 });
+    await expect(other).toHaveAttribute('aria-selected', 'true');
     // A profile's Edit opens its settings without connecting.
     await page.locator('#connect-profile-other').hover();
     await page.locator('#connect-profile-other .connect-edit').click();

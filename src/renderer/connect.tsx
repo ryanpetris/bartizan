@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { PublicProfile as Profile } from '../core/config';
 import { parseDestination } from '../shared';
@@ -122,7 +122,7 @@ export function Connect({ listed = false }: { listed?: boolean }) {
   }
   useLayoutEffect(() => {
     if (!list || !input) return;
-    // Listed results scroll with the page, so the chosen one is brought into view only when it changes.
+    // Listed results scroll in a box of their own; the chosen one is brought into view only when it changes.
     if (listed) {
       const id = results[selected] && optionId(results[selected]);
       if (reveal.current && id && id !== revealed.current) document.getElementById(id)?.scrollIntoView({ block: 'nearest' });
@@ -171,7 +171,9 @@ export function Connect({ listed = false }: { listed?: boolean }) {
       aria-description={result.kind === 'profile' ? profileDescription(result.profile) : undefined}
       aria-label={result.kind === 'destination' ? `Connect to ${target(result.destination)}` : undefined}
       onPointerDown={(e) => e.preventDefault()}
-      onPointerMove={() => {
+      onPointerMove={(event) => {
+        // Rows that appear under a still pointer get a move with no movement; only a moving pointer chooses.
+        if (!event.movementX && !event.movementY) return;
         reveal.current = false;
         setActive(index);
       }}
@@ -265,6 +267,8 @@ export function Connect({ listed = false }: { listed?: boolean }) {
           id="connect-results"
           role="listbox"
           aria-label="Profiles"
+          // The box keeps room for every profile and a destination, however many it shows.
+          style={{ '--connect-rows': store.state.profiles.length + 1 } as CSSProperties}
         >
           {options}
           {unmatched && empty('No Results Found', 'connect-no-results')}
