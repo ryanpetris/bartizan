@@ -9,7 +9,7 @@ export const settings: [path: string, label: string, section: SectionId][] = [
   ['label', 'Label', 'connection'], ['host', 'Host', 'connection'], ['username', 'Username', 'connection'], ['port', 'Port', 'connection'],
   ['auth.method', 'Method', 'authentication'], ['auth.identity_files', 'Identity Files', 'authentication'],
   ['auth.agent', 'Agent', 'authentication'], ['auth.password', 'Password', 'authentication'], ['auth.passphrase', 'Key Passphrase', 'authentication'],
-  ['host_keys.policy', 'Policy', 'host-keys'], ['host_keys.fingerprints', 'Fingerprints', 'host-keys'],
+  ['host_keys.policy', 'Policy', 'host-keys'], ['host_keys.fingerprints', 'Fingerprints', 'host-keys'], ['host_keys.public_keys', 'Public Keys', 'host-keys'],
   ['terminal.font', 'Font', 'terminal'], ['terminal.font_size', 'Font Size', 'terminal'], ['terminal.ligatures', 'Ligatures', 'terminal'], ['terminal.scrollback', 'Scrollback', 'terminal'],
   ['ssh.ConnectTimeout', 'ConnectTimeout', 'ssh'], ['ssh.ServerAliveInterval', 'ServerAliveInterval', 'ssh'], ['ssh.ServerAliveCountMax', 'ServerAliveCountMax', 'ssh'],
   ['ssh.ForwardAgent', 'ForwardAgent', 'ssh'], ['ssh.Compression', 'Compression', 'ssh'], ['ssh.TCPKeepAlive', 'TCPKeepAlive', 'ssh'], ['ssh.AddressFamily', 'AddressFamily', 'ssh'], ['ssh.LogLevel', 'LogLevel', 'ssh'],

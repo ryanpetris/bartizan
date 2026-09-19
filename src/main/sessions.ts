@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir, userInfo } from 'node:os';
 import { connectionInfo, type ConnectionInfo } from './connection-info';
 import { dirname, join } from 'node:path';
+import { hostKeyPins } from '../core/host-keys';
 import type { Spec } from '../core/config';
 import type { Connection, TerminalSession } from '../shared';
 import { masterArgs, preflight } from '../core/ssh';
@@ -21,9 +22,10 @@ export class Sessions {
     const id = retainedId ?? randomUUID();
     const previous = this.entries.get(id);
     if (previous) { if (previous.info.status !== 'closed') throw new Error('Disconnect before reconnecting'); await previous.ended; }
+    const pins = hostKeyPins(spec.host_keys);
     const temporary = mkdtempSync(join(tmpdir(), 'bartizan-ssh-'));
     const trust = join(this.directory, 'known_hosts');
-    const hostKeyHelper = spec.host_keys?.fingerprints?.length ? join(temporary, 'host-key') : undefined;
+    const hostKeyHelper = pins.length ? join(temporary, 'host-key') : undefined;
     let probe: ReturnType<typeof setInterval> | undefined;
     const cleanup = () => { clearInterval(probe); this.askpass.unregister(id); rmSync(temporary, { recursive: true, force: true }); };
     try {
@@ -45,7 +47,7 @@ export class Sessions {
       this.entries.set(id, entry);
       const initial = initialTerminal ? this.allocateTerminal(id) : undefined;
       const environment = this.askpass.register(id, spec, process.execPath, this.askpassHelper);
-      const child = spawn('ssh', [...masterArgs(spec, trust, port, entry.socket, hostKeyHelper)], { env: { ...process.env, ...environment, BARTIZAN_HOST_KEY_JS: join(dirname(this.askpassHelper), 'host-key.cjs'), BARTIZAN_HOST_KEY_PINS: JSON.stringify(spec.host_keys?.fingerprints ?? []), LC_ALL: 'C' }, stdio: ['ignore', 'ignore', 'pipe'] });
+      const child = spawn('ssh', [...masterArgs(spec, trust, port, entry.socket, hostKeyHelper)], { env: { ...process.env, ...environment, BARTIZAN_HOST_KEY_JS: join(dirname(this.askpassHelper), 'host-key.cjs'), BARTIZAN_HOST_KEY_PINS: JSON.stringify(pins), LC_ALL: 'C' }, stdio: ['ignore', 'ignore', 'pipe'] });
       entry.process = child;
       child.stderr?.setEncoding('utf8');
       child.stderr?.on('data', diagnostic);

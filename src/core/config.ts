@@ -6,7 +6,7 @@ import { isScalar, parseDocument, type Document } from 'yaml';
 import { z } from 'zod';
 import { defaultSettings, normalizeHost, usernamePattern, type Settings } from '../shared';
 import { settingsSchema, fontSchema, fontSizeSchema } from './settings';
-import { fingerprintPattern } from './host-keys';
+import { fingerprintPattern, publicKeyFingerprint } from './host-keys';
 
 const text = z.string().max(4096).refine(s => !/[\x00-\x1f\x7f]/.test(s), 'Control characters are not allowed');
 export const secretValue = z.string().refine(s => Buffer.byteLength(s, 'utf8') <= 1023, 'Credential must be at most 1023 UTF-8 bytes').refine(s => !/[\0\r\n]/.test(s), 'Credential must be a single line');
@@ -45,7 +45,7 @@ export const specSchema = z.strictObject({
     agent: pathValue.optional(),
     password: secretSchema.optional(), passphrase: secretSchema.optional(),
   }).optional(),
-  host_keys: z.strictObject({ policy: z.enum(['ask', 'strict', 'accept-new', 'off']).optional(), fingerprints: z.array(z.string().regex(fingerprintPattern, 'Expected a SHA256 host key fingerprint')).optional() }).optional(),
+  host_keys: z.strictObject({ policy: z.enum(['ask', 'strict', 'accept-new', 'off']).optional(), fingerprints: z.array(z.string().regex(fingerprintPattern, 'Expected a SHA256 host key fingerprint')).optional(), public_keys: z.array(z.string().refine(value => { try { publicKeyFingerprint(value); return true; } catch { return false; } }, 'Expected an Ed25519, ECDSA or RSA public host key')).optional() }).optional(),
   terminal: z.strictObject({ ligatures: z.boolean().optional(), font: fontSchema.optional(), font_size: fontSizeSchema.optional(), scrollback: z.number().int().min(0).max(100000).optional() }).optional(),
   ssh: sshSchema.optional(),
 });

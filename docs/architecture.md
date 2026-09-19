@@ -46,7 +46,7 @@ Each terminal runs another `ssh` process in a `node-pty` pseudo-terminal and use
 
 [SSH argument generation](../src/core/ssh.ts) uses `-F none`, explicit authentication settings and Bartizan's own trust store. Authentication prompts go through an askpass helper to a private Unix socket. The broker supplies a configured credential once for each recognized password/passphrase kind and sends remaining prompts to the UI.
 
-Pinned connections use an OpenSSH `KnownHostsCommand` helper. It validates the offered public host key against the configured SHA-256 fingerprints and rejects host certificates.
+Pinned connections use an OpenSSH `KnownHostsCommand` helper. It validates the offered public host key against the configured SHA-256 fingerprints and fingerprints derived from configured public keys and rejects host certificates.
 
 ## Browser routing and storage
 

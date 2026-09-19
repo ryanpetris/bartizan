@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { hostKeyPins } from './host-keys';
 import type { Spec } from './config';
 
 const quoteArgument = (value: string) => '"' + value.replaceAll('\\', '\\\\').replaceAll('"', '\\"') + '"';
@@ -8,7 +9,7 @@ export function sshArgs(spec: Spec, knownHosts: string, socksPort?: number, host
   const args = ['-F', 'none', '-tt', '-e', 'none'];
   const option = (key: string, value: string | number | boolean) => args.push('-o', `${key}=${typeof value === 'boolean' ? (value ? 'yes' : 'no') : value}`);
   if (knownHosts.includes('${')) throw new Error('Unsupported trust storage path');
-  const pinned = Boolean(spec.host_keys?.fingerprints?.length);
+  const pinned = Boolean(hostKeyPins(spec.host_keys).length);
   option('UserKnownHostsFile', pinned ? 'none' : quoteOption(spec.host_keys?.policy === 'off' ? '/dev/null' : knownHosts));
   option('GlobalKnownHostsFile', 'none'); option('UpdateHostKeys', false); option('CheckHostIP', false);
   option('StrictHostKeyChecking', pinned || spec.host_keys?.policy === 'strict' ? 'yes' : spec.host_keys?.policy ?? 'ask');

@@ -117,13 +117,24 @@ Bartizan supplies a configured password or passphrase once per connection for it
 
 Bartizan keeps accepted keys in `ssh/known_hosts` inside its application data directory. It does not use your user or system known-hosts files.
 
-Set `host_keys.fingerprints` to a list of `SHA256:` fingerprints to pin keys. A nonempty list takes precedence over the policy and bypasses the trust store. Any listed fingerprint may match. Use an empty list to clear inherited pins.
+Set `host_keys.fingerprints` to a list of `SHA256:` fingerprints or `host_keys.public_keys` to a list of single-line OpenSSH public keys. Public keys support Ed25519, ECDSA (NIST P-256, P-384 and P-521), and RSA, with optional comments. Comments are preserved but ignored for matching. Private keys, certificates and known-hosts entries are not accepted as public keys.
 
-Obtain fingerprints through a trusted channel. On the server, an administrator can inspect a public host key with:
+Either nonempty list enables pinning, takes precedence over the policy and bypasses the trust store. A match in either list is sufficient. Each list inherits independently and replaces its inherited list when specified. Set both lists to `[]` to clear all inherited pins.
+
+```yaml
+host_keys:
+  public_keys:
+    - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA example
+  fingerprints: []
+```
+
+Obtain public keys or fingerprints through a trusted channel. On the server, an administrator can inspect a public host key with:
 
 ```sh
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256
 ```
+
+Read `/etc/ssh/ssh_host_ed25519_key.pub` on the server to obtain its public key. Public keys remain in the configuration; Bartizan derives their SHA256 fingerprints internally for verification.
 
 Pins support plain public host keys, not host certificates. If the server offers several key types, `ssh.HostKeyAlgorithms` can select the type you pinned.
 

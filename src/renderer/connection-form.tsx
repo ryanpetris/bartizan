@@ -53,6 +53,7 @@ const definitions: Record<string, Definition> = {
   'auth.passphrase': { kind: 'secret', methods: ['auto', 'key'] },
   'host_keys.policy': { kind: 'choice', choices: ['ask', 'strict', 'accept-new', 'off'] },
   'host_keys.fingerprints': { kind: 'list', placeholder: 'Fingerprint', required: 'Add at least one fingerprint' },
+  'host_keys.public_keys': { kind: 'list', placeholder: 'Public key', required: 'Add at least one public key' },
   'terminal.font': { kind: 'font' },
   'terminal.font_size': { number: [8, 32], unit: 'px' },
   'terminal.ligatures': { kind: 'choice', boolean: true },
