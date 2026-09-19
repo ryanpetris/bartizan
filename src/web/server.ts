@@ -31,7 +31,7 @@ export async function serve(args: string[], dataDirectory?: string) {
     try { const name = new URL(`http://${host}`).hostname.replace(/^\[|\]$/g, ''); return name === 'localhost' || isLoopback(name); }
     catch { return false; }
   };
-  const assets = new Set(['/', '/index.html', '/app.js', '/app.css', '/style.css']);
+  const assets = new Set(['/', '/index.html', '/app.js', '/font-worker.js', '/app.css', '/style.css']);
   const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf' };
   const server = createServer(async (request, response) => {
     try {

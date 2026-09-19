@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 import { withDirectory, startSshd, sshProfile, launch, waitFor } from './lib/harness.mjs';
 import { openSettings } from './lib/settings.mjs';
+import { checkFontLoading } from './lib/font-loading.mjs';
 
 await withDirectory('fonts', async (directory, cleanup) => {
   const sshd = await startSshd(directory);
@@ -14,6 +15,7 @@ await withDirectory('fonts', async (directory, cleanup) => {
   const app = await launch(directory, config);
   cleanup(app.close);
   const { application, page, api, state, waitState, errors } = app;
+  await checkFontLoading(page, await app.modal());
   // Terminal sizes the renderer reports, by terminal.
   await application.evaluate(({ ipcMain }) => {
     globalThis.rigSizes = {};

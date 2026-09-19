@@ -30,25 +30,39 @@ export const loadFontStyles = (family: string, size: number) =>
 
 type Installed = { all: string[]; monospace: string[] };
 let installed: Promise<Installed> | undefined;
-/** Installed font families, read once for every font picker: all families, and those whose glyphs measure as monospace. */
+/** Installed font families, cached for every picker; a worker reads each family's regular face for fixed-pitch metadata. */
 export function installedFonts(): Promise<Installed> {
-  const query = (window as Window & { queryLocalFonts?: () => Promise<{ family: string }[]> }).queryLocalFonts;
+  type Font = { family: string; style: string; postscriptName: string; blob(): Promise<Blob> };
+  const query = (window as Window & { queryLocalFonts?: () => Promise<Font[]> }).queryLocalFonts;
   if (!query) return Promise.resolve({ all: [], monospace: [] });
-  return (installed ??= query.call(window).then(
-    (fonts) => {
-      const context = document.createElement('canvas').getContext('2d')!;
-      const monospace = (family: string) => {
-        context.font = `16px ${quoteFont(family)}, serif`;
-        return context.measureText('i').width === context.measureText('W').width;
-      };
-      const all = [...new Set(fonts.map((entry) => entry.family))].sort((a, b) => a.localeCompare(b));
-      return { all, monospace: all.filter(monospace) };
-    },
-    () => {
-      installed = undefined;
-      return { all: [], monospace: [] };
-    },
-  ));
+  return (installed ??= query.call(window).then(async (fonts) => {
+    const families = new Map<string, Font>();
+    for (const font of fonts)
+      if (!families.has(font.family) || /^(regular|normal|book|roman)$/i.test(font.style)) families.set(font.family, font);
+    const all = [...families.keys()].sort((a, b) => a.localeCompare(b)), monospace: string[] = [];
+    let worker: Worker | undefined;
+    try {
+      worker = new Worker(new URL('font-worker.js', location.href));
+      let failed = false;
+      // Read one font at a time so font files do not accumulate in memory.
+      for (const family of all) {
+        if (failed) break;
+        const font = families.get(family)!;
+        const fixed = await new Promise<boolean>((resolve) => {
+          worker!.onmessage = ({ data }: MessageEvent<boolean>) => resolve(data);
+          worker!.onerror = (event) => { event.preventDefault(); failed = true; resolve(false); };
+          void font.blob().then((blob) => {
+            if (!failed) worker!.postMessage({ blob, postscriptName: font.postscriptName });
+          }).catch(() => resolve(false));
+        });
+        if (fixed) monospace.push(family);
+      }
+    } finally { worker?.terminate(); }
+    return { all, monospace };
+  }).catch(() => {
+    installed = undefined;
+    return { all: [], monospace: [] };
+  }));
 }
 
 const systemOption = ' system',
@@ -77,7 +91,7 @@ export function FontPicker({
   name?: string;
   error?: string;
 }) {
-  const [names, setNames] = useState<string[]>([]),
+  const [names, setNames] = useState<string[]>(),
     [custom, setCustom] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -97,7 +111,7 @@ export function FontPicker({
         : systemOption
       : value === ''
         ? systemOption
-        : value === bundled || names.includes(value)
+        : value === bundled || names?.includes(value)
           ? value
           : customOption;
   const option = (family: string) => (
@@ -108,6 +122,7 @@ export function FontPicker({
   return (
     <div className="stack">
       <select
+        disabled={!names}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
         id={id}
@@ -124,10 +139,11 @@ export function FontPicker({
         {inherit && <option value="">{inherit}</option>}
         {option(bundled)}
         <option value={systemOption}>System Default</option>
-        {names.filter((family) => family !== bundled).map(option)}
+        {names?.filter((family) => family !== bundled).map(option)}
         <option value={customOption}>Custom</option>
       </select>
       <input
+        disabled={!names}
         ref={input}
         className="input"
         type="text"

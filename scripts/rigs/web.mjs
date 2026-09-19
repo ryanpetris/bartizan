@@ -7,6 +7,7 @@ import { get } from 'node:http';
 import { WebSocket } from 'ws';
 import electron from 'electron';
 import { withDirectory, startSshd, sshProfile, waitFor } from './lib/harness.mjs';
+import { checkFontLoading } from './lib/font-loading.mjs';
 
 for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`, async (directory, cleanup) => {
   const executable = runtime === 'node' ? process.execPath : process.env.BARTIZAN_EXECUTABLE ?? electron;
@@ -38,6 +39,7 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   const page = await browser.newPage();
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(url);
+  await checkFontLoading(page, page);
   // Connect draws in the page, where there is no overlay, and hands focus back to New Connection as it closes.
   const start = page.getByRole('button', { name: 'New Connection', exact: true });
   await start.click();
