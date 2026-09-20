@@ -253,7 +253,7 @@ function create(session: TerminalSession): Entry {
   const terminal = new Terminal({
     scrollback: connectionOf(session.connectionId)?.terminal.scrollback ?? 5000,
     fontSize: effectiveFont(session).size,
-    lineHeight: 1.2,
+    lineHeight: 1,
     fontFamily: effectiveFont(session).family,
     theme: theme(),
     allowProposedApi: true,
