@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { openSettings, closeSettings } from './lib/settings.mjs';
+import { openSettings, closeSettings, showSection } from './lib/settings.mjs';
 import { launch, sshProfile, startSshd, waitFor, withDirectory } from './lib/harness.mjs';
 
 // BARTIZAN_RIG_DISPLAY selects the Ozone platform, such as wayland on a Wayland desktop.
@@ -32,7 +32,7 @@ await withDirectory('graphics', async (directory, cleanup) => {
   await expect(page.locator('.terminal-surface:not([hidden]) .xterm-rows')).toBeVisible();
   await api('input', first, "echo DOM_RENDERING_OK\n");
   await expect(page.locator('.terminal-surface:not([hidden]) .xterm-rows')).toContainText('DOM_RENDERING_OK');
-  const settingsDialog = await openSettings(page);
+  const settingsDialog = await showSection(await openSettings(page), 'Advanced');
   const webgl = settingsDialog.getByRole('checkbox', { name: 'WebGL Rendering', exact: true });
   await expect(webgl).not.toBeChecked();
   await webgl.check();

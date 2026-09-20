@@ -63,7 +63,7 @@ export async function testHostKeyPins(app, config, publicKey, otherPublicKey) {
       const edit = async () => (await openConnect(page)).locator('.profile-row[data-id="rig"] .profile-edit').click();
       const dialogs = await app.modal();
       await edit();
-      await dialogs.locator('#tab-host-keys').click();
+      await dialogs.locator('#connection-tab-host-keys').click();
       const field = dialogs.locator(`[data-path="host_keys.${path}"]`);
       const mode = field.locator('select');
       await expect(mode).toHaveValue('');
@@ -83,7 +83,7 @@ export async function testHostKeyPins(app, config, publicKey, otherPublicKey) {
       assert.deepEqual((await state()).profiles.find(p => p.id === 'rig').spec.host_keys[path], [value]);
       await close(custom);
       await edit();
-      await dialogs.locator('#tab-host-keys').click();
+      await dialogs.locator('#connection-tab-host-keys').click();
       await mode.selectOption('none');
       await field.getByRole('button', { name: `Reset ${label}` }).click();
       await expect(mode).toHaveValue('');

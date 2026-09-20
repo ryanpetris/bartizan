@@ -1,9 +1,10 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Spec } from '../core/config';
 import type { ProfileDraft, ProfileChanges } from '../shared';
-import { Icon, IconButton, Button, moveFocus, useUnsavedNotice } from './ui';
+import { IconButton, Button, useUnsavedNotice } from './ui';
 import { api, store, render, describeError, report, profileName, activeConnection, focusConnection } from './store';
 import { openModal } from './dialogs';
+import { ClosedDialog, Field, FormDialog, Sections } from './form-dialog';
 import { FontPicker, bundledTerminalFont } from './fonts';
 import {
   sections,
@@ -161,7 +162,7 @@ export function ConnectionForm() {
   return shown ? (
     <Editor key={shown.draft.token} draft={shown.draft} initialError={shown.error} />
   ) : (
-    <dialog id="connection-dialog" className="form-dialog" />
+    <ClosedDialog name="connection" />
   );
 }
 function ItemList({
@@ -437,7 +438,6 @@ type FormError = { path?: string; message: string };
 function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: unknown }) {
   const editing = draft.id !== undefined;
   const dialog = useRef<HTMLDialogElement>(null),
-    panels = useRef<HTMLDivElement>(null),
     mounted = useRef(true),
     pending = useRef(false);
   const [values, setValues] = useState(() =>
@@ -513,15 +513,11 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
     for (let n = 2; store.state.profiles.some((profile) => profile.id === id); n++) id = `${base}-${n}`;
     return id;
   };
-  function activate(id: SectionId) {
-    setSection(id);
-    if (panels.current) panels.current.scrollTop = 0;
-  }
   function showErrors(issues: FormError[]) {
     setErrors(issues);
     const first = issues.find((issue) => issue.path && relevant(issue.path));
     if (first?.path) {
-      activate(first.path === 'id' ? 'connection' : setting(first.path)[2]);
+      setSection(first.path === 'id' ? 'connection' : setting(first.path)[2]);
     }
   }
   useLayoutEffect(() => {
@@ -645,171 +641,105 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
     .join('\n');
   const errorFor = (path: string) => errors.find((error) => error.path === path && relevant(path))?.message;
   const source = store.state.profiles.find((profile) => profile.id === draft.id);
-  const row = (label: string, id: string, control: ReactNode, error?: string) => (
-    <div className={`field${error ? ' invalid' : ''}`}>
-      <div className="field-head">
-        <label className="field-label" htmlFor={id}>
-          {label}
-        </label>
-      </div>
-      <div className="field-body">
-        {control}
-        <span className="field-reset-space" />
-      </div>
-      <p className="field-error" id={`${id}-error`} hidden={!error}>
-        {error}
-      </p>
-    </div>
+  function reset(path: string) {
+    setValues((previous) => ({ ...previous, [path]: initial(path, undefined) }));
+    setTouched((previous) => new Set([...previous, path]));
+    requestAnimationFrame(() => dialog.current?.ownerDocument.getElementById(idFor(path))?.focus());
+  }
+  const panel = (id: SectionId) => (
+    <>
+      {id === 'connection' && !editing && (
+        <Field
+          label="Profile ID"
+          id="field-profile-id"
+          className={errorFor('id') ? 'invalid' : ''}
+          error={errorFor('id')}
+          trailing={<span className="field-reset-space" />}
+        >
+          <input
+            id="field-profile-id"
+            name="profile-id"
+            className="input mono"
+            type="text"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={suggestedId()}
+            value={profileId}
+            onChange={(e) => setProfileId(e.target.value)}
+            aria-invalid={!!errorFor('id') || undefined}
+            aria-describedby={errorFor('id') ? 'field-profile-id-error' : undefined}
+          />
+        </Field>
+      )}
+      {settings
+        .filter(([, , section]) => section === id)
+        .map(([path, label]) => {
+          const error = errorFor(path),
+            over = overridden(path);
+          return (
+            <Field
+              key={path}
+              label={label}
+              id={idFor(path)}
+              className={`${over ? 'overridden' : ''}${error ? ' invalid' : ''}`.trim()}
+              error={error}
+              data-path={path}
+              hidden={!relevant(path)}
+              trailing={
+                <IconButton
+                  icon="undo"
+                  label={`Reset ${label}`}
+                  className="field-reset"
+                  disabled={!over}
+                  onClick={() => reset(path)}
+                />
+              }
+            >
+              <Control
+                path={path}
+                value={values[path]}
+                update={(patch) => update(path, patch)}
+                inherited={inherited(path)}
+                inheritLabel={inheritLabel(path)}
+                baseline={get(draft.spec, path)}
+                method={method}
+                error={error}
+              />
+            </Field>
+          );
+        })}
+      {id === 'connection' && (
+        <Field label="Tags" id="field-tags" trailing={<span className="field-reset-space" />}>
+          <div className="stack">
+            <ItemList
+              id="field-tags"
+              value={tags}
+              label="Add Tag"
+              placeholder="Tag"
+              onChange={(value) => {
+                setTags(value);
+                setTagsEdited(true);
+              }}
+            />
+          </div>
+        </Field>
+      )}
+    </>
   );
   return (
-    <dialog
-      ref={dialog}
-      id="connection-dialog"
-      className="form-dialog"
-      aria-labelledby="connection-title"
+    <FormDialog
+      name="connection"
+      dialog={dialog}
+      icon="terminal"
+      title={source ? profileName(source) : (draft.id ?? 'New Profile')}
+      context={editing ? draft.id : undefined}
+      onSubmit={() => void submit(editing ? 'save' : 'connect')}
       onClose={() => {
         shown = undefined;
         render();
       }}
-    >
-      <form
-        className="connection-form"
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit(editing ? 'save' : 'connect');
-        }}
-      >
-        <header className="dialog-header">
-          <span className="dialog-icon">
-            <Icon name="terminal" />
-          </span>
-          <div className="dialog-titles">
-            <h2 id="connection-title">{source ? profileName(source) : (draft.id ?? 'New Profile')}</h2>
-            {editing && <p className="dialog-context">{draft.id}</p>}
-          </div>
-        </header>
-        <div className="form-layout">
-          <div
-            className="section-nav"
-            role="tablist"
-            aria-orientation="vertical"
-            aria-label="Settings"
-            onKeyDown={(event) => {
-              if (!moveFocus([...event.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')], event.key, true)) return;
-              event.preventDefault();
-              activate(event.currentTarget.ownerDocument.activeElement!.id.slice('tab-'.length) as SectionId);
-            }}
-          >
-            {sections.map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={`section-tab${errors.some((error) => error.path && relevant(error.path) && (error.path === 'id' ? 'connection' : setting(error.path)[2]) === id) ? ' has-error' : ''}`}
-                role="tab"
-                id={`tab-${id}`}
-                aria-controls={`panel-${id}`}
-                aria-selected={id === section}
-                tabIndex={id === section ? 0 : -1}
-                onClick={() => activate(id)}
-              >
-                <span>{label}</span>
-                <span className="section-count" hidden={!counts.get(id)}>
-                  {counts.get(id) ?? 0}
-                </span>
-              </button>
-            ))}
-          </div>
-          <div ref={panels} className="section-panels">
-            {sections.map(([id, label]) => (
-              <div
-                key={id}
-                className="section-panel"
-                role="tabpanel"
-                id={`panel-${id}`}
-                aria-labelledby={`tab-${id}`}
-                hidden={section !== id}
-              >
-                <h3 className="panel-title">{label}</h3>
-                {id === 'connection' &&
-                  !editing &&
-                  row(
-                    'Profile ID',
-                    'field-profile-id',
-                    <input
-                      id="field-profile-id"
-                      name="profile-id"
-                      className="input mono"
-                      type="text"
-                      autoComplete="off"
-                      spellCheck={false}
-                      placeholder={suggestedId()}
-                      value={profileId}
-                      onChange={(e) => setProfileId(e.target.value)}
-                      aria-invalid={!!errorFor('id') || undefined}
-                      aria-describedby={errorFor('id') ? 'field-profile-id-error' : undefined}
-                    />,
-                    errorFor('id'),
-                  )}
-                {settings
-                  .filter(([, , section]) => section === id)
-                  .map(([path, label]) => (
-                    <Fragment key={path}>
-                      <SettingField
-                        path={path}
-                        label={label}
-                        overridden={overridden(path)}
-                        hidden={!relevant(path)}
-                        error={errorFor(path)}
-                        reset={() => {
-                          setValues((previous) => ({ ...previous, [path]: initial(path, undefined) }));
-                          setTouched((previous) => new Set([...previous, path]));
-                          requestAnimationFrame(() => dialog.current?.ownerDocument.getElementById(idFor(path))?.focus());
-                        }}
-                      >
-                        <Control
-                          path={path}
-                          value={values[path]}
-                          update={(patch) => update(path, patch)}
-                          inherited={inherited(path)}
-                          inheritLabel={inheritLabel(path)}
-                          baseline={get(draft.spec, path)}
-                          method={method}
-                          error={errorFor(path)}
-                        />
-                      </SettingField>
-                    </Fragment>
-                  ))}
-                {id === 'connection' &&
-                  row(
-                    'Tags',
-                    'field-tags',
-                    <div className="stack">
-                      <ItemList
-                        id="field-tags"
-                        value={tags}
-                        label="Add Tag"
-                        placeholder="Tag"
-                        onChange={(value) => {
-                          setTags(value);
-                          setTagsEdited(true);
-                        }}
-                      />
-                    </div>,
-                  )}
-              </div>
-            ))}
-          </div>
-        </div>
-        <section className="command-preview" id="command-preview" hidden={!previewOpen}>
-          <pre className={`command mono${preview.error ? ' error' : ''}`} tabIndex={0} aria-label="Command">
-            {preview.text}
-          </pre>
-        </section>
-        <div className="form-notice" hidden={!reconnectNotice}>
-          <p role="status">Changes will apply when you reconnect.</p>
-        </div>
-        <footer className="dialog-actions">
+      actions={
+        <>
           <Button
             className="ghost"
             aria-expanded={previewOpen}
@@ -837,54 +767,36 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
           <button type="submit" className="button primary" disabled={!!busy}>
             {editing ? (busy === 'save' ? 'Saving…' : 'Save') : busy === 'connect' ? 'Connecting…' : 'Connect'}
           </button>
-        </footer>
-      </form>
-    </dialog>
-  );
-}
-function SettingField({
-  path,
-  label,
-  children,
-  overridden,
-  hidden,
-  error,
-  reset,
-}: {
-  path: string;
-  label: string;
-  children: ReactNode;
-  overridden: boolean;
-  hidden: boolean;
-  error?: string;
-  reset(): void;
-}) {
-  const id = idFor(path);
-  return (
-    <div
-      className={`field${overridden ? ' overridden' : ''}${error ? ' invalid' : ''}`}
-      data-path={path}
-      hidden={hidden}
+        </>
+      }
     >
-      <div className="field-head">
-        <label className="field-label" htmlFor={id}>
-          {label}
-        </label>
+      <Sections<SectionId>
+        name="connection"
+        label="Settings"
+        sections={sections}
+        active={section}
+        onActivate={setSection}
+        badge={(id) => counts.get(id)}
+        invalid={(id) =>
+          errors.some(
+            (error) =>
+              error.path &&
+              relevant(error.path) &&
+              (error.path === 'id' ? 'connection' : setting(error.path)[2]) === id,
+          )
+        }
+      >
+        {panel}
+      </Sections>
+      <section className="command-preview" id="command-preview" hidden={!previewOpen}>
+        <pre className={`command mono${preview.error ? ' error' : ''}`} tabIndex={0} aria-label="Command">
+          {preview.text}
+        </pre>
+      </section>
+      <div className="form-notice" hidden={!reconnectNotice}>
+        <p role="status">Changes will apply when you reconnect.</p>
       </div>
-      <div className="field-body">
-        {children}
-        <IconButton
-          icon="undo"
-          label={`Reset ${label}`}
-          className="field-reset"
-          disabled={!overridden}
-          onClick={reset}
-        />
-      </div>
-      <p className="field-error" id={`${id}-error`} hidden={!error}>
-        {error}
-      </p>
-    </div>
+    </FormDialog>
   );
 }
 const launching = new Set<string>();

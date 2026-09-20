@@ -7,6 +7,11 @@ export async function openSettings(page) {
   await expect(dialog).toBeVisible();
   return dialog;
 }
+/** Shows a section of a form dialog by its tab. */
+export async function showSection(dialog, name) {
+  await dialog.getByRole('tab', { name, exact: true }).click();
+  return dialog;
+}
 export async function closeSettings(page) {
   const dialog = (await modalOf(page)).locator('#settings-dialog');
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();

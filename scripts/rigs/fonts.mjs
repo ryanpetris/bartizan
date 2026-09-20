@@ -4,7 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { withDirectory, startSshd, sshProfile, launch, waitFor } from './lib/harness.mjs';
-import { openSettings } from './lib/settings.mjs';
+import { openSettings, showSection } from './lib/settings.mjs';
 import { checkFontLoading } from './lib/font-loading.mjs';
 
 await withDirectory('fonts', async (directory, cleanup) => {
@@ -78,7 +78,9 @@ await withDirectory('fonts', async (directory, cleanup) => {
   console.log('A connection with its own font keeps it while the global terminal and interface fonts change.');
 
   const settings = await openSettings(page);
+  await showSection(settings, 'Terminal');
   await settings.getByRole('combobox', { name: 'Terminal Font', exact: true }).selectOption({ label: 'System Default' });
+  await showSection(settings, 'Appearance');
   await settings.getByRole('combobox', { name: 'Interface Font', exact: true }).selectOption({ label: 'Inter' });
   await waitState(s => s.settings.terminalFont === '' && s.settings.interfaceFont === 'Inter', 'saved fonts');
   await settings.getByRole('button', { name: 'Close', exact: true }).click();

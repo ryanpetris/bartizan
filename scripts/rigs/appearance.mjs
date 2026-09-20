@@ -4,7 +4,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from 'yaml';
 import { withDirectory, launch } from './lib/harness.mjs';
-import { openSettings, closeSettings, chooseAppearance, pickerBackground } from './lib/settings.mjs';
+import { openSettings, closeSettings, chooseAppearance, pickerBackground, showSection } from './lib/settings.mjs';
 
 const defaults = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true, terminalWebgl: false, remoteSessionIntegration: true };
 const dialogBackground = { dark: 'rgb(30, 32, 41)', light: 'rgb(255, 255, 255)' };
@@ -30,6 +30,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   const family = () => settingsDialog().getByRole('textbox', { name: 'Terminal Font Family', exact: true });
   const size = () => settingsDialog().getByRole('spinbutton', { name: 'Terminal Font Size', exact: true });
   const failure = `Could not save settings ${config}`;
+  const section = name => showSection(settingsDialog(), name);
 
   await writeFile(config, 'version: 1\n');
   let { page, state, api } = await start();
@@ -46,7 +47,10 @@ await withDirectory('appearance', async (directory, cleanup) => {
     await expect(page.locator('.rail')).toHaveCSS('background-color', railBackground[mode]);
     dialog = await openSettings(page);
     await expect(dialog).toHaveCSS('background-color', dialogBackground[mode]);
-    for (const select of [appearance(), fontChoice()]) assert.equal(await pickerBackground(app, select), dialogBackground[mode], `Settings options follow ${mode} appearance`);
+    for (const [name, select] of [['Appearance', appearance()], ['Terminal', fontChoice()]]) {
+      await section(name);
+      assert.equal(await pickerBackground(app, select), dialogBackground[mode], `Settings options follow ${mode} appearance`);
+    }
     await expect(dialog).toHaveJSProperty('open', true);
     await closeSettings(page);
     await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
@@ -75,6 +79,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   await appearance().selectOption('light');
   await colorScheme('light');
   await expect.poll(async () => (await saved())?.appearance).toBe('light');
+  await section('Terminal');
   await fontChoice().selectOption({ label: 'Custom' });
   await expect(family()).toBeFocused();
   await family().fill('  Bartizan Rig Mono  ');
@@ -94,6 +99,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   await page.reload();
   dialog = await openSettings(page);
   await expect(appearance()).toHaveValue('light');
+  await section('Terminal');
   await expect(fontChoice().locator('option:checked')).toHaveText('Custom');
   await expect(family()).toHaveValue('Bartizan Rig Mono');
   await expect(size()).toHaveValue('21');
@@ -127,6 +133,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   await expect(appearance()).toHaveValue('system');
   assert.equal(await themeSource(), 'system');
   // Closing the dialog confirms the typed size, so its failure arrives as the dialog goes.
+  await section('Terminal');
   await size().focus();
   await dialog.page().keyboard.press('Control+a');
   await dialog.page().keyboard.type('14');
@@ -138,10 +145,13 @@ await withDirectory('appearance', async (directory, cleanup) => {
   await writeFile(config, validSource);
   dialog = await openSettings(page);
   await expect(dialog.getByRole('alert')).toBeHidden();
+  await section('Terminal');
   await expect(size()).toHaveValue('21');
+  await section('Appearance');
   await appearance().selectOption('dark');
   await expect.poll(async () => (await saved())?.appearance).toBe('dark');
   await expect(dialog.getByRole('alert')).toBeHidden();
+  await section('Terminal');
   await expect(family()).toHaveValue('Bartizan Rig Mono');
   await closeSettings(page);
   console.log('A failed save is reported in the dialog, or as a toast once the dialog has closed, and leaves the settings unchanged.');

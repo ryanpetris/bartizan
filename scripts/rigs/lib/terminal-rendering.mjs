@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
-import { chooseAppearance, openSettings, closeSettings } from './settings.mjs';
+import { chooseAppearance, openSettings, closeSettings, showSection } from './settings.mjs';
 
 export async function testTerminalRendering(app, first, second) {
   const { application, page, api, state } = app;
@@ -69,7 +69,7 @@ export async function testTerminalRendering(app, first, second) {
     return page.evaluate(() => window.rigOutput.match(/TERMINAL_SIZE_(\d+)x(\d+)_END/).slice(1).map(Number));
   };
   const initialSize = await terminalSize();
-  let dialog = await openSettings(page);
+  let dialog = await showSection(await openSettings(page), 'Terminal');
   await dialog.getByRole('spinbutton', { name: 'Terminal Font Size', exact: true }).fill('18');
   await dialog.getByRole('spinbutton', { name: 'Terminal Font Size', exact: true }).press('Enter');
   await expect.poll(async () => (await settings()).terminalFontSize).toBe(18);
@@ -83,7 +83,7 @@ export async function testTerminalRendering(app, first, second) {
   await draw();
   await page.evaluate(id => window.bartizan.input(id, "printf 'FONT_%s\\n' KEPT\n"), first);
   await page.waitForFunction(() => window.rigOutput.includes('FONT_KEPT'));
-  dialog = await openSettings(page);
+  dialog = await showSection(await openSettings(page), 'Terminal');
   await dialog.getByRole('combobox', { name: 'Terminal Font', exact: true }).selectOption('JetBrains Mono');
   await dialog.getByRole('spinbutton', { name: 'Terminal Font Size', exact: true }).fill('13');
   await closeSettings(page);

@@ -1,10 +1,11 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { Settings as SettingsValue } from '../shared';
-import { Icon, Button, moveFocus } from './ui';
+import { Button, moveFocus } from './ui';
 import { themeIds, themes } from '../themes';
 import { registry } from './themes';
 import { api, store, render, report } from './store';
 import { openModal } from './dialogs';
+import { ClosedDialog, Field, FormDialog, Sections } from './form-dialog';
 import {
   FontPicker,
   interfaceFontFamily,
@@ -24,30 +25,14 @@ export function Settings() {
   useLayoutEffect(() => {
     document.documentElement.style.setProperty('--font-ui', interfaceFontFamily(current.interfaceFont));
   }, [current.interfaceFont]);
-  return opened ? <SettingsDialog /> : <dialog id="settings-dialog" className="settings-dialog" />;
+  return opened ? <SettingsDialog /> : <ClosedDialog name="settings" />;
 }
-function Field({
-  label,
-  id,
-  children,
-  className = '',
-}: {
-  label: string;
-  id: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={`field ${className}`.trim()}>
-      <div className="field-head">
-        <label className="field-label" htmlFor={id}>
-          {label}
-        </label>
-      </div>
-      <div className="field-body">{children}</div>
-    </div>
-  );
-}
+type SectionId = 'appearance' | 'terminal' | 'advanced';
+const sections: readonly (readonly [SectionId, string])[] = [
+  ['appearance', 'Appearance'],
+  ['terminal', 'Terminal'],
+  ['advanced', 'Advanced'],
+];
 /** Text typed into a field that is saved once confirmed. */
 type Drafts = { interfaceFont?: string; terminalFont?: string; terminalFontSize?: string };
 const validSize = (text: string) => /^\d+$/.test(text) && Number(text) >= 8 && Number(text) <= 32;
@@ -59,6 +44,7 @@ function SettingsDialog() {
   const [pending, setPending] = useState<Partial<SettingsValue>>({});
   const [drafts, setDrafts] = useState<Drafts>({});
   const [failure, setFailure] = useState('');
+  const [section, setSection] = useState<SectionId>('appearance');
   const settings = { ...store.state.settings, ...pending };
   const latest = useRef(drafts);
   latest.current = drafts;
@@ -124,30 +110,10 @@ function SettingsDialog() {
   );
   const size = drafts.terminalFontSize ?? String(settings.terminalFontSize);
   const invalid = drafts.terminalFontSize !== undefined && !validSize(drafts.terminalFontSize);
-  return (
-    <dialog
-      ref={dialog}
-      id="settings-dialog"
-      className="settings-dialog"
-      aria-labelledby="settings-title"
-      onClose={() => {
-        commit('interfaceFont');
-        commit('terminalFont');
-        commit('terminalFontSize');
-        opened = false;
-        render();
-      }}
-    >
-      <div className="settings">
-        <header className="dialog-header">
-          <span className="dialog-icon">
-            <Icon name="settings" />
-          </span>
-          <div className="dialog-titles">
-            <h2 id="settings-title">Settings</h2>
-          </div>
-        </header>
-        <div className="settings-body">
+  const panel = (id: SectionId) => {
+    if (id === 'appearance')
+      return (
+        <>
           <Field label="Appearance" id="settings-appearance">
             <select
               id="settings-appearance"
@@ -160,51 +126,49 @@ function SettingsDialog() {
               <option value="system">System</option>
             </select>
           </Field>
-          <div className="field">
-            <div className="field-head">
-              <span className="field-label" id="settings-theme-label">
-                Theme
-              </span>
+          <Field label="Theme" id="settings-theme" group>
+            <div
+              className="theme-picker"
+              role="radiogroup"
+              aria-labelledby="settings-theme-label"
+              onKeyDown={(event) => {
+                const options = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]')];
+                const key = { ArrowLeft: 'ArrowUp', ArrowRight: 'ArrowDown' }[event.key] ?? event.key;
+                if (!moveFocus(options, key, true)) return;
+                event.preventDefault();
+                (event.currentTarget.ownerDocument.activeElement as HTMLElement).click();
+              }}
+            >
+              {themeIds.map((id) => {
+                const { Preview } = registry[id];
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    id={`settings-theme-${id}`}
+                    className="theme-option"
+                    aria-checked={settings.theme === id}
+                    tabIndex={settings.theme === id ? 0 : -1}
+                    onClick={() => settings.theme !== id && save({ theme: id })}
+                  >
+                    <Preview />
+                    <span>{themes[id].name}</span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="field-body">
-              <div
-                className="theme-picker"
-                role="radiogroup"
-                aria-labelledby="settings-theme-label"
-                onKeyDown={(event) => {
-                  const options = [...event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]')];
-                  const key = { ArrowLeft: 'ArrowUp', ArrowRight: 'ArrowDown' }[event.key] ?? event.key;
-                  if (!moveFocus(options, key, true)) return;
-                  event.preventDefault();
-                  (event.currentTarget.ownerDocument.activeElement as HTMLElement).click();
-                }}
-              >
-                {themeIds.map((id) => {
-                  const { Preview } = registry[id];
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      role="radio"
-                      id={`settings-theme-${id}`}
-                      className="theme-option"
-                      aria-checked={settings.theme === id}
-                      tabIndex={settings.theme === id ? 0 : -1}
-                      onClick={() => settings.theme !== id && save({ theme: id })}
-                    >
-                      <Preview />
-                      <span>{themes[id].name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+          </Field>
           {themes[settings.theme].interfaceFont !== false && (
             <Field label="Interface Font" id="settings-interface-font">
               {picker('interfaceFont', 'settings-interface-font', 'Interface Font', bundledInterfaceFont)}
             </Field>
           )}
+        </>
+      );
+    if (id === 'terminal')
+      return (
+        <>
           <Field label="Terminal Font" id="settings-font">
             {picker('terminalFont', 'settings-font', 'Terminal Font', bundledTerminalFont)}
           </Field>
@@ -228,14 +192,6 @@ function SettingsDialog() {
               <span className="unit">px</span>
             </div>
           </Field>
-          <Field label="Remote Sessions" id="settings-remote-sessions">
-            <input id="settings-remote-sessions" type="checkbox" checked={settings.remoteSessionIntegration}
-              onChange={(e) => save({ remoteSessionIntegration: e.target.checked })} />
-          </Field>
-          <Field label="WebGL Rendering" id="settings-webgl">
-            <input id="settings-webgl" type="checkbox" checked={settings.terminalWebgl}
-              onChange={(e) => save({ terminalWebgl: e.target.checked })} />
-          </Field>
           <Field label="Terminal Ligatures" id="settings-ligatures">
             <input
               id="settings-ligatures"
@@ -251,14 +207,55 @@ function SettingsDialog() {
           >
             {'AaBbCc 0O 1lI {}[]()\n-> => == != <= >= === !== && ||\n─┬─┼─┴─ ▁▃▅▇█ ░▒▓'}
           </pre>
-        </div>
-        <footer className="dialog-actions">
-          <p className="dialog-error" role="alert" hidden={!failure}>
+        </>
+      );
+    return (
+      <>
+        <Field label="WebGL Rendering" id="settings-webgl">
+          <input
+            id="settings-webgl"
+            type="checkbox"
+            checked={settings.terminalWebgl}
+            onChange={(e) => save({ terminalWebgl: e.target.checked })}
+          />
+        </Field>
+        <Field label="Remote Sessions" id="settings-remote-sessions">
+          <input
+            id="settings-remote-sessions"
+            type="checkbox"
+            checked={settings.remoteSessionIntegration}
+            onChange={(e) => save({ remoteSessionIntegration: e.target.checked })}
+          />
+        </Field>
+      </>
+    );
+  };
+  return (
+    <FormDialog
+      name="settings"
+      dialog={dialog}
+      icon="settings"
+      title="Settings"
+      actions={
+        <>
+          <p className="form-error" role="alert" hidden={!failure}>
             {failure}
           </p>
+          <span className="spacer" />
           <Button onClick={() => dialog.current!.close()}>Close</Button>
-        </footer>
-      </div>
-    </dialog>
+        </>
+      }
+      onClose={() => {
+        commit('interfaceFont');
+        commit('terminalFont');
+        commit('terminalFontSize');
+        opened = false;
+        render();
+      }}
+    >
+      <Sections<SectionId> name="settings" label="Sections" sections={sections} active={section} onActivate={setSection}>
+        {panel}
+      </Sections>
+    </FormDialog>
   );
 }

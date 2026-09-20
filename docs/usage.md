@@ -93,7 +93,7 @@ A page sees the find, reload, print and zoom keys first, so a site that uses the
 
 ## Appearance and Errors
 
-Open **Settings** to choose Dark, Light or System appearance, a theme, an interface font, a terminal font, terminal size and ligatures.
+Open **Settings** to choose Dark, Light or System appearance, a theme and an interface font under **Appearance**; the terminal font, its size and ligatures under **Terminal**; and WebGL rendering and remote sessions under **Advanced**.
 
 A theme is a layout of the window with its own colours, terminal colours and scroll bars, in both appearances:
 
