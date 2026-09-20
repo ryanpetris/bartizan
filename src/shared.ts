@@ -60,15 +60,20 @@ export function normalizeHost(input: string): string | undefined {
   return host;
 }
 /** Parses Connect's search as a destination, without DNS lookup or shell interpretation. */
-export function parseDestination(input: string): { host: string; username?: string } | undefined {
+export function parseDestination(input: string): { host: string; username?: string; port?: number } | undefined {
   if (input.length > 8193 || /[\x00-\x1f\x7f-\x9f]/.test(input)) return;
   const value = input.trim();
   const at = value.indexOf('@');
-  const host = normalizeHost(value.slice(at + 1));
+  const endpoint = value.slice(at + 1);
+  const withPort = /^(\[[^\]]+\]|[^:]+):([0-9]+)$/.exec(endpoint);
+  const port = withPort ? Number(withPort[2]) : undefined;
+  if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535)) return;
+  const host = normalizeHost(withPort ? withPort[1]! : endpoint);
   if (!host) return;
-  if (at < 0) return { host };
+  const destination = { host, ...(port !== undefined && { port }) };
+  if (at < 0) return destination;
   const username = value.slice(0, at);
-  if (username && usernamePattern.test(username)) return { host, username };
+  if (username && usernamePattern.test(username)) return { ...destination, username };
 }
 export const backends = ['tmux', 'screen', 'herdr'] as const;
 /** Backends are written as their own projects write them. */
@@ -106,7 +111,7 @@ export type ErrorReport = { source: string; message: string; connectionId?: stri
 export type Appearance = 'dark' | 'light' | 'system';
 export type Settings = { appearance: Appearance; theme: ThemeId; interfaceFont: string; terminalFont: string; terminalFontSize: number; terminalLigatures: boolean; remoteSessionIntegration: boolean };
 export const defaultSettings: Settings = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true, remoteSessionIntegration: true };
-export type ConnectTarget = { profileId: string } | { host: string; username?: string };
+export type ConnectTarget = { profileId: string } | { host: string; username?: string; port?: number };
 export type ProfileDraft = { token: string; id?: string; file: string; spec: PublicSpec; tags: string[] };
 export type ProfileChanges = { token: string; values: Spec; reset: string[]; tags?: string[] };
 export type ProfileSaveResult = { profileId: string; connectionId?: string; connectionError?: string };

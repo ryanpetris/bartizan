@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { ensureConfiguration, loadCatalog, resolveSpec, redactSpec, type Spec, type Catalog } from '../core/config';
+import { ensureConfiguration, loadCatalog, resolveSpec, redactSpec, specSchema, type Spec, type Catalog } from '../core/config';
 import { masterArgs } from '../core/ssh';
 import { Askpass } from '../main/askpass';
 import { Sessions } from '../main/sessions';
@@ -147,7 +147,7 @@ export async function createBackend(options: BackendOptions) {
     return result;
   }); });
   handle('details', (id: unknown) => sessions.details(z.string().parse(id)));
-  const targetSchema = z.union([z.strictObject({ profileId: z.string() }), z.strictObject({ host: z.string(), username: z.string().optional() })]);
+  const targetSchema = z.union([z.strictObject({ profileId: z.string() }), z.strictObject({ host: z.string(), username: z.string().optional(), port: specSchema.shape.port })]);
   handle('connect', (input: unknown) => serialize(async () => {
     const target = targetSchema.parse(input);
     if (!('profileId' in target)) return createConnection({ ...resolveSpec(catalog, undefined, target), remote_sessions: undefined });

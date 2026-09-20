@@ -20,7 +20,7 @@ OpenSSH must be installed. Chromium's sandbox needs working user namespaces, or 
 3. Check the host key fingerprint when prompted, then accept it if it matches the server's key.
 4. Use the connection's add menu to open more terminals or a browser session.
 
-You can also type a hostname or `user@host` into the search in Connect for a one-off connection using your configured defaults. Saved profiles appear in the same search.
+You can also type a hostname or `user@host` into the search in Connect for a one-off connection using your configured defaults. Append `:port` for a custom port, with brackets around IPv6 addresses, such as `user@[2001:db8::1]:222`. Saved profiles appear in the same search.
 
 Bartizan uses its own SSH settings and trust store. It does not read your existing SSH configuration. Add connection details in the app or in the [configuration file](configuration.md).
 

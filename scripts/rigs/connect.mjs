@@ -247,8 +247,22 @@ await withDirectory('connect', async (directory, cleanup) => {
   await api('reloadConfig');
   console.log('Quick-connect icons match their connection badges with explicit, default and omitted usernames.');
 
+  await writeFile(config, source.replace(`port: ${sshd.port}`, 'port: 1'));
+  await api('reloadConfig');
+  for (const destination of [`[::1]:${sshd.port}`, `${userInfo().username}@[::1]:${sshd.port}`]) {
+    await openConnect();
+    await search.fill(destination);
+    await expect(options).toHaveCount(1);
+    await expect(options.first()).toHaveAccessibleName(`Connect to ${destination}`);
+    await search.press('Enter');
+    await verify('::1', undefined, destination.includes('@') ? userInfo().username : undefined);
+  }
+  await writeFile(config, source);
+  await api('reloadConfig');
+  console.log('Explicit IPv6 ports connect through SSH and override the configured default.');
+
   await openConnect();
-  for (const invalid of ['@host', 'host:22', '[::1', '999.1.1.1']) {
+  for (const invalid of ['@host', 'host:65536', '[::1', '999.1.1.1']) {
     await search.fill(invalid);
     await expect(options).toHaveCount(0);
     await expect(dialog.getByText('No Results Found', { exact: true })).toBeVisible();

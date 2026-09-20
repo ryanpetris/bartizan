@@ -231,7 +231,8 @@ function ConnectDialog() {
               const shown = index === chosen,
                 key = resultKey(result);
               if (result.kind === 'destination') {
-                const { host, username } = result.destination;
+                const { host, username, port } = result.destination;
+                const endpoint = port === undefined ? host : `${host.includes(':') ? `[${host}]` : host}:${port}`;
                 return (
                   <div key={key} role="row" className="row picker-row destination-row" data-key={key}>
                     <div role="gridcell" id={cellId(result)} aria-selected={shown || undefined}>
@@ -246,7 +247,7 @@ function ConnectDialog() {
                           <Identicon seed={destinationSeed(host, username ?? store.state.defaults.username)} />
                         </span>
                         <span className="destination-label">
-                          Connect to <span className="destination-target mono">{username ? `${username}@${host}` : host}</span>
+                          Connect to <span className="destination-target mono">{username ? `${username}@${endpoint}` : endpoint}</span>
                         </span>
                       </button>
                     </div>
