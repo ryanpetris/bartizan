@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { browserSessionName } from '../shared';
 import { Icon, IconButton, colorStyle } from './ui';
-import { store, select, connectionOf, terminalName, sessionColor, statusText, openTerminal, openBrowserTab, reconnect } from './store';
+import { store, select, showConnect, connectionOf, terminalName, sessionColor, statusText, openTerminal, openBrowserTab, reconnect } from './store';
 import { openSettings } from './settings';
-import { openConnect } from './connect';
 import { openDetails } from './details';
 
+/** What each page that belongs to no connection's items is called, in the bar over the view and on the page itself. */
+export const pageName = { connect: 'Connect', remote: 'Remote Sessions' } as const;
 /** What is in view: the selected terminal or browser session, the connection that owns it, and the item whose status describes it. */
 export function viewContext() {
   const selection = store.selection;
@@ -16,7 +17,15 @@ export function viewContext() {
   const owner = connectionOf(
     terminal?.connectionId ?? workspace?.connectionId ?? (selection?.kind === 'connection' || selection?.kind === 'remote' ? selection.id : ''),
   );
-  const name = terminal ? terminalName(terminal) : workspace ? browserSessionName(workspace) : selection?.kind === 'remote' ? 'Remote Sessions' : '';
+  const name = terminal
+    ? terminalName(terminal)
+    : workspace
+      ? browserSessionName(workspace)
+      : selection?.kind === 'remote'
+        ? pageName.remote
+        : selection?.kind === 'connect'
+          ? pageName.connect
+          : '';
   const source = owner?.status === 'connecting' || !terminal ? owner : terminal;
   return { terminal, workspace, owner, name, source };
 }
@@ -49,9 +58,13 @@ export function HomeButton({ children }: { children?: ReactNode }) {
 /** The window's title, which names what is in view. */
 export function windowTitle() {
   const { owner, name } = viewContext();
-  return owner ? `${owner.label}${name ? ` · ${name}` : ''} — Bartizan` : 'Bartizan';
+  if (owner) return `${owner.label}${name ? ` · ${name}` : ''} — Bartizan`;
+  return name ? `${name} — Bartizan` : 'Bartizan';
 }
-/** Names what is in view and labels the view; every theme shows it once while a connection is in view. */
+/**
+ * Names what is in view and labels the view; every theme shows it once while a connection is in view, and for a page of
+ * its own, such as Connect, it names the page alone, without a connection's status.
+ */
 export function ContextTitle() {
   const { workspace, owner, name, source } = viewContext();
   return (
@@ -59,9 +72,11 @@ export function ContextTitle() {
       <span className="titlebar-marker" role="img" aria-label={source && statusText(source)} hidden={!owner} style={colorStyle(workspace && sessionColor(workspace))}>
         {workspace ? <Icon name="window" /> : <span className="status-dot" data-status={source?.status} />}
       </span>
-      <div className="titlebar-titles" hidden={!owner}>
+      <div className="titlebar-titles" hidden={!owner && !name}>
         <h1 className="titlebar-heading" id="view-title">
-          <span className="titlebar-group">{owner?.label}</span>
+          <span className="titlebar-group" hidden={!owner}>
+            {owner?.label}
+          </span>
           <span className="titlebar-item" hidden={!name}>
             {name}
           </span>
@@ -105,6 +120,14 @@ export function ContextActions() {
 export function AppActions() {
   return <IconButton icon="settings" label="Settings" aria-haspopup="dialog" onClick={openSettings} />;
 }
+/** The way to the Connect page, which is current while that page is in view. */
 export function NewConnectionButton() {
-  return <IconButton icon="plus" label="New Connection" aria-haspopup="dialog" onClick={openConnect} />;
+  return (
+    <IconButton
+      icon="plus"
+      label="New Connection"
+      aria-current={store.selection?.kind === 'connect' ? 'page' : undefined}
+      onClick={showConnect}
+    />
+  );
 }

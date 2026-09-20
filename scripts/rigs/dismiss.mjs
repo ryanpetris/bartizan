@@ -14,31 +14,31 @@ await withDirectory('dismiss', async (directory, cleanup) => {
   const { page, api, waitState, errors } = app;
   const dialogs = await app.modal();
   const add = page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true });
-  const connect = dialogs.locator('#connect-dialog');
+  const connect = page.locator('.connect');
+  const settingsButton = page.getByRole('button', { name: 'Settings', exact: true });
+  const settings = dialogs.locator('#settings-dialog');
   const form = dialogs.locator('#connection-dialog');
   const prompt = dialogs.locator('#auth-dialog');
   /** Clicks the backdrop at the top left corner, clear of every dialog. */
   const backdrop = () => dialogs.mouse.click(8, 8);
 
   // A click on the backdrop dismisses a dialog, and focus returns to where it was; a press inside that is released outside does not.
-  await add.click();
-  await expect(connect).toBeVisible();
-  const search = connect.getByRole('combobox', { name: 'Profile or Host', exact: true });
-  const box = await search.boundingBox();
+  await settingsButton.click();
+  await expect(settings).toBeVisible();
+  const appearance = settings.getByRole('combobox', { name: 'Appearance', exact: true });
+  const box = await settings.locator('#settings-title').boundingBox();
   await dialogs.mouse.move(box.x + 10, box.y + box.height / 2);
   await dialogs.mouse.down();
   await dialogs.mouse.move(8, 8, { steps: 5 });
   await dialogs.mouse.up();
-  await expect(connect).toBeVisible();
+  await expect(settings).toBeVisible();
   await backdrop();
-  await expect(connect).toBeHidden();
-  await expect(add).toBeFocused();
-  console.log('A click on the backdrop dismisses Connect and returns focus; a press inside released on the backdrop does not.');
+  await expect(settings).toBeHidden();
+  await expect(settingsButton).toBeFocused();
+  console.log('A click on the backdrop dismisses Settings and returns focus; a press inside released on the backdrop does not.');
 
   // A click on the backdrop that closes a select's list leaves the dialog open.
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  const settings = dialogs.locator('#settings-dialog');
-  const appearance = settings.getByRole('combobox', { name: 'Appearance', exact: true });
+  await settingsButton.click();
   await appearance.click();
   await expect(appearance.locator('option').nth(1)).toBeVisible();
   await backdrop();
@@ -98,16 +98,16 @@ await withDirectory('dismiss', async (directory, cleanup) => {
   console.log('A backdrop click cancels an untouched authentication prompt and holds one with a typed answer.');
 
   // Only the top dialog of a stack is dismissed.
-  await add.click();
-  await expect(connect).toBeVisible();
+  await settingsButton.click();
+  await expect(settings).toBeVisible();
   await app.application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
   const quit = dialogs.locator('#quit-dialog');
   await expect(quit).toBeVisible();
   await backdrop();
   await expect(quit).toBeHidden();
-  await expect(connect).toBeVisible();
+  await expect(settings).toBeVisible();
   await backdrop();
-  await expect(connect).toBeHidden();
+  await expect(settings).toBeHidden();
   assert.deepEqual(errors, []);
   console.log('A backdrop click dismisses only the dialog on top.');
 });

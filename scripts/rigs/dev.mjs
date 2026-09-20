@@ -62,11 +62,12 @@ await withDirectory('dev', async (directory, cleanup) => {
     await page.evaluate(() => { window.rigDocument = true; });
     await page.getByRole('button', { name: 'New Connection', exact: true }).click();
     let modal = await modalOf(page);
-    await modal.getByRole('combobox', { name: 'Profile or Host', exact: true }).fill('refresh-state');
-    await edit('renderer/home.tsx', source => source.replace('          Bartizan', '          Refreshed'));
-    await expect(page.locator('#home-title')).toHaveText('Refreshed');
+    const connectSearch = page.getByRole('combobox', { name: 'Profile or Host', exact: true });
+    await connectSearch.fill('refresh-state');
+    await edit('renderer/picker.tsx', source => source.replace('placeholder="Search"', 'placeholder="Refreshed"'));
+    await expect(connectSearch).toHaveAttribute('placeholder', 'Refreshed');
     assert.equal(await page.evaluate(() => window.rigDocument), true, 'Component refresh keeps the document');
-    await expect(modal.getByRole('combobox', { name: 'Profile or Host', exact: true })).toHaveValue('refresh-state');
+    await expect(connectSearch).toHaveValue('refresh-state');
     await edit('renderer/style.css', source => `${source}\n:root { --rig-style: refreshed; }\n`);
     for (const target of [page, modal]) await expect.poll(() => target.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--rig-style').trim())).toBe('refreshed');
     assert.equal(await page.evaluate(() => window.rigDocument), true, 'CSS updates keep the document');
@@ -83,7 +84,7 @@ await withDirectory('dev', async (directory, cleanup) => {
     await expect.poll(connected).toBe('connected');
     modal = await modalOf(page);
     await page.getByRole('button', { name: 'New Connection', exact: true }).click();
-    await expect(modal.locator('#connect-dialog')).toBeVisible();
+    await expect(page.locator('.connect')).toBeVisible();
     await page.evaluate(() => { window.rigDocument = true; });
     await edit('renderer/overlay.tsx', source => `${source}\n// rig overlay edit\n`);
     await page.waitForFunction(() => window.rigDocument === undefined);

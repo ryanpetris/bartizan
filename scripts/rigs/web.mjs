@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { get } from 'node:http';
 import { WebSocket } from 'ws';
 import electron from 'electron';
+import { tabToResults } from './lib/profile-launch.mjs';
 import { withDirectory, startSshd, sshProfile, waitFor } from './lib/harness.mjs';
 import { checkFontLoading } from './lib/font-loading.mjs';
 
@@ -40,27 +41,28 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(url);
   await checkFontLoading(page, page);
-  // Connect draws in the page, where there is no overlay, and hands focus back to New Connection as it closes.
+  // Connect is a page of the browser build too, marking New Connection as the place in view.
   const start = page.getByRole('button', { name: 'New Connection', exact: true });
   await start.click();
-  const connectSearch = page.locator('#connect-dialog').getByRole('combobox', { name: 'Profile or Host', exact: true });
+  await expect(start).toHaveAttribute('aria-current', 'page');
+  const connectSearch = page.locator('.connect').getByRole('combobox', { name: 'Profile or Host', exact: true });
   await expect(connectSearch).toBeFocused();
-  await expect(page.locator('#connect-dialog .profile-row[data-id="fixture"]')).toBeVisible();
-  // With nothing highlighted, Tab takes focus from the search to the first result; Right moves to its Edit, and Escape
-  // back to the search, from where Tab returns to the result itself.
-  const fixture = page.locator('#connect-dialog .profile-row[data-id="fixture"] .profile-item');
-  await connectSearch.press('Tab');
+  await expect(page.locator('.connect .profile-row[data-id="fixture"]')).toBeVisible();
+  // With nothing highlighted, Tab past the page's controls takes focus to the first result; Right moves to its Edit, and
+  // Escape back to the search, from where Tab returns to the result itself.
+  const fixture = page.locator('.connect .profile-row[data-id="fixture"] .profile-item');
+  await tabToResults(page);
   await expect(fixture).toBeFocused();
   await page.keyboard.press('ArrowRight');
-  await expect(page.locator('#connect-dialog .profile-row[data-id="fixture"] .profile-edit')).toBeFocused();
+  await expect(page.locator('.connect .profile-row[data-id="fixture"] .profile-edit')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(connectSearch).toBeFocused();
-  await connectSearch.press('Tab');
+  await tabToResults(page);
   await expect(fixture).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(connectSearch).toBeFocused();
-  await page.locator('#connect-dialog').getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(start).toBeFocused();
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await expect(page.locator('.connect')).toBeHidden();
   const api = (name, ...args) => page.evaluate(({ name, args }) => window.bartizan[name](...args), { name, args });
   assert.deepEqual(await api('capabilities'), { embeddedBrowser: false, nativeFilePicker: false });
   await assert.rejects(api('newBrowser', 'missing'), /Unsupported operation/);
@@ -73,7 +75,7 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   });
   // Choosing a profile in Connect connects it, and its terminal takes focus.
   await start.click();
-  await page.locator('#connect-dialog .profile-row[data-id="fixture"] .profile-item').click();
+  await page.locator('.connect .profile-row[data-id="fixture"] .profile-item').click();
   await page.waitForFunction(() => window.rigState?.terminals[0]?.status === 'connected');
   const connection = await page.evaluate(() => window.rigState.connections[0].id);
   const terminal = await page.evaluate(() => window.rigState.terminals[0].id);

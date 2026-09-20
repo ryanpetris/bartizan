@@ -10,6 +10,7 @@ import {
   render,
   useStore,
   select,
+  showConnect,
   exists,
   stateApplied,
   focusView,
@@ -31,7 +32,7 @@ import { windowTitle } from './chrome';
 import { Challenges } from './challenges';
 import { Settings } from './settings';
 import { ModalLayer, Modal } from './overlay';
-import { Connect, openConnect } from './connect';
+import { Connect } from './connect';
 import { Details } from './details';
 import { Quit, openQuit } from './quit';
 import { KillSession } from './kill-session';
@@ -173,7 +174,7 @@ function App() {
           break;
         case 'browser-shortcut':
           if (store.selection?.kind !== 'browser' || store.selection.id !== event.id || dialogOpen()) break;
-          if (event.action === 'new-connection') openConnect();
+          if (event.action === 'new-connection') showConnect();
           else browser.shortcut(event.action);
           break;
         case 'confirm-quit':
@@ -193,7 +194,7 @@ function App() {
       if (shortcut === 'new-connection') {
         event.preventDefault();
         event.stopPropagation();
-        if (!dialogOpen()) openConnect();
+        if (!dialogOpen()) showConnect();
       } else if (shortcut && store.selection?.kind === 'browser' && !dialogOpen()) {
         event.preventDefault();
         event.stopPropagation();
@@ -216,6 +217,7 @@ function App() {
           <terminals.Terminals />
           <browser.Browser />
           <RemoteSessions />
+          <Connect />
           <section className="view empty-view" aria-label="Nothing Open" hidden={store.selection?.kind !== 'connection'}>
             <span className="empty-mark">
               <Icon name="terminal" />
@@ -230,7 +232,6 @@ function App() {
           <Challenges />
           <Details />
           <Settings />
-          <Connect />
           <errors.Errors />
           <Quit />
           <KillSession />

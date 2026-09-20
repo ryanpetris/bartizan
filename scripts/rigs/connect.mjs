@@ -4,6 +4,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { networkInterfaces, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { withDirectory, startSshd, launch, waitFor } from './lib/harness.mjs';
+import { tabToResults } from './lib/profile-launch.mjs';
 
 const scoped = Object.entries(networkInterfaces()).flatMap(([name, addresses]) => (addresses ?? [])
   .filter(address => address.family === 'IPv6' && address.address.startsWith('fe80:'))
@@ -19,25 +20,27 @@ await withDirectory('connect', async (directory, cleanup) => {
   cleanup(app.close);
   const { page, api, waitState, recordOutput, output, errors } = app;
   const dialogs = await app.modal();
-  const dialog = dialogs.locator('#connect-dialog');
-  const search = dialog.getByRole('combobox', { name: 'Profile or Host', exact: true });
-  const options = dialog.locator('.picker-list').locator('.profile-item, .destination-item');
+  const connect = page.locator('.connect');
+  const search = connect.getByRole('combobox', { name: 'Profile or Host', exact: true });
+  const options = connect.locator('.picker-list').locator('.profile-item, .destination-item');
   const add = page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true });
+  const home = page.getByRole('button', { name: 'Home', exact: true });
+  /** Shows Connect, which marks New Connection as the place in view and takes the focus into its search. */
   const openConnect = async () => {
     await add.click();
+    await expect(add).toHaveAttribute('aria-current', 'page');
     await expect(search).toBeFocused();
   };
-  /** Closes Connect, which hands focus back to New Connection. */
-  const closeConnect = async () => {
-    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(dialog).toBeHidden();
-    await expect(add).toBeFocused();
+  /** Leaves Connect for the home page. */
+  const leaveConnect = async () => {
+    await home.click();
+    await expect(connect).toBeHidden();
+    await expect(add).not.toHaveAttribute('aria-current');
   };
-  const home = page.getByRole('button', { name: 'Home', exact: true });
   const nothingOpen = page.getByRole('region', { name: 'Nothing Open', exact: true });
   await recordOutput();
 
-  // The home page has no panel and no controls; New Connection opens Connect over every profile.
+  // The home page has no panel and no controls; New Connection shows Connect over every profile.
   await expect(page.locator('.home-view')).toBeVisible();
   await expect(page.locator('.home-view').getByRole('button')).toHaveCount(0);
   await expect(page.locator('.home-view').getByRole('textbox')).toHaveCount(0);
@@ -60,7 +63,7 @@ await withDirectory('connect', async (directory, cleanup) => {
   await expect(options).toHaveCount(2);
   await expect(options.first()).toContainText('IPv6 profile');
   await expect(options.last()).toHaveAccessibleName('Connect to ::1');
-  await expect(dialog.locator('.profile-row + .destination-row')).toHaveCount(1);
+  await expect(connect.locator('.profile-row + .destination-row')).toHaveCount(1);
   // The first result is chosen, and shows it while the search has focus.
   await expect(options.first()).toHaveAttribute('data-chosen');
   await expect(options.last()).not.toHaveAttribute('data-chosen');
@@ -69,68 +72,68 @@ await withDirectory('connect', async (directory, cleanup) => {
   assert.notEqual(highlighted, await background(options.last()), 'The chosen result is highlighted');
   // A pointer press that leaves a result without choosing it highlights nothing.
   const pressed = await options.last().boundingBox();
-  await dialogs.mouse.move(pressed.x + 20, pressed.y + pressed.height / 2);
-  await dialogs.mouse.down();
-  await dialogs.mouse.move(5, 5);
-  await dialogs.mouse.up();
+  await page.mouse.move(pressed.x + 20, pressed.y + pressed.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(5, 5);
+  await page.mouse.up();
   await page.waitForTimeout(100);
-  await expect(dialog).toBeVisible();
+  await expect(connect).toBeVisible();
   assert.notEqual(await background(options.last()), highlighted, 'A pressed result is not highlighted');
   // A moving pointer chooses the result under it, with the same highlight, while the search keeps focus.
   await search.fill('');
   await search.fill('::1');
   const under = async locator => {
     const box = await locator.boundingBox();
-    await dialogs.mouse.move(box.x + 20, box.y + box.height / 2, { steps: 4 });
+    await page.mouse.move(box.x + 20, box.y + box.height / 2, { steps: 4 });
   };
   await under(options.last());
   await expect(options.last()).toHaveAttribute('data-chosen');
   await expect(search).toBeFocused();
   assert.equal(await background(options.last()), highlighted, 'The result under the pointer has the highlight');
-  await dialogs.mouse.move(5, 5);
+  await page.mouse.move(5, 5);
   await expect(options.last()).toHaveAttribute('data-chosen');
   // An unfiltered hover clears on leaving the list; keyboard selection remains.
   for (const query of ['', '   ']) {
     await search.fill(query);
     await under(options.first());
     await expect(options.first()).toHaveAttribute('data-chosen');
-    await dialogs.mouse.move(5, 5);
-    await expect(dialog.locator('[data-chosen]')).toHaveCount(0);
+    await page.mouse.move(5, 5);
+    await expect(connect.locator('[data-chosen]')).toHaveCount(0);
     await expect(search).not.toHaveAttribute('aria-activedescendant');
     await under(options.first());
     await search.press('ArrowDown');
-    await dialogs.mouse.move(5, 5);
+    await page.mouse.move(5, 5);
     await expect(options.first()).toHaveAttribute('data-chosen');
   }
   await search.fill('');
-  await search.press('Tab');
+  await tabToResults(page);
   await under(options.first());
-  await dialogs.mouse.move(5, 5);
+  await page.mouse.move(5, 5);
   await expect(options.first()).toBeFocused();
   await expect(options.first()).toHaveAttribute('data-chosen');
-  await dialogs.keyboard.press('End');
+  await page.keyboard.press('End');
   await expect(options.first()).toHaveAttribute('data-chosen');
   // With focus in the results, focus follows the pointer, and its ring shows only once a key is pressed.
-  await dialogs.mouse.move(5, 5);
+  await page.mouse.move(5, 5);
   await search.fill('');
   await search.fill('::1');
-  await search.press('Tab');
+  await tabToResults(page);
   await expect(options.first()).toBeFocused();
   await under(options.last());
   await expect(options.last()).toBeFocused();
   await expect(options.last()).toHaveCSS('outline-style', 'none');
-  await dialogs.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
   await expect(options.first()).toBeFocused();
   await expect(options.first()).toHaveAttribute('data-chosen');
   await expect(options.first()).not.toHaveCSS('outline-style', 'none');
-  await dialogs.mouse.move(5, 5);
+  await page.mouse.move(5, 5);
   await search.fill('[::1]');
   await expect(options).toHaveCount(1);
   await expect(options.first()).toHaveAttribute('data-chosen');
-  await closeConnect();
+  await leaveConnect();
   await page.keyboard.press('Control+Shift+N');
   await expect(search).toBeFocused();
-  await closeConnect();
+  await leaveConnect();
   console.log('Connect lists every profile, then a direct connection when the search names a destination, and highlights the first result once there is text; Ctrl+Shift+N opens it.');
 
   // A connection made through the interface is shown; one made through the API is chosen from the rail.
@@ -149,7 +152,7 @@ await withDirectory('connect', async (directory, cleanup) => {
       directPatterns.set(target, pattern);
     }
     assert.deepEqual({ host: connection.host, profileId: connection.profileId, username: connection.username }, { host, profileId, username });
-    await expect(dialog).toBeHidden();
+    await expect(connect).toBeHidden();
     await expect(dialogs.locator('#connection-dialog')).toBeHidden();
     if (choose) await page.locator(`.connection-chip[data-id="${connection.id}"] .connection-titles`).click();
     // The terminal comes into view with focus; New Connection stays in the rail beside the panel.
@@ -174,10 +177,10 @@ await withDirectory('connect', async (directory, cleanup) => {
     await expect(home).toBeFocused();
     await openConnect();
     await search.fill('::1');
-    const destinationIcon = dialog.locator('.destination-item .identicon');
+    const destinationIcon = connect.locator('.destination-item .identicon');
     await expect(destinationIcon).toBeVisible();
     if (!profileId && !username && host === '::1') assert.equal(await destinationIcon.innerHTML(), pattern, 'The destination row shows the same icon');
-    await closeConnect();
+    await leaveConnect();
     await home.focus();
     await page.keyboard.press('ArrowDown');
     await expect(page.locator(`.connection-chip[data-id="${connection.id}"] .connection-titles`)).toBeFocused();
@@ -225,8 +228,8 @@ await withDirectory('connect', async (directory, cleanup) => {
   } else console.log('No link-local IPv6 interface is available; the scoped destination was not tried.');
 
   await openConnect();
-  await dialog.getByRole('button', { name: 'New Profile', exact: true }).click();
-  await expect(dialog).toBeHidden();
+  await connect.getByRole('button', { name: 'New Profile', exact: true }).click();
+  await expect(connect).toBeVisible();
   const form = dialogs.locator('#connection-dialog');
   await expect(form.locator('#connection-title')).toHaveText('New Profile');
   await form.locator('#field-host').fill('[::1]');
@@ -265,12 +268,12 @@ await withDirectory('connect', async (directory, cleanup) => {
   for (const invalid of ['@host', 'host:65536', '[::1', '999.1.1.1']) {
     await search.fill(invalid);
     await expect(options).toHaveCount(0);
-    await expect(dialog.getByText('No Results Found', { exact: true })).toBeVisible();
+    await expect(connect.getByText('No Results Found', { exact: true })).toBeVisible();
     await search.press('Enter');
     await page.waitForTimeout(200);
     assert.equal((await app.state()).connections.length, 0, invalid);
   }
-  await closeConnect();
+  await leaveConnect();
   assert.equal(await readFile(config, 'utf8'), source);
   assert.deepEqual(errors, []);
   console.log('Invalid destinations offer nothing to connect, and connecting never writes the configuration.');

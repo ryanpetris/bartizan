@@ -83,7 +83,7 @@ await withDirectory('titlebar', async (directory, cleanup) => {
     const add = page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true });
     await add.click();
     const dialogs = await app.modal();
-    await dialogs.locator('#connect-dialog').getByRole('button', { name: 'New Profile', exact: true }).click();
+    await page.locator('.connect').getByRole('button', { name: 'New Profile', exact: true }).click();
     await expect(dialogs.locator('#connection-dialog')).toBeVisible();
     await dialogs.getByRole('button', { name: 'Cancel', exact: true }).click();
     for (const control of [add, settings]) {
@@ -105,12 +105,12 @@ await withDirectory('titlebar', async (directory, cleanup) => {
   // The click that brings the window to the front, and the further clicks of a run that opened the dialog, leave it open; a
   // click straight after the first dismisses it.
   const dialogs = await app.modal();
-  const connect = dialogs.locator('#connect-dialog');
-  const newConnection = page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true });
+  const panel = dialogs.locator('#errors-dialog');
+  const errorsButton = page.locator('.rail').getByRole('button', { name: 'Errors', exact: true });
   const presses = () => dialogs.evaluate(() => window.rigPresses.splice(0));
   await dialogs.evaluate(() => { window.rigPresses = []; document.addEventListener('mousedown', event => window.rigPresses.push(event.detail), true); });
-  await newConnection.click();
-  await expect(connect).toBeVisible();
+  await errorsButton.click();
+  await expect(panel).toBeVisible();
   const main = await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].id);
   const other = await application.evaluate(({ BrowserWindow }) => {
     const other = new BrowserWindow({ x: 1300, y: 750, width: 200, height: 150 });
@@ -120,20 +120,20 @@ await withDirectory('titlebar', async (directory, cleanup) => {
   pointer('mousemove', '--window', windowId, 30, 300, 'click', 1);
   await expect.poll(() => application.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id)).toBe(main);
   await page.waitForTimeout(150);
-  await expect(connect).toBeVisible();
+  await expect(panel).toBeVisible();
   assert.deepEqual(await presses(), [1]);
   pointer('click', 1);
-  await expect(connect).toBeHidden();
+  await expect(panel).toBeHidden();
   assert.deepEqual(await presses(), [2]);
   await application.evaluate(({ BrowserWindow }, id) => BrowserWindow.fromId(id).destroy(), other.id);
-  const add = await newConnection.boundingBox();
-  pointer('mousemove', '--window', windowId, Math.round(add.x + add.width / 2), Math.round(add.y + add.height / 2), 'click', '--repeat', 3, '--delay', 120, 1);
-  await expect(connect).toBeVisible();
+  const place = await errorsButton.boundingBox();
+  pointer('mousemove', '--window', windowId, Math.round(place.x + place.width / 2), Math.round(place.y + place.height / 2), 'click', '--repeat', 3, '--delay', 120, 1);
+  await expect(panel).toBeVisible();
   await page.waitForTimeout(300);
-  await expect(connect).toBeVisible();
+  await expect(panel).toBeVisible();
   assert.deepEqual(await presses(), [2, 3]);
   await dialogs.keyboard.press('Escape');
-  await expect(connect).toBeHidden();
+  await expect(panel).toBeHidden();
   console.log('The click that brings the window to the front, and a triple click that opens a dialog, leave the dialog open; an immediate second click dismisses it.');
 
   // Closing the minimized window with a live connection restores it, still maximized, to ask; the native close button asks as well.

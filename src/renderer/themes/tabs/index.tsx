@@ -1,7 +1,7 @@
 import type { Theme } from '..';
 import { IconButton } from '../../ui';
 import { groups, currentConnection, statusText } from '../../store';
-import { HomeButton, ContextTitle, AppActions, NewConnectionButton } from '../../chrome';
+import { HomeButton, ContextTitle, AppActions, NewConnectionButton, viewContext } from '../../chrome';
 import { NavGroup, ConnectionChips, ConnectionItems, ConnectionTools } from '../../nav';
 import { ErrorsButton } from '../../errors';
 import { openDetails } from '../../details';
@@ -17,6 +17,7 @@ import './style.css';
 function Chrome() {
   const all = groups();
   const current = all.find(({ connection }) => connection.id === currentConnection());
+  const { name } = viewContext();
   return (
     <>
       <header className="tabs-title">
@@ -37,6 +38,13 @@ function Chrome() {
         <ErrorsButton />
         <AppActions />
       </header>
+      {!current && name && (
+        <div className="tabs-tier">
+          <div className="tabs-page">
+            <ContextTitle />
+          </div>
+        </div>
+      )}
       {current && (
         <div className="tabs-tier">
           <Strip className="tabs-strip" label={current.connection.label} fit>

@@ -800,19 +800,27 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
   );
 }
 const launching = new Set<string>();
-export function connectProfile(profileId: string) {
+/** Connects a profile and shows it, resolving to whether a connection was made. */
+export function connectProfile(profileId: string): Promise<boolean> {
   const active = activeConnection(profileId);
   if (active) {
     focusConnection(active.id);
-    return;
+    return Promise.resolve(true);
   }
-  if (launching.has(profileId)) return;
+  if (launching.has(profileId)) return Promise.resolve(true);
   launching.add(profileId);
-  void api
+  return api
     .connect({ profileId })
-    .then(focusConnection, (error) => {
-      if (shown) report('session', error);
-      else openConnection(profileId, error);
-    })
+    .then(
+      (id) => {
+        focusConnection(id);
+        return true;
+      },
+      (error: unknown) => {
+        if (shown) report('session', error);
+        else openConnection(profileId, error);
+        return false;
+      },
+    )
     .finally(() => launching.delete(profileId));
 }

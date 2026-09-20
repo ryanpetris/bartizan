@@ -1,16 +1,15 @@
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
-import { connectSearch, openConnect, closeConnect } from './profile-launch.mjs';
+import { connectSearch, openConnect, leaveConnect } from './profile-launch.mjs';
 
 export async function testProfileTags(app, config, connectionId) {
   const { application, page, state } = app;
   const original = await readFile(config, 'utf8');
   const before = await state();
   const connectionBefore = before.connections.find(connection => connection.id === connectionId);
-  const dialogs = await app.modal();
-  const dialog = dialogs.locator('#connect-dialog'), connect = connectSearch(dialog);
-  const profile = dialog.locator('.profile-row[data-id="rig"]');
+  const view = page.locator('.connect'), connect = connectSearch(view);
+  const profile = view.locator('.profile-row[data-id="rig"]');
   const chip = page.locator(`.connection-chip[data-id="${connectionId}"] .connection-titles`);
   await chip.click();
   const connection = page.locator('.rail-panel');
@@ -25,14 +24,14 @@ export async function testProfileTags(app, config, connectionId) {
     await expect(profile).toContainText('<b>literal</b>');
     await expect(profile.locator('b')).toHaveCount(0);
     await profile.locator('.profile-item').focus();
-    await dialogs.keyboard.press('ArrowDown');
-    await expect(dialog.locator('.profile-item').nth(1)).toBeFocused();
-    await closeConnect(page);
+    await page.keyboard.press('ArrowDown');
+    await expect(view.locator('.profile-item').nth(1)).toBeFocused();
+    await leaveConnect(page);
     assert.deepEqual((await state()).profiles.find(p => p.id === 'rig').tags, ['Operations', 'Team Blue', '<b>literal</b>']);
     // Connect finds profiles by tag, and hides no connection while it does.
     await openConnect(page);
     await connect.fill('oPERAt');
-    await expect(dialog.locator('.profile-item')).toHaveCount(1);
+    await expect(view.locator('.profile-item')).toHaveCount(1);
     await expect(profile).toContainText('Operations');
     await expect(page.locator('.connection-chip')).toHaveCount(before.connections.length);
     await connect.fill('Team Blue');
@@ -44,7 +43,7 @@ export async function testProfileTags(app, config, connectionId) {
     await expect(chip).toBeVisible();
     await connect.fill('Updated');
     await expect(profile).toBeVisible();
-    await closeConnect(page);
+    await leaveConnect(page);
     await chip.click();
     await expect(connection.locator('[data-kind="terminal"]')).toHaveCount(before.terminals.filter(t => t.connectionId === connectionId).length);
     await expect(connection.locator('[data-kind="tab"]')).toHaveCount(before.workspaces.filter(w => w.connectionId === connectionId).reduce((count, w) => count + w.tabs.length, 0));
@@ -55,14 +54,16 @@ export async function testProfileTags(app, config, connectionId) {
         await application.evaluate(({ BrowserWindow }, zoom) => { const window = BrowserWindow.getAllWindows()[0]; window.setSize(800, 700); window.webContents.setZoomFactor(zoom); }, zoom);
         await openConnect(page);
         await expect(profile).toBeVisible();
-        await expect.poll(() => dialog.locator('.picker-body').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
-        await closeConnect(page);
+        await expect.poll(() => view.locator('.picker-body').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+        await leaveConnect(page);
       }
     }
     await reload([]);
     await openConnect(page);
     await expect(profile.locator('.tag')).toHaveCount(0);
-    await closeConnect(page);
+    // The connection comes back into view, Connect having stood in its place.
+    await chip.click();
+    await expect(view).toBeHidden();
     assert.deepEqual((await state()).profiles.find(p => p.id === 'rig').tags, []);
     const after = await state();
     assert.deepEqual(after.connections, before.connections);

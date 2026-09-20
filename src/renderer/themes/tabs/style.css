@@ -169,7 +169,9 @@
 :root[data-theme="tabs"] .home-button[aria-current="page"] { border-color: var(--border-strong); background: var(--control); box-shadow: var(--raised-shadow); }
 :root[data-theme="tabs"] .home-button:focus-visible { outline-offset: -1px; }
 :root[data-theme="tabs"] .tabs-wordmark { font-size: 14px; font-weight: 650; letter-spacing: -0.015em; }
-:root[data-theme="tabs"] .tabs-title .icon-button { width: 28px; height: 28px; border-radius: 50%; }
+:root[data-theme="tabs"] .tabs-title .icon-button { width: 28px; height: 28px; border: 1px solid transparent; border-radius: 50%; }
+/* Its page in view, New Connection is raised like the current pill beside it. */
+:root[data-theme="tabs"] .tabs-title .icon-button[aria-current="page"] { border-color: var(--border-strong); background: var(--control); box-shadow: var(--raised-shadow); color: var(--text-strong); }
 /* The room between the connections and the application's commands, which stays wide enough to take hold of the window by. */
 :root[data-theme="tabs"] .tabs-gap { flex: 1 0 40px; align-self: stretch; }
 /* Connections: a row of pills that scrolls once the room beside it is at its narrowest. */
@@ -278,6 +280,9 @@
 :root[data-theme="tabs"] .tabs-strip .tab-items::before { display: none; }
 
 /* The end of the tab tier holds the status and commands of the connection in view. */
+/* A page of its own is named where a connection's tabs stand. */
+:root[data-theme="tabs"] .tabs-page { display: flex; align-items: center; flex: 1; min-width: 0; padding: 5px 12px 0; }
+:root[data-theme="tabs"] .tabs-page .titlebar-heading { font-size: 13px; font-weight: 600; }
 :root[data-theme="tabs"] .tabs-trail { position: relative; z-index: 1; display: flex; align-items: center; gap: 1px; flex: none; padding: 5px 8px 0 6px; }
 :root[data-theme="tabs"] .tabs-trail .icon-button { width: 26px; height: 26px; }
 /* Add opens a menu, which the chevron beside its plus says. */

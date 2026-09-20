@@ -13,7 +13,7 @@ import { themes } from '../themes';
 
 import { createWebAPI } from './web-api';
 export const api = (window.bartizan ??= createWebAPI());
-export type Selection = { kind: 'terminal' | 'browser' | 'connection' | 'remote'; id: string } | undefined;
+export type Selection = { kind: 'connect' } | { kind: 'terminal' | 'browser' | 'connection' | 'remote'; id: string } | undefined;
 /** A terminal or a browser session, keyed as in the navigation order. */
 type Entry = { key: string; terminal?: TerminalSession; workspace?: Workspace };
 export type Group = { connection: Connection; entries: Entry[] };
@@ -82,16 +82,23 @@ export function select(selection: Selection, focus = true) {
   render();
   if (focus) focusView();
 }
+/** Shows the Connect page, which takes the focus back when it is chosen while already in view. */
+export function showConnect() {
+  if (store.selection?.kind === 'connect') focusView();
+  else select({ kind: 'connect' });
+}
 /** Whether a selection can be shown; a browser session without tabs has nothing to show. */
 export const exists = (state: State, selection: NonNullable<Selection>) =>
-  selection.kind === 'terminal'
-    ? state.terminals.some((t) => t.id === selection.id)
-    : (selection.kind === 'connection' || selection.kind === 'remote')
-      ? state.connections.some((c) => c.id === selection.id && (selection.kind !== 'remote' || remoteVisible(c)))
-      : state.workspaces.some((w) => w.id === selection.id && w.tabs.length > 0);
+  selection.kind === 'connect'
+    ? true
+    : selection.kind === 'terminal'
+      ? state.terminals.some((t) => t.id === selection.id)
+      : selection.kind === 'connection' || selection.kind === 'remote'
+        ? state.connections.some((c) => c.id === selection.id && (selection.kind !== 'remote' || remoteVisible(c)))
+        : state.workspaces.some((w) => w.id === selection.id && w.tabs.length > 0);
 /** The connection a selection belongs to. */
 const selectionConnection = (selection: Selection) =>
-  !selection
+  !selection || selection.kind === 'connect'
     ? undefined
     : (selection.kind === 'connection' || selection.kind === 'remote')
       ? selection.id
@@ -355,6 +362,7 @@ export function rows(state = store.state): Row[] {
 }
 /** The row a selection shows; a browser session shows its active tab. */
 export function selectedRow(state: State, selection: NonNullable<Selection>): Row | undefined {
+  if (selection.kind === 'connect') return undefined;
   const workspace = selection.kind === 'browser' ? state.workspaces.find((w) => w.id === selection.id) : undefined;
   const tab = workspace && activeTab(workspace)?.id;
   return rows(state).find((row) => row.kind === selection.kind && row.id === selection.id && row.tab === tab);

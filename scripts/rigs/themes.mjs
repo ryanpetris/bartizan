@@ -76,11 +76,12 @@ await withDirectory('themes', async (directory, cleanup) => {
 
     // Home shows the home page, keeping focus, with none of what belongs to a connection.
     const home = page.getByRole('button', { name: 'Home', exact: true });
+    const furniture = page.locator('.rail-panel, .tabs-strip, .console-windows:not([hidden])');
     await home.click();
     await expect(page.locator('.home-view')).toBeVisible();
     await expect(home).toHaveAttribute('aria-current', 'page');
     await expect(home).toBeFocused();
-    await expect(page.locator('.rail-panel, .tabs-tier, .console-windows:not([hidden])')).toHaveCount(0);
+    await expect(furniture).toHaveCount(0);
     await expect(page.locator('h1#home-title')).toBeVisible();
     // The brand centres on the page, and in Rail, whose bar reads as part of the page at home, on the bar and page together.
     const centres = await page.evaluate(() => {
@@ -88,22 +89,32 @@ await withDirectory('themes', async (directory, cleanup) => {
       return { brand: (brand.top + brand.bottom) / 2, page: (main.top + main.bottom) / 2, window: main.bottom / 2 };
     });
     assert.ok(Math.abs(centres.brand - (id === 'rail' ? centres.window : centres.page)) <= 1, `${id}: the home page's brand is centred`);
-    // The theme's New Connection opens Connect, whose profile icon is the connection's badge.
-    await page.getByRole('button', { name: 'New Connection', exact: true }).click();
-    const connect = (await app.modal()).locator('#connect-dialog');
+    assert.equal(await page.evaluate(() => document.title), 'Bartizan', `${id}: the window is titled for the home page`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight), true, `${id}: the home page fits the window`);
+    // The theme's New Connection shows Connect in place of the connection in view, keeping none of its items, and its
+    // profile icon is the connection's badge.
+    const add = page.getByRole('button', { name: 'New Connection', exact: true });
+    await chip.click();
+    await expect(furniture).toHaveCount(1);
+    await add.click();
+    const connect = page.locator('.connect');
+    await expect(add).toHaveAttribute('aria-current', 'page');
+    await expect(home).not.toHaveAttribute('aria-current');
+    await expect(furniture).toHaveCount(0);
+    // The bar over the view names the page, without a connection's status beside it.
+    await expect(page.locator('h1#view-title')).toHaveText('Connect');
+    await expect(page.locator('.titlebar-marker')).toBeHidden();
+    assert.equal(await page.evaluate(() => document.title), 'Connect — Bartizan', `${id}: the window is titled for the page`);
     await expect(connect.locator('.profile-item .identicon')).toBeVisible();
     const profilePattern = await connect.locator('.profile-item .identicon').innerHTML();
-    await connect.getByRole('button', { name: 'Close', exact: true }).click();
-    await expect(connect).toBeHidden();
-    await expect(page.getByRole('button', { name: 'New Connection', exact: true })).toBeFocused();
     const badgeIcon = chip.locator('.identicon');
     assert.equal(await badgeIcon.innerHTML(), profilePattern, `${id}: the badge matches the profile icon`);
     if (id === 'rail') await expect(badgeIcon).toBeVisible();
     else await expect(badgeIcon).toBeHidden();
-    assert.equal(await page.evaluate(() => document.title), 'Bartizan', `${id}: the window is titled for the home page`);
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight), true, `${id}: the home page fits the window`);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth && document.documentElement.scrollHeight <= innerHeight), true, `${id}: Connect fits the window`);
     await chip.click();
-    await expect(home).not.toHaveAttribute('aria-current');
+    await expect(connect).toBeHidden();
+    await expect(add).not.toHaveAttribute('aria-current');
 
     // The terminal keeps its screen, and the view is labelled by the theme's one heading.
     await page.locator(`[data-kind="terminal"][data-id="${terminal}"]`).click();

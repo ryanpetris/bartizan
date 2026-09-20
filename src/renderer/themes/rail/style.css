@@ -238,9 +238,14 @@
 :root[data-theme="rail"] .connection-chip.drop-after::after { bottom: -6px; }
 @keyframes rail-ping { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 70%, transparent); } 75%, to { box-shadow: 0 0 0 5px transparent; } }
 :root[data-theme="rail"] .rail-new { display: grid; place-items: center; flex: none; padding: 4px 0 8px; }
-:root[data-theme="rail"] .rail-new .icon-button { width: 40px; height: 40px; border: 1.5px dashed color-mix(in srgb, var(--text-faint) 60%, transparent); border-radius: 14px; color: var(--text-muted); transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease; }
+:root[data-theme="rail"] .rail-new .icon-button { position: relative; width: 40px; height: 40px; border: 1.5px dashed color-mix(in srgb, var(--text-faint) 60%, transparent); border-radius: 14px; color: var(--text-muted); transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease; }
 :root[data-theme="rail"] .rail-new .icon-button:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
 :root[data-theme="rail"] .rail-new .icon-button:focus-visible { outline-offset: 2px; }
+/* Its page in view, New Connection fills like a current badge and takes the same pill on the rail's edge. */
+:root[data-theme="rail"] .rail-new .icon-button[aria-current="page"] { border-style: solid; border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
+:root[data-theme="rail"] .rail-new .icon-button::before { content: ""; position: absolute; top: 50%; left: calc((40px - var(--rail-width)) / 2); width: 4px; height: 0; border-radius: 0 4px 4px 0; background: var(--accent); opacity: 0; transform: translateY(-50%); transition: height 0.16s ease, opacity 0.16s ease; }
+:root[data-theme="rail"] .rail-new .icon-button:hover::before { height: 14px; opacity: 0.7; }
+:root[data-theme="rail"] .rail-new .icon-button[aria-current="page"]::before { height: 28px; opacity: 1; }
 :root[data-theme="rail"] .rail-actions { display: grid; justify-items: center; gap: 2px; flex: none; margin-top: auto; padding: 8px 0 10px; }
 :root[data-theme="rail"] .rail-actions .icon-button { width: 36px; height: 36px; border-radius: 10px; }
 :root[data-theme="rail"] .rail-actions .icon { width: 18px; height: 18px; }
@@ -315,7 +320,7 @@
 }
 
 /* Home: the bar over the view draws no rule, so it reads as part of the page, and the brand centres on both. */
-:root[data-theme="rail"] #app:not(:has(> .rail-panel)) > .rail-topbar { border-bottom-color: transparent; }
+:root[data-theme="rail"] #app:has(> .main > .home-view) > .rail-topbar { border-bottom-color: transparent; }
 :root[data-theme="rail"] .home-view { padding-bottom: var(--chrome-top); }
 /* Connect */
 :root[data-theme="rail"] .tile { border-radius: 12px; }

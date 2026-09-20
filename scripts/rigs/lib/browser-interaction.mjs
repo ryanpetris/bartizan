@@ -145,11 +145,12 @@ export async function testBrowserInteractions(app, httpPort, first) {
   await page.waitForFunction(() => document.activeElement?.getAttribute('name') === 'address');
   assert.equal(await page.locator('[name="address"]').evaluate(input => input.selectionEnd - input.selectionStart), await page.locator('[name="address"]').evaluate(input => input.value.length));
   await browserKey('N', ['control', 'shift']);
-  const shortcutConnect = (await app.modal()).locator('#connect-dialog');
+  const shortcutConnect = page.locator('.connect');
   await expect(shortcutConnect).toBeVisible();
-  await shortcutConnect.getByRole('button', { name: 'Close', exact: true }).click();
-  // Closing Connect hands the page back, with focus where it was.
-  await page.waitForFunction(() => !document.getElementById('app').inert && document.activeElement?.getAttribute('name') === 'address');
+  // Connect stands in place of the connection's view, and the connection brings its tab back.
+  await app.chooseConnection(connectionId);
+  await expect(shortcutConnect).toBeHidden();
+  await expect(firstTabRow).toHaveAttribute('aria-current', 'page');
   console.log('Focused browser pages retain ordinary input and forward address/new-connection shortcuts.');
   const selections = await page.locator('[name="address"]').evaluate(async input => {
     const results = [];
@@ -196,7 +197,7 @@ export async function testBrowserInteractions(app, httpPort, first) {
   await page.locator('.home-view').waitFor();
   await expect.poll(() => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.isFocused())).toBe(true);
   await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
-  await (await app.modal()).locator('#connect-dialog').getByRole('button', { name: 'New Profile', exact: true }).click();
+  await page.locator('.connect').getByRole('button', { name: 'New Profile', exact: true }).click();
   const form = (await app.modal()).locator('#connection-dialog');
   await form.waitFor({ state: 'visible' });
   await form.getByRole('button', { name: 'Cancel', exact: true }).click();

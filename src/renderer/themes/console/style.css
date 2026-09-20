@@ -200,7 +200,8 @@
   .titlebar-heading { flex: 0 1 auto; font-size: 12px; font-weight: 700; line-height: 18px; }
   .titlebar-group { flex: none; max-width: calc(24ch + 1px); }
   .titlebar-item { flex: 0 1 auto; min-width: 0; color: var(--text); font-weight: 400; }
-  .titlebar-item::before { content: "▸" / ""; margin: 0 0.75ch; position: relative; top: 1px; color: var(--text-muted); font-size: 15px; line-height: 0; }
+  .titlebar-group[hidden] + .titlebar-item { color: var(--text-strong); font-weight: 700; }
+  .titlebar-group:not([hidden]) + .titlebar-item::before { content: "▸" / ""; margin: 0 0.75ch; position: relative; top: 1px; color: var(--text-muted); font-size: 15px; line-height: 0; }
   /* The view's commands end the line, as the commands of the lines below end theirs. */
   .titlebar-actions { align-self: stretch; gap: 0; margin-left: auto; padding: 0 2px; border-inline: 1px solid var(--border); }
 
@@ -313,6 +314,9 @@
   .console-link { pointer-events: none; position: absolute; top: 0; right: 0; bottom: 0; z-index: 4; max-width: 100%; padding: 0 1.5ch; overflow: hidden; border-left: 1px solid var(--border); background: var(--console-bg); color: var(--text-muted); line-height: calc(var(--console-line) - 1px); text-overflow: ellipsis; }
   .console-link:empty, .console-places:is(:hover, :focus-within) > .console-link { display: none; }
   .console-new, .console-app { display: flex; flex: none; border-left: 1px solid var(--border); }
+  /* Its page in view, New Connection is in inverse video, as a current place on any other line is. */
+  .console-new .icon-button[aria-current="page"], :is(.console-title, .console-windows, .console-status) .icon-button[aria-current="page"]:hover:not(:disabled) { background: var(--accent); color: var(--on-accent); }
+  .console-new .icon-button[aria-current="page"]:focus-visible { outline-color: var(--console-inverse); }
   .console-app { padding-right: 2px; }
   .errors-button { display: inline-flex; align-items: center; justify-content: center; gap: 0.75ch; }
   .console-status .errors-button:has(> .error-count:not([hidden])) { width: auto; padding: 0 1ch; background: var(--danger); color: var(--on-danger); }
@@ -363,6 +367,28 @@
   .home-brand .brand-mark path { fill: none; stroke: var(--accent-text); stroke-width: 1.5px; }
   .home-title { color: var(--accent-text); font-size: 14px; font-weight: 700; line-height: 20px; letter-spacing: 0; text-transform: lowercase; }
 
+  /* Pages: a heading like a section's over results set as lines of a list. */
+  .page { padding: 10px var(--console-inset) 0; }
+  .page-toolbar { padding-bottom: 8px; }
+  .picker-search .icon { left: 8px; width: 14px; height: 14px; }
+  .picker-search .input { padding-left: 29px; }
+  .picker-body { padding: 0 0 14px; }
+  .picker-list { gap: 0 2ch; }
+  .picker-group { margin: 10px 0 2px; }
+  .picker-item { gap: 1.5ch; padding: 4px 1ch; }
+  /* A profile's identicon stands bare, with its status in the gap after it. */
+  .tile { width: 3ch; height: 36px; background: none; color: var(--accent-text); }
+  .tile .status-dot { top: calc(50% - 3.5px); right: calc(-0.75ch - 3.5px); bottom: auto; width: 7px; height: 7px; border: 0; }
+  .destination-item .tile { border: 0; color: var(--text-faint); }
+  /* The chosen result is in inverse video. */
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) [data-chosen] { background: var(--accent); color: var(--on-accent); }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) [data-chosen] :is(.tile, .item-label, .item-detail, .destination-label, .destination-target) { color: inherit; }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) [data-chosen] .tag { background: transparent; box-shadow: inset 0 0 0 1px currentColor; color: inherit; }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .profile-item[data-chosen] .status-dot { background: currentColor; }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .row:has([data-chosen]) .profile-edit { color: var(--on-accent); }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .row:has([data-chosen]) .profile-edit:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .row:has([data-chosen]) :focus-visible { outline-color: var(--on-accent); outline-offset: -2px; }
+
   /* Errors */
   .error-toaster[data-sonner-toaster][data-sonner-theme] { --border-radius: 0px; font-family: var(--font-mono); }
   .error-toaster [data-sonner-toast] { border-left: 3px solid var(--danger); box-shadow: none; font-size: 12px; }
@@ -379,7 +405,7 @@
   dialog { bottom: var(--console-bottom); max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 24px); }
   dialog::backdrop { background: var(--console-backdrop); }
   .form-dialog { height: min(700px, calc(100vh - var(--chrome-top) - var(--console-bottom) - 24px)); max-height: none; }
-  .details, .connect, .errors { max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 26px); }
+  .details, .errors { max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 26px); }
   .dialog-icon { width: 26px; height: 26px; border: 1px solid var(--border-strong); border-radius: 0; background: transparent; }
   .dialog-icon.warning { border-color: var(--warn); background: transparent; }
   .dialog-icon.session-badge { border-color: var(--session-color); background: transparent; }
@@ -390,8 +416,8 @@
   .dialog-form { gap: 12px; padding: 16px; }
   .prompt { padding: 8px 10px; }
   .facts { gap: 6px 2ch; padding: 10px 12px; }
-  .form-shell > .dialog-header, .details > .dialog-header, .connect > .dialog-header, .errors > .dialog-header { align-items: center; padding: 10px 16px; }
-  .form-shell > .dialog-actions, .details > .dialog-actions, .connect > .dialog-actions, .errors > .dialog-actions { padding: 10px 16px; }
+  .form-shell > .dialog-header, .details > .dialog-header, .errors > .dialog-header { align-items: center; padding: 10px 16px; }
+  .form-shell > .dialog-actions, .details > .dialog-actions, .errors > .dialog-actions { padding: 10px 16px; }
   .form-layout { grid-template-columns: 22ch minmax(0, 1fr); }
   .section-nav { gap: 0; padding: 8px 0; }
   .section-tab { min-height: 26px; padding: 0 1.5ch; }
@@ -401,8 +427,8 @@
   .section-tab[aria-selected="true"]:focus-visible { outline-color: var(--on-accent); }
   .section-count { height: 16px; border-radius: 0; }
   .section-panels { padding: 2px 20px 20px; }
-  .panel-title, .errors h3 { color: var(--accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; }
-  .panel-title::before, .errors h3::before { content: "# " / ""; color: var(--text-faint); font-weight: 400; }
+  .panel-title, .errors h3, .picker-group { color: var(--accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+  .panel-title::before, .errors h3::before, .picker-group::before { content: "# " / ""; color: var(--text-faint); font-weight: 400; }
   .field { padding: 8px 0; }
   .field-head { padding-top: 4px; }
   .field.overridden .field-label::after { border-radius: 0; }
@@ -417,25 +443,6 @@
   .details-list { margin-top: 0; border-top: 0; }
   .details-list dt, .details-list dd { padding: 5px 0; }
   .details-row:last-child > * { border-bottom: 0; }
-  .connect > .dialog-header { padding-right: 12px; }
-  .picker-search { margin: 10px 16px 0; }
-  .picker-search .icon { left: 8px; width: 14px; height: 14px; }
-  .picker-search .input { padding-left: 29px; }
-  .picker-body { padding: 8px 16px 14px; }
-  .picker-list { gap: 0; }
-  .picker-item { gap: 1.5ch; padding: 4px 1ch; }
-  /* A profile's identicon stands bare, with its status in the gap after it. */
-  .tile { width: 3ch; height: 36px; background: none; color: var(--accent-text); }
-  .tile .status-dot { top: calc(50% - 3.5px); right: calc(-0.75ch - 3.5px); bottom: auto; width: 7px; height: 7px; border: 0; }
-  .destination-item .tile { border: 0; color: var(--text-faint); }
-  /* The chosen result is in inverse video. */
-  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) [data-chosen] { background: var(--accent); color: var(--on-accent); }
-  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) [data-chosen] :is(.tile, .item-label, .item-detail, .destination-label, .destination-target) { color: inherit; }
-  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) [data-chosen] .tag { background: transparent; box-shadow: inset 0 0 0 1px currentColor; color: inherit; }
-  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .profile-item[data-chosen] .status-dot { background: currentColor; }
-  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .row:has([data-chosen]) .profile-edit { color: var(--on-accent); }
-  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .row:has([data-chosen]) .profile-edit:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
-  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .row:has([data-chosen]) :focus-visible { outline-color: var(--on-accent); outline-offset: -2px; }
   .errors h3 { margin: 10px 16px 2px; }
   .error-row { padding: 6px 16px; }
   .theme-option { gap: 5px; padding: 6px 6px 5px; font-size: 11px; font-weight: 400; }

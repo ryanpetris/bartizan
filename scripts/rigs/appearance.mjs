@@ -9,6 +9,7 @@ import { openSettings, closeSettings, chooseAppearance, pickerBackground, showSe
 const defaults = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true, terminalWebgl: false, remoteSessionIntegration: true };
 const dialogBackground = { dark: 'rgb(30, 32, 41)', light: 'rgb(255, 255, 255)' };
 const railBackground = { dark: 'rgb(15, 16, 21)', light: 'rgb(228, 229, 238)' };
+const pageBackground = { dark: 'rgb(26, 28, 35)', light: 'rgb(252, 252, 253)' };
 
 await withDirectory('appearance', async (directory, cleanup) => {
   const config = join(directory, 'config.yaml');
@@ -54,8 +55,9 @@ await withDirectory('appearance', async (directory, cleanup) => {
     await expect(dialog).toHaveJSProperty('open', true);
     await closeSettings(page);
     await page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true }).click();
-    const connect = (await app.modal()).locator('#connect-dialog');
-    await expect(connect).toHaveCSS('background-color', dialogBackground[mode]);
+    const connect = page.locator('.connect');
+    await expect(connect).toBeVisible();
+    await expect(page.locator('.main')).toHaveCSS('background-color', pageBackground[mode]);
     await connect.getByRole('button', { name: 'New Profile', exact: true }).click();
     const form = (await app.modal()).locator('#connection-dialog');
     await expect(form).toHaveCSS('background-color', dialogBackground[mode]);

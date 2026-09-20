@@ -2,28 +2,40 @@ import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { userInfo } from 'node:os';
 import { readFile, writeFile } from 'node:fs/promises';
-import { modalOf } from './harness.mjs';
-
-export const connectSearch = dialog => dialog.getByRole('combobox', { name: 'Profile or Host', exact: true });
+export const connectSearch = view => view.getByRole('combobox', { name: 'Profile or Host', exact: true });
+/** Shows the Connect page, and returns it. */
 export async function openConnect(page) {
-  const dialog = (await modalOf(page)).locator('#connect-dialog');
-  if (!(await dialog.evaluate(node => node.open))) await page.getByRole('button', { name: 'New Connection', exact: true }).click();
-  await expect(dialog).toBeVisible();
-  return dialog;
+  // A dialog over the page leaves it inert, where input is dropped rather than waited for; it takes input again once
+  // the dialog has gone.
+  await expect(page.locator('#app')).not.toHaveAttribute('inert', '');
+  const view = page.locator('.connect');
+  if (!(await view.count())) await page.getByRole('button', { name: 'New Connection', exact: true }).click();
+  await expect(view).toBeVisible();
+  return view;
 }
-export async function closeConnect(page) {
-  const dialog = (await modalOf(page)).locator('#connect-dialog');
-  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(dialog).toBeHidden();
+/** Moves focus from the search to the results, past the controls over them. */
+export async function tabToResults(page) {
+  for (const _ of [0, 1, 2]) await page.keyboard.press('Tab');
+  await expect(page.locator('.picker-list :focus')).toHaveCount(1);
+}
+/** Leaves Connect for the home page. */
+export async function leaveConnect(page) {
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await expect(page.locator('.connect')).toBeHidden();
 }
 
 export async function testProfileLaunch(app, config, url) {
   const { application, page, state, api } = app;
   const dialogs = await app.modal();
   const original = await readFile(config, 'utf8');
-  const dialog = dialogs.locator('#connect-dialog'), connect = connectSearch(dialog);
-  const rows = dialog.locator('.profile-item, .destination-item'), chosen = dialog.locator('[data-chosen]');
-  const profileRow = async id => (await openConnect(page)).locator(`.profile-row[data-id="${id}"]`);
+  const view = page.locator('.connect'), connect = connectSearch(view);
+  const rows = view.locator('.profile-item, .destination-item'), chosen = view.locator('[data-chosen]');
+  // The page keeps its search while it stands, so each visit to a profile starts from the whole list.
+  const profileRow = async id => {
+    const shown = await openConnect(page);
+    await connect.fill('');
+    return shown.locator(`.profile-row[data-id="${id}"]`);
+  };
   const connected = async () => {
     await expect.poll(async () => (await state()).connections.find(c => c.profileId === 'rig')?.status).toBe('connected');
     return (await state()).connections.find(c => c.profileId === 'rig').id;
@@ -38,16 +50,16 @@ export async function testProfileLaunch(app, config, url) {
     await connect.press('Enter');
     await page.waitForTimeout(200);
     assert.equal((await state()).connections.length, 0);
-    await expect(dialog).toBeVisible();
+    await expect(view).toBeVisible();
     // With the search empty, Down highlights the first result while the search keeps focus.
     await connect.press('ArrowDown');
     await expect(rows.first()).toHaveAttribute('data-chosen');
-    await expect(connect).toHaveAttribute('aria-activedescendant', 'connect-profile-rig');
+    await expect(connect).toHaveAttribute('aria-activedescendant', 'connect-item-0');
     await expect(connect).toBeFocused();
     // A destination follows the profiles that match it.
     await connect.fill('127.0.0.1');
     await expect(rows).toHaveCount(4);
-    await expect(dialog.locator('.profile-row').first()).toHaveAttribute('data-id', 'rig');
+    await expect(view.locator('.profile-row').first()).toHaveAttribute('data-id', 'rig');
     await expect(rows.last()).toHaveClass(/destination-item/);
     await expect(chosen).toHaveCount(1);
     await expect(rows.first()).toHaveAttribute('data-chosen');
@@ -67,9 +79,9 @@ export async function testProfileLaunch(app, config, url) {
     await expect(dialogs.locator('#connection-dialog')).not.toBeVisible();
     await connect.press('Escape');
     await expect(connect).toHaveValue('');
-    // A profile's Edit opens its settings without connecting.
-    await dialog.locator('.profile-row[data-id="other"] .profile-edit').click();
-    await expect(dialog).toBeHidden();
+    // A profile's Edit opens its settings without connecting, over the page it was chosen from.
+    await view.locator('.profile-row[data-id="other"] .profile-edit').click();
+    await expect(view).toBeVisible();
     const editing = dialogs.locator('#connection-dialog');
     await expect(editing).toBeVisible();
     await expect(editing.locator('.dialog-context')).toHaveText('other');
@@ -84,9 +96,9 @@ export async function testProfileLaunch(app, config, url) {
 
     await openConnect(page);
     await connect.fill('unmatched profile query');
-    await expect(dialog.getByText('No Results Found', { exact: true })).toBeVisible();
+    await expect(view.getByText('No Results Found', { exact: true })).toBeVisible();
     await connect.press('Enter');
-    await expect(dialog).toBeVisible();
+    await expect(view).toBeVisible();
     await expect(dialogs.locator('#connection-dialog')).not.toBeVisible();
     assert.equal((await state()).connections.length, 0);
     await connect.fill('template');
@@ -115,7 +127,7 @@ export async function testProfileLaunch(app, config, url) {
     assert.equal((await api('details', direct)).username, userInfo().username);
 
     await (await profileRow('rig')).locator('.profile-item').click();
-    await expect(dialog).toBeHidden();
+    await expect(view).toBeHidden();
     assert.equal((await state()).connections.filter(c => c.profileId === 'rig').length, 1);
     await api('newTerminal', direct);
     const workspace = await api('newBrowser', direct);
@@ -138,9 +150,9 @@ export async function testProfileLaunch(app, config, url) {
     // Tab takes focus to the highlighted result, and Space connects it.
     await openConnect(page);
     await connect.fill('rig');
-    await connect.press('Tab');
+    await tabToResults(page);
     await expect(rows.first()).toBeFocused();
-    await dialogs.keyboard.press('Space');
+    await page.keyboard.press('Space');
     const keyboard = await connected();
     assert.equal((await state()).connections.filter(c => c.profileId === 'rig').length, 1);
     // The connection had no terminal left, so choosing its profile opens one.
