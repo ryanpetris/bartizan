@@ -38,8 +38,7 @@ type Drafts = { interfaceFont?: string; terminalFont?: string; terminalFontSize?
 const validSize = (text: string) => /^\d+$/.test(text) && Number(text) >= 8 && Number(text) <= 32;
 function SettingsDialog() {
   const dialog = useRef<HTMLDialogElement>(null),
-    sizeInput = useRef<HTMLInputElement>(null),
-    mounted = useRef(true);
+    sizeInput = useRef<HTMLInputElement>(null);
   /** Changes on their way to the configuration file, shown until the saved settings arrive. */
   const [pending, setPending] = useState<Partial<SettingsValue>>({});
   const [drafts, setDrafts] = useState<Drafts>({});
@@ -54,7 +53,7 @@ function SettingsDialog() {
       .settings(patch)
       .then(
         () => {
-          if (mounted.current) setFailure('');
+          setFailure('');
         },
         () => {
           // A save confirmed by closing the dialog can fail after it has closed.
@@ -64,12 +63,11 @@ function SettingsDialog() {
         },
       )
       .finally(() => {
-        if (mounted.current)
-          setPending((previous) =>
-            Object.fromEntries(
-              Object.entries(previous).filter(([key, value]) => patch[key as keyof SettingsValue] !== value),
-            ),
-          );
+        setPending((previous) =>
+          Object.fromEntries(
+            Object.entries(previous).filter(([key, value]) => patch[key as keyof SettingsValue] !== value),
+          ),
+        );
       });
   }
   /** Saves a confirmed draft; an invalid size returns to the saved value. */
@@ -89,10 +87,7 @@ function SettingsDialog() {
     const input = sizeInput.current!,
       confirm = () => commit('terminalFontSize');
     input.addEventListener('change', confirm);
-    return () => {
-      mounted.current = false;
-      input.removeEventListener('change', confirm);
-    };
+    return () => input.removeEventListener('change', confirm);
   }, []);
   const picker = (key: 'interfaceFont' | 'terminalFont', id: string, label: string, bundled: string) => (
     <FontPicker

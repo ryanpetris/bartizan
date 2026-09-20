@@ -97,13 +97,9 @@ export function FontPicker({
     [custom, setCustom] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    let active = true;
     void installedFonts().then((fonts) => {
-      if (active) setNames(terminal ? fonts.monospace : fonts.all);
+      setNames(terminal ? fonts.monospace : fonts.all);
     });
-    return () => {
-      active = false;
-    };
   }, [terminal]);
   const choice = custom
     ? customOption

@@ -6,18 +6,12 @@ import { openModal } from './dialogs';
 type ConnectionInfo = Awaited<ReturnType<API['details']>>;
 let opening = false;
 let shown: { id: string; info: ConnectionInfo } | undefined;
-let inFlight: Promise<unknown> = Promise.resolve();
-function request(id: string) {
-  const next = inFlight.then(() => api.details(id));
-  inFlight = next.catch(() => {});
-  return next;
-}
 export async function openDetails(id: string) {
   if (shown || opening) return;
   opening = true;
   const failed = reporter('session', id);
   try {
-    const info = await request(id);
+    const info = await api.details(id);
     if (connectionOf(id)) {
       shown = { id, info };
       render();
@@ -63,22 +57,13 @@ function DetailsDialog({ initial }: { initial: NonNullable<typeof shown> }) {
   }, []);
   useEffect(() => {
     if (!connection || observed.status === 'closed') return;
-    let cancelled = false;
     const timer = setTimeout(
       () => {
-        void request(initial.id).then(
-          (result) => {
-            if (!cancelled) setObserved(result);
-          },
-          () => {},
-        );
+        void api.details(initial.id).then(setObserved, () => {});
       },
       status === 'closed' ? 0 : 2000,
     );
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, [status, !!connection, observed]);
   return (
     <dialog

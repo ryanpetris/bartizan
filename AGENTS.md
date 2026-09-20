@@ -14,6 +14,15 @@
 
 - Comments and documentation should describe current behaviour. Do not narrate changes.
 
+## Race conditions
+
+- Add race-condition guards only when the race can cause a meaningful user-visible
+  problem, data loss, a security issue, or a resource leak.
+- Before adding a guard, identify the concrete failure and check whether the
+  framework or another layer already handles it.
+- Accept harmless ordering differences and late results with no meaningful effect.
+  Do not add bookkeeping solely to suppress React state updates after unmount.
+
 ## UI copy
 
 - Do not add explanatory UI copy, helper text, or implementation disclaimers unless absolutely
