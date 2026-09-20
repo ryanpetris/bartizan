@@ -14,9 +14,9 @@ export function viewContext() {
   const workspace =
     selection?.kind === 'browser' ? store.state.workspaces.find((w) => w.id === selection.id) : undefined;
   const owner = connectionOf(
-    terminal?.connectionId ?? workspace?.connectionId ?? (selection?.kind === 'connection' ? selection.id : ''),
+    terminal?.connectionId ?? workspace?.connectionId ?? (selection?.kind === 'connection' || selection?.kind === 'remote' ? selection.id : ''),
   );
-  const name = terminal ? terminalName(terminal) : workspace ? browserSessionName(workspace) : '';
+  const name = terminal ? terminalName(terminal) : workspace ? browserSessionName(workspace) : selection?.kind === 'remote' ? 'Remote Sessions' : '';
   const source = owner?.status === 'connecting' || !terminal ? owner : terminal;
   return { terminal, workspace, owner, name, source };
 }

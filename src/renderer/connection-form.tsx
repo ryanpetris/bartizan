@@ -42,6 +42,7 @@ type Definition = {
   required?: string;
 };
 const definitions: Record<string, Definition> = {
+  remote_sessions: { kind: 'choice', boolean: true },
   label: {},
   host: { mono: true },
   username: { mono: true, empty: '' },
@@ -456,6 +457,7 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
     get(store.state.defaults, path) ??
     (
       {
+        remote_sessions: store.state.settings.remoteSessionIntegration,
         'terminal.font': store.state.settings.terminalFont,
         'terminal.font_size': store.state.settings.terminalFontSize,
         'terminal.ligatures': store.state.settings.terminalLigatures,

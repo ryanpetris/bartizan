@@ -10,6 +10,7 @@ export const settings: [path: string, label: string, section: SectionId][] = [
   ['auth.method', 'Method', 'authentication'], ['auth.identity_files', 'Identity Files', 'authentication'],
   ['auth.agent', 'Agent', 'authentication'], ['auth.password', 'Password', 'authentication'], ['auth.passphrase', 'Key Passphrase', 'authentication'],
   ['host_keys.policy', 'Policy', 'host-keys'], ['host_keys.fingerprints', 'Fingerprints', 'host-keys'], ['host_keys.public_keys', 'Public Keys', 'host-keys'],
+  ['remote_sessions', 'Remote Sessions', 'terminal'],
   ['terminal.font', 'Font', 'terminal'], ['terminal.font_size', 'Font Size', 'terminal'], ['terminal.ligatures', 'Ligatures', 'terminal'], ['terminal.scrollback', 'Scrollback', 'terminal'],
   ['ssh.ConnectTimeout', 'ConnectTimeout', 'ssh'], ['ssh.ServerAliveInterval', 'ServerAliveInterval', 'ssh'], ['ssh.ServerAliveCountMax', 'ServerAliveCountMax', 'ssh'],
   ['ssh.ForwardAgent', 'ForwardAgent', 'ssh'], ['ssh.Compression', 'Compression', 'ssh'], ['ssh.TCPKeepAlive', 'TCPKeepAlive', 'ssh'], ['ssh.AddressFamily', 'AddressFamily', 'ssh'], ['ssh.LogLevel', 'LogLevel', 'ssh'],
@@ -20,6 +21,7 @@ export const setting = (path: string) => settings.find(([p]) => p === path)!;
 export const labels: Record<string, Record<string, string>> = {
   'auth.method': { auto: 'Automatic', agent: 'SSH Agent', key: 'Identity File', password: 'Password', 'keyboard-interactive': 'Keyboard-Interactive' },
   'host_keys.policy': { ask: 'Ask', strict: 'Strict', 'accept-new': 'Accept New', off: 'Off' },
+  remote_sessions: { true: 'Enabled', false: 'Disabled' },
   'terminal.ligatures': { true: 'Enabled', false: 'Disabled' },
   'ssh.AddressFamily': { any: 'Any', inet: 'IPv4', inet6: 'IPv6' },
   'ssh.LogLevel': { QUIET: 'Quiet', FATAL: 'Fatal', ERROR: 'Error', INFO: 'Info', VERBOSE: 'Verbose' },

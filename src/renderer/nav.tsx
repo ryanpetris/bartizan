@@ -1,3 +1,4 @@
+import { remoteVisible } from './store';
 import { createContext, useContext, useLayoutEffect, useRef, type CSSProperties, type DragEvent, type HTMLAttributes, type ReactNode, type SyntheticEvent } from 'react';
 import { browserSessionName, type Workspace, type BrowserTab, type TerminalSession } from '../shared';
 import { Icon, IconButton, Tags, colorStyle, moveFocus } from './ui';
@@ -137,6 +138,7 @@ function Row({
   title,
   ...props
 }: {
+  draggable?: boolean;
   kind: string;
   id: string;
   label: string;
@@ -158,7 +160,7 @@ function Row({
   const titled = useContext(LabelTitles);
   return (
     <Tag
-      className={`row ${current ? 'current' : ''} ${persistent ? 'has-persistent' : ''} ${className}`.replace(/\s+/g, ' ').trim()}
+      className={`row ${current ? 'current' : ''} ${persistent ? 'has-persistent' : ''} ${actions.some(Boolean) ? 'has-actions' : ''} ${className}`.replace(/\s+/g, ' ').trim()}
       {...outer}
       style={{ ...actionsStyle(actions.filter(Boolean).length), ...outer.style }}
     >
@@ -434,6 +436,12 @@ export function ConnectionItems({ group: { connection, entries } }: { group: Gro
           {entry.terminal ? <TerminalRow terminal={entry.terminal} /> : <Session workspace={entry.workspace!} />}
         </li>
       ))}
+      {remoteVisible(connection) && <li className="terminal-entry remote-entry">
+        <Row tag="div" kind="remote" id={connection.id} label="Remote Sessions" icon={<Icon name="terminal" />}
+          draggable={false} actions={[]}
+          current={store.selection?.kind === 'remote' && store.selection.id === connection.id ? 'page' : undefined}
+          onSelect={() => select({ kind: 'remote', id: connection.id })} />
+      </li>}
     </ul>
   );
 }

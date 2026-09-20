@@ -228,6 +228,10 @@ function SettingsDialog() {
               <span className="unit">px</span>
             </div>
           </Field>
+          <Field label="Remote Sessions" id="settings-remote-sessions">
+            <input id="settings-remote-sessions" type="checkbox" checked={settings.remoteSessionIntegration}
+              onChange={(e) => save({ remoteSessionIntegration: e.target.checked })} />
+          </Field>
           <Field label="Terminal Ligatures" id="settings-ligatures">
             <input
               id="settings-ligatures"

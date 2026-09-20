@@ -311,15 +311,15 @@
   :root[data-theme="rail"] :is(.connection-chip > .connection-titles, .rail-new .icon-button, .home-button) { border-radius: 20px; corner-shape: squircle; }
   :root[data-theme="rail"] :is(.connection-chip > .connection-titles, .home-button):focus-visible::after { border-radius: 26px; corner-shape: squircle; }
   :root[data-theme="rail"] .empty-mark { border-radius: 28px; corner-shape: squircle; }
-  :root[data-theme="rail"] .connect-tile { corner-shape: squircle; }
+  :root[data-theme="rail"] .tile { corner-shape: squircle; }
 }
 
 /* Home: the bar over the view draws no rule, so it reads as part of the page, and the brand centres on both. */
 :root[data-theme="rail"] #app:not(:has(> .rail-panel)) > .rail-topbar { border-bottom-color: transparent; }
 :root[data-theme="rail"] .home-view { padding-bottom: var(--chrome-top); }
 /* Connect */
-:root[data-theme="rail"] .connect-tile { border-radius: 12px; }
-:root[data-theme="rail"] :is(.profile-item, .destination-item) { border-radius: 12px; }
+:root[data-theme="rail"] .tile { border-radius: 12px; }
+:root[data-theme="rail"] .picker-item { border-radius: 12px; }
 
 /* The bar over the view: what it shows on the left, the connection's commands beside the window controls. */
 :root[data-theme="rail"] .rail-topbar {

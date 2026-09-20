@@ -15,7 +15,7 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   const sshd = await startSshd(directory);
   cleanup(sshd.stop);
   const config = join(directory, 'config.yaml');
-  await writeFile(config, `version: 1\nprofiles:\n  fixture:\n${sshProfile(sshd)}`);
+  await writeFile(config, `version: 1\ndefaults:\n  remote_sessions: false\nprofiles:\n  fixture:\n${sshProfile(sshd)}`);
   const refused = spawn(executable, [...prefix, '--host', '0.0.0.0', '--port', '0'], { stdio: ['ignore', 'pipe', 'pipe'] });
   let warning = ''; refused.stderr.on('data', chunk => warning += chunk);
   assert.equal(await new Promise(resolve => refused.on('exit', resolve)), 1);

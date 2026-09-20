@@ -211,9 +211,9 @@
 :root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:hover > .nav-item { background-color: var(--hover); color: var(--text); }
 :root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row > .nav-item:focus-visible { outline-offset: -3px; }
 /* The tab in view and a sounding tab keep room for their buttons, so a mute control never moves. Any other tab shows Close over the end of its name, which fades beneath it, so pointing at a tab never moves its name. */
-:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(.current, .has-persistent) > .nav-item { padding-right: calc(var(--actions) * 20px + 6px); }
-:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(:hover, :focus-within):not(.current, .has-persistent) .nav-label:has(+ .nav-meta:empty) { mask-image: linear-gradient(to right, #000 calc(100% - 31px), transparent calc(100% - 19px)); }
-:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(:hover, :focus-within):not(.current) .nav-meta { opacity: 0; }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row.has-actions:is(.current, .has-persistent) > .nav-item { padding-right: calc(var(--actions) * 20px + 6px); }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row.has-actions:is(:hover, :focus-within):not(.current, .has-persistent) .nav-label:has(+ .nav-meta:empty) { mask-image: linear-gradient(to right, #000 calc(100% - 31px), transparent calc(100% - 19px)); }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row.has-actions:is(:hover, :focus-within):not(.current) .nav-meta { opacity: 0; }
 :root[data-theme="tabs"] .tabs-strip .row:not(.session-row) > .row-actions { right: 5px; margin-top: -0.5px; }
 :root[data-theme="tabs"] .tabs-strip .row-actions .icon-button { width: 20px; height: 20px; border-radius: 6px; }
 /* The tab in view takes the view's surface, flares into the rule at its feet and carries its colour along its top. */
@@ -243,7 +243,7 @@
 :root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row { container-type: inline-size; }
 @container (max-width: 148px) {
   :root[data-theme="tabs"] .tabs-strip .nav-meta { display: none; }
-  :root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(:hover, :focus-within):not(.current, .has-persistent) .nav-label { mask-image: linear-gradient(to right, #000 calc(100% - 31px), transparent calc(100% - 19px)); }
+  :root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row.has-actions:is(:hover, :focus-within):not(.current, .has-persistent) .nav-label { mask-image: linear-gradient(to right, #000 calc(100% - 31px), transparent calc(100% - 19px)); }
 }
 /* A sounding tab too narrow to keep room for its buttons shows its mute control in place of its icon. */
 @container (max-width: 118px) {
@@ -305,8 +305,8 @@
 :root[data-theme="tabs"] .address:hover:not(:focus) { border-color: var(--border); }
 :root[data-theme="tabs"] .zoom-level { top: 4px; }
 :root[data-theme="tabs"] .find-input { border-radius: 14px; }
-:root[data-theme="tabs"] :is(.profile-item, .destination-item) { border-radius: 12px; }
-:root[data-theme="tabs"] .connect-tile { border-radius: 11px; }
+:root[data-theme="tabs"] .picker-item { border-radius: 12px; }
+:root[data-theme="tabs"] .tile { border-radius: 11px; }
 :root[data-theme="tabs"] .empty-mark { border-radius: 16px; }
 :root[data-theme="tabs"] dialog::backdrop { background: var(--backdrop); }
 :root[data-theme="tabs"] .dialog-icon { border-radius: 10px; }

@@ -34,14 +34,14 @@ function ProfileSummary({ profile }: { profile: Profile }) {
   const active = activeConnection(profile.id);
   return (
     <>
-      <span className="connect-tile" aria-hidden="true">
+      <span className="tile" aria-hidden="true">
         <Identicon seed={profile.id} />
         <span className="status-dot" hidden={!active} data-status={active?.status} />
       </span>
-      <span className="profile-titles">
-        <span className="profile-label">{profileName(profile)}</span>
+      <span className="item-titles">
+        <span className="item-label">{profileName(profile)}</span>
         <Tags tags={profile.tags} />
-        <span className="profile-endpoint mono">{profileEndpoint(profile)}</span>
+        <span className="item-detail mono">{profileEndpoint(profile)}</span>
       </span>
     </>
   );
@@ -102,7 +102,7 @@ function ConnectDialog() {
   };
   /** The button of a row's result, or of its Edit where it has one. */
   const button = (row: Element | undefined, edit: boolean) =>
-    (edit && row?.querySelector<HTMLElement>('.profile-edit')) || row?.querySelector<HTMLElement>('.profile-item, .destination-item');
+    (edit && row?.querySelector<HTMLElement>('.profile-edit')) || row?.querySelector<HTMLElement>('.picker-item');
   return (
     <dialog
       ref={dialog}
@@ -126,7 +126,7 @@ function ConnectDialog() {
         event.preventDefault();
       }}
     >
-      <div className="connect" data-focus-group="connect" data-focus-items=".connect-search .input, .profile-item, .destination-item">
+      <div className="picker connect" data-focus-group="connect" data-focus-items=".picker-search .input, .picker-item">
         <header className="dialog-header">
           <span className="dialog-icon">
             <Icon name="plus" />
@@ -141,7 +141,7 @@ function ConnectDialog() {
             onClick={() => void api.reloadConfig().then(() => setFailure(undefined), setFailure)}
           />
         </header>
-        <label className="connect-search">
+        <label className="picker-search">
           <Icon name="search" />
           <input
             ref={search}
@@ -180,10 +180,10 @@ function ConnectDialog() {
             }}
           />
         </label>
-        <div ref={body} className="connect-body">
+        <div ref={body} className="picker-body">
           <div
             ref={list}
-            className="connect-list"
+            className="picker-list"
             id="connect-results"
             role="grid"
             aria-labelledby="connect-title"
@@ -233,16 +233,16 @@ function ConnectDialog() {
               if (result.kind === 'destination') {
                 const { host, username } = result.destination;
                 return (
-                  <div key={key} role="row" className="row destination-row" data-key={key}>
+                  <div key={key} role="row" className="row picker-row destination-row" data-key={key}>
                     <div role="gridcell" id={cellId(result)} aria-selected={shown || undefined}>
                       <button
                         type="button"
-                        className="destination-item"
+                        className="picker-item destination-item"
                         data-chosen={shown || undefined}
                         tabIndex={index === stop ? 0 : -1}
                         onClick={() => choose(result)}
                       >
-                        <span className="connect-tile" aria-hidden="true">
+                        <span className="tile" aria-hidden="true">
                           <Identicon seed={destinationSeed(host, username ?? store.state.defaults.username)} />
                         </span>
                         <span className="destination-label">
@@ -259,7 +259,7 @@ function ConnectDialog() {
                 <div
                   key={key}
                   role="row"
-                  className="row profile-row"
+                  className="row picker-row profile-row"
                   data-id={profile.id}
                   data-key={key}
                   style={{ '--actions': 1 } as React.CSSProperties}
@@ -267,7 +267,7 @@ function ConnectDialog() {
                   <div role="gridcell" id={cellId(result)} aria-selected={shown || undefined}>
                     <button
                       type="button"
-                      className="profile-item"
+                      className="picker-item profile-item"
                       data-chosen={shown || undefined}
                       aria-description={connection && statusText(connection)}
                       tabIndex={index === stop && !stopEdit ? 0 : -1}

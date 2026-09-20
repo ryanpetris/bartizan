@@ -85,7 +85,7 @@ test('algorithm lists use OpenSSH syntax and an empty list keeps OpenSSH default
   preflight(merge(builtins, { host: 'example.invalid', ssh: { Ciphers: '-*-cbc' } }), '/tmp/trust');
 });
 test('automatic identity policy constrains selected files and permits agent-only authentication', () => {
-  const catalog = { defaults: {}, profiles: [], file: '', settings: { appearance: 'dark' as const, theme: 'rail' as const, interfaceFont: 'Inter', terminalLigatures: true, terminalFont: '', terminalFontSize: 13 } };
+  const catalog = { defaults: {}, profiles: [], file: '', settings: { appearance: 'dark' as const, theme: 'rail' as const, interfaceFont: 'Inter', terminalLigatures: true, remoteSessionIntegration: true, terminalFont: '', terminalFontSize: 13 } };
   const auto = resolveSpec(catalog, undefined, { host: 'example.invalid', username: 'test' });
   assert.ok(sshArgs(auto, '/tmp/trust').includes('IdentitiesOnly=no'));
   auto.auth!.identity_files = ['/tmp/selected-key'];

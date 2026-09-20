@@ -12,7 +12,7 @@
     "dev": "electron-vite dev --watch",
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "tsx --import ./tests/program-text.mjs --test tests/*.test.ts",
     "rigs": "node scripts/rigs.mjs",
     "start": "npm run build && electron .",
     "postinstall": "electron-builder install-app-deps",

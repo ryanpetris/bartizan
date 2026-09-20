@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
@@ -15,6 +16,12 @@ export default defineConfig({
       },
       rollupOptions: { output: { entryFileNames: '[name].cjs', chunkFileNames: 'chunks/[name]-[hash].cjs' } },
     },
+    plugins: [{
+      // Helper programs are bundled as text, as the esbuild build loads them.
+      name: 'bartizan-program-text',
+      enforce: 'pre',
+      load: id => (id.endsWith('.py') ? `export default ${JSON.stringify(readFileSync(id, 'utf8'))};` : undefined),
+    }],
   },
   preload: {
     build: {

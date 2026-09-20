@@ -5,13 +5,15 @@ import {
   type Connection,
   type Workspace,
   type TerminalSession,
+  type RemoteSession,
+  backendName,
 } from '../shared';
 import type { PublicProfile as Profile } from '../core/config';
 import { themes } from '../themes';
 
 import { createWebAPI } from './web-api';
 export const api = (window.bartizan ??= createWebAPI());
-export type Selection = { kind: 'terminal' | 'browser' | 'connection'; id: string } | undefined;
+export type Selection = { kind: 'terminal' | 'browser' | 'connection' | 'remote'; id: string } | undefined;
 /** A terminal or a browser session, keyed as in the navigation order. */
 type Entry = { key: string; terminal?: TerminalSession; workspace?: Workspace };
 export type Group = { connection: Connection; entries: Entry[] };
@@ -84,14 +86,14 @@ export function select(selection: Selection, focus = true) {
 export const exists = (state: State, selection: NonNullable<Selection>) =>
   selection.kind === 'terminal'
     ? state.terminals.some((t) => t.id === selection.id)
-    : selection.kind === 'connection'
-      ? state.connections.some((c) => c.id === selection.id)
+    : (selection.kind === 'connection' || selection.kind === 'remote')
+      ? state.connections.some((c) => c.id === selection.id && (selection.kind !== 'remote' || remoteVisible(c)))
       : state.workspaces.some((w) => w.id === selection.id && w.tabs.length > 0);
 /** The connection a selection belongs to. */
 const selectionConnection = (selection: Selection) =>
   !selection
     ? undefined
-    : selection.kind === 'connection'
+    : (selection.kind === 'connection' || selection.kind === 'remote')
       ? selection.id
       : selection.kind === 'terminal'
         ? store.state.terminals.find((t) => t.id === selection.id)?.connectionId
@@ -200,14 +202,18 @@ export function setTerminalTitle(id: string, value: string) {
   else terminalTitles.delete(id);
   render();
 }
-/** A terminal's application title, or Terminal, Terminal 2 and so on; its number stays reserved while it has a title. */
+/** A terminal's application title, the remote session it holds, or Terminal, Terminal 2 and so on; its number stays reserved while it has a title. */
 export function terminalName(terminal: TerminalSession) {
   const value = number(
     terminal.id,
     store.state.terminals.filter((t) => t.connectionId === terminal.connectionId),
   );
   const title = terminalTitles.get(terminal.id);
-  return title?.trim() ? title : value === 1 ? 'Terminal' : `Terminal ${value}`;
+  const session = terminal.remoteSession;
+  if (title?.trim()) return title;
+  // Attaching execs straight into the multiplexer, which sets no title of its own, so the session names the terminal.
+  if (session) return `${backendName(session.backend)}: ${session.name}`;
+  return value === 1 ? 'Terminal' : `Terminal ${value}`;
 }
 /** Each browser session has its own colour. */
 export const sessionColor = (workspace: Workspace) => `var(--session-${workspace.color % 9})`;
@@ -328,7 +334,7 @@ export const activeConnection = (profileId?: string) =>
   profileId ? store.state.connections.find((c) => c.profileId === profileId && c.status !== 'closed') : undefined;
 
 /** A visible navigation row: a connection, a terminal, or a browser tab. */
-export type Row = { kind: 'connection' | 'terminal' | 'browser'; id: string; tab?: string; connectionId: string };
+export type Row = { kind: 'connection' | 'terminal' | 'browser' | 'remote'; id: string; tab?: string; connectionId: string };
 export const sameRow = (a: Row, b: Row) => a.kind === b.kind && a.id === b.id && a.tab === b.tab;
 /** Visible rows in navigation order, each connection first; a browser session contributes its tabs in session order. */
 export function rows(state = store.state): Row[] {
@@ -344,6 +350,7 @@ export function rows(state = store.state): Row[] {
             connectionId: connection.id,
           })),
     ),
+    ...(remoteVisible(connection) ? [{ kind: 'remote' as const, id: connection.id, connectionId: connection.id }] : []),
   ]);
 }
 /** The row a selection shows; a browser session shows its active tab. */
@@ -399,6 +406,7 @@ export function stateApplied() {
     else recentTerminals.delete(connectionId);
   }
   for (const check of [...waiting]) if (check()) waiting.delete(check);
+  if (store.selection?.kind === 'remote' && !exists(store.state, store.selection)) revisit(store.selection.id);
 }
 const selectCreated = (selection: NonNullable<Selection>) =>
   whenPresent(
@@ -516,3 +524,22 @@ export function reconnect(connectionId: string) {
 }
 export const removeConnection = (connectionId: string) =>
   run('session', api.removeConnection(connectionId), connectionId);
+
+export const remoteOpening = new Set<string>();
+/** The live terminal of this connection showing a session, which is what makes it one already open here. */
+export const remoteTerminal = (connectionId: string, session: RemoteSession) =>
+  store.state.terminals.find(
+    (t) => t.connectionId === connectionId && t.remoteSession?.key === session.key && t.status !== 'closed',
+  );
+export const remoteVisible = (connection: Connection) => Boolean(connection.remoteSessions &&
+  (connection.remoteSessions.sessions.length || connection.remoteSessions.errors.length || remoteOpening.has(connection.id)));
+export async function resumeRemoteSessions(connectionId: string, keys: string[], takeover: boolean) {
+  if (remoteOpening.has(connectionId)) return;
+  const token = choice;
+  remoteOpening.add(connectionId); render();
+  const opened = await run('session', api.resumeRemoteSessions(connectionId, keys, takeover), connectionId);
+  remoteOpening.delete(connectionId);
+  if (token === choice && opened?.length) selectCreated({ kind: 'terminal', id: opened[0] });
+  else if (store.selection?.kind === 'remote' && store.selection.id === connectionId && connectionOf(connectionId) && !remoteVisible(connectionOf(connectionId)!)) revisit(connectionId);
+  render();
+}

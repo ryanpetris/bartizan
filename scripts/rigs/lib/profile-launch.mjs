@@ -48,7 +48,7 @@ export async function testProfileLaunch(app, config, url) {
     await connect.fill('127.0.0.1');
     await expect(rows).toHaveCount(4);
     await expect(dialog.locator('.profile-row').first()).toHaveAttribute('data-id', 'rig');
-    await expect(rows.last()).toHaveClass('destination-item');
+    await expect(rows.last()).toHaveClass(/destination-item/);
     await expect(chosen).toHaveCount(1);
     await expect(rows.first()).toHaveAttribute('data-chosen');
     await connect.fill('   ');

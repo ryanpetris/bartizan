@@ -70,8 +70,17 @@ export function parseDestination(input: string): { host: string; username?: stri
   const username = value.slice(0, at);
   if (username && usernamePattern.test(username)) return { host, username };
 }
-export type Connection = { id: string; profileId?: string; label: string; host: string; username?: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number; terminal: NonNullable<Spec['terminal']> };
-export type TerminalSession = { id: string; connectionId: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number };
+export const backends = ['tmux', 'screen', 'herdr'] as const;
+/** Backends are written as their own projects write them. */
+export const backendName = (backend: RemoteSession['backend']) => (backend === 'herdr' ? 'Herdr' : backend);
+/** `clients` counts the terminals attached to the session; `windows` counts tmux windows or Herdr tabs, `where` is a
+ * working directory or workspace name, `doing` a running command or agent state, and `activity` a Unix time. */
+export type RemoteSession = { key: string; backend: 'tmux' | 'screen' | 'herdr'; id: string; name: string; clients: number; windows?: number; activity?: number; where?: string; doing?: string; error?: string };
+/** A failure carries the backend that reported it, except one that stopped the whole listing. */
+export type RemoteSessionError = { backend?: RemoteSession['backend']; message: string };
+export type RemoteSessions = { sessions: RemoteSession[]; loading: boolean; errors: RemoteSessionError[] };
+export type Connection = { id: string; profileId?: string; label: string; host: string; username?: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number; terminal: NonNullable<Spec['terminal']>; remoteSessions?: RemoteSessions };
+export type TerminalSession = { remoteSession?: RemoteSession; id: string; connectionId: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number };
 export type CertificateChallenge = { id: string; url: string; origin: string; error: string; fingerprint: string; subject: string; issuer: string; validFrom: string; validTo: string };
 /** A browser tab; `zoom` is in percent, and `devtools` is whether its developer tools are open. */
 export type BrowserTab = { id: string; title: string; url: string; loading: boolean; canBack: boolean; canForward: boolean; error?: string; certificate?: CertificateChallenge; audible: boolean; muted: boolean; zoom: number; devtools: boolean };
@@ -95,8 +104,8 @@ export type ErrorEntry = { id: number; source: string; kind: 'current' | 'event'
 export type ErrorLog = { current: ErrorEntry[]; history: ErrorEntry[] };
 export type ErrorReport = { source: string; message: string; connectionId?: string; terminalId?: string; label?: string };
 export type Appearance = 'dark' | 'light' | 'system';
-export type Settings = { appearance: Appearance; theme: ThemeId; interfaceFont: string; terminalFont: string; terminalFontSize: number; terminalLigatures: boolean };
-export const defaultSettings: Settings = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true };
+export type Settings = { appearance: Appearance; theme: ThemeId; interfaceFont: string; terminalFont: string; terminalFontSize: number; terminalLigatures: boolean; remoteSessionIntegration: boolean };
+export const defaultSettings: Settings = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true, remoteSessionIntegration: true };
 export type ConnectTarget = { profileId: string } | { host: string; username?: string };
 export type ProfileDraft = { token: string; id?: string; file: string; spec: PublicSpec; tags: string[] };
 export type ProfileChanges = { token: string; values: Spec; reset: string[]; tags?: string[] };
@@ -130,6 +139,9 @@ export interface API {
   disconnect(id: string): Promise<void>;
   removeConnection(id: string): Promise<void>;
   reconnect(id: string): Promise<string>;
+  discoverRemoteSessions(connectionId: string): Promise<void>;
+  resumeRemoteSessions(connectionId: string, keys: string[], takeover: boolean): Promise<string[]>;
+  killRemoteSession(connectionId: string, key: string): Promise<void>;
   newTerminal(connectionId: string): Promise<string>;
   closeTerminal(id: string): Promise<void>;
   newBrowser(connectionId: string): Promise<string>;

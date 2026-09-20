@@ -47,12 +47,16 @@ export async function createBackend(options: BackendOptions) {
   };
   const changed = () => {
     if (closed) return;
+    sessions.syncIntegration();
     extension?.sync();
     send({ type: 'state', state: state() });
   };
   const askpass = new Askpass(changed, changed, (message, id) => reportError('credentials', message, id));
 
-  const sessions = new Sessions(join(options.directory, 'ssh'), askpass, options.helper, changed, (id, data) => send({ type: 'data', id, data }), (message, id, label) => reportError('ssh', message, id, label));
+  const sessions = new Sessions(join(options.directory, 'ssh'), askpass, options.helper, changed, (id, data) => send({ type: 'data', id, data }), (message, id, label) => reportError('ssh', message, id, label), entry => {
+    const spec = entry.info.profileId ? catalog.profiles.find(p => p.id === entry.info.profileId)?.spec ?? entry.spec : entry.spec;
+    return spec?.remote_sessions ?? catalog.defaults.remote_sessions ?? settings.remoteSessionIntegration;
+  });
   let closed = false;
   let connecting = Promise.resolve();
   const serialize = <T>(work: () => Promise<T>) => {
@@ -123,7 +127,7 @@ export async function createBackend(options: BackendOptions) {
   handle('profile-connect', (input: unknown) => { const owner = client; return serialize(async () => {
     const { changes, draft } = draftInput(input, owner);
     if (draft.id) throw new Error('Save the profile before connecting');
-    return createConnection(resolveDraft(catalog, draft, changes));
+    return createConnection({ ...resolveDraft(catalog, draft, changes), remote_sessions: changes.values.remote_sessions });
   }); });
   handle('profile-save', (input: unknown) => { const owner = client; return serialize(async () => {
     const { id, connect, ...fields } = profileSaveSchema.parse(input);
@@ -146,7 +150,7 @@ export async function createBackend(options: BackendOptions) {
   const targetSchema = z.union([z.strictObject({ profileId: z.string() }), z.strictObject({ host: z.string(), username: z.string().optional() })]);
   handle('connect', (input: unknown) => serialize(async () => {
     const target = targetSchema.parse(input);
-    if (!('profileId' in target)) return createConnection(resolveSpec(catalog, undefined, target));
+    if (!('profileId' in target)) return createConnection({ ...resolveSpec(catalog, undefined, target), remote_sessions: undefined });
     return createConnection(resolveSpec(catalog, target.profileId, {}), target.profileId);
   }));
   const disconnect = (id: string) => sessions.disconnect(id);
@@ -158,6 +162,9 @@ export async function createBackend(options: BackendOptions) {
     const spec = entry.info.profileId ? resolveSpec(catalog, entry.info.profileId, {}) : entry.spec;
     return sessions.create(spec, entry.info.profileId, entry.info.id, false);
   }));
+  handle('discover-remote-sessions', (id: unknown) => sessions.discoverRemoteSessions(z.string().parse(id)));
+  handle('resume-remote-sessions', (id: unknown, keys: unknown, takeover: unknown) => sessions.resumeRemoteSessions(z.string().parse(id), z.array(z.string().max(8192)).max(1000).parse(keys), z.boolean().parse(takeover)));
+  handle('kill-remote-session', (id: unknown, key: unknown) => sessions.killRemoteSession(z.string().parse(id), z.string().max(8192).parse(key)));
   handle('new-terminal', (id: unknown) => serialize(async () => sessions.newTerminal(z.string().parse(id))));
   handle('close-terminal', (id: unknown) => serialize(async () => sessions.closeTerminal(z.string().parse(id))));
   handle('answer', (id: unknown, value: unknown) => {

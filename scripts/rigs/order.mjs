@@ -8,7 +8,7 @@ await withDirectory('order', async (directory, cleanup) => {
   const sshd = await startSshd(directory);
   cleanup(sshd.stop);
   const config = join(directory, 'config.yaml');
-  await writeFile(config, `version: 1\nprofiles:\n  one:\n    label: One\n${sshProfile(sshd)}  two:\n    label: Two\n${sshProfile(sshd)}`);
+  await writeFile(config, `version: 1\nsettings:\n  remoteSessionIntegration: false\nprofiles:\n  one:\n    label: One\n${sshProfile(sshd)}  two:\n    label: Two\n${sshProfile(sshd)}`);
   const app = await launch(directory, config);
   cleanup(app.close);
   const { application, page, api, waitState, errors } = app;

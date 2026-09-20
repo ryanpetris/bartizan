@@ -50,6 +50,7 @@ After editing the file, choose **Reload Configuration** in Connect. Connection s
 | `terminalFont` | `JetBrains Mono` | Font family, or `""` for system monospace |
 | `terminalFontSize` | `13` | Integer from 8 to 32 |
 | `terminalLigatures` | `true` | Boolean |
+| `remoteSessionIntegration` | `true` | Discover tmux, screen and Herdr sessions on the host |
 
 Console uses `terminalFont` for its interface as well; `interfaceFont` applies to the other themes.
 
@@ -67,6 +68,7 @@ The fields below work in `defaults` or an individual profile, except `tags`.
 | `terminal.font` | Override the global terminal font |
 | `terminal.font_size` | Override the global size, from 8 to 32 |
 | `terminal.ligatures` | Override the global ligature setting |
+| `remote_sessions` | Boolean; overrides the global remote sessions setting |
 | `terminal.scrollback` | Integer from 0 to 100000; default 5000 lines |
 
 Key, agent socket and credential file paths resolve relative to the configuration file. `~` and `~/` expand to your home directory. Environment variables are not expanded.

@@ -55,7 +55,7 @@ export async function testProfileTags(app, config, connectionId) {
         await application.evaluate(({ BrowserWindow }, zoom) => { const window = BrowserWindow.getAllWindows()[0]; window.setSize(800, 700); window.webContents.setZoomFactor(zoom); }, zoom);
         await openConnect(page);
         await expect(profile).toBeVisible();
-        await expect.poll(() => dialog.locator('.connect-body').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+        await expect.poll(() => dialog.locator('.picker-body').evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
         await closeConnect(page);
       }
     }

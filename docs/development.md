@@ -36,10 +36,11 @@ The app uses one instance per application data directory. For an isolated develo
 ```sh
 npm run typecheck
 npm test
+npx tsx --import ./tests/program-text.mjs --test tests/sessions-resize.test.ts
 npm run rigs -- smoke
 ```
 
-TypeScript checks the source without emitting files. Unit tests use Node's test runner through `tsx`. The smoke rig launches the real Electron app, opens the connection form and checks the SSH command preview.
+TypeScript checks the source without emitting files. Unit tests use Node's test runner through `tsx`, which loads helper programs as text; run one file with the command above. The smoke rig launches the real Electron app, opens the connection form and checks the SSH command preview.
 
 Run all rigs or select them by filename without `.mjs`:
 

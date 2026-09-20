@@ -78,11 +78,11 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await openConnect();
   await expect(rows).toHaveCount(153);
   // Each search shows its results from the top, where the chosen one is.
-  await dialog.locator('.connect-body').evaluate(node => { node.scrollTop = node.scrollHeight; });
+  await dialog.locator('.picker-body').evaluate(node => { node.scrollTop = node.scrollHeight; });
   await search.fill('item');
   await expect(dialog.locator('[data-chosen]')).toBeInViewport();
   // The pointer chooses a result where it is, without scrolling the results.
-  const scrollBox = dialog.locator('.connect-body');
+  const scrollBox = dialog.locator('.picker-body');
   const cut = await scrollBox.evaluate(node => {
     const bottom = node.getBoundingClientRect().bottom;
     return [...node.querySelectorAll('.profile-item')].findIndex(item => { const box = item.getBoundingClientRect(); return box.top < bottom - 6 && box.bottom > bottom; });

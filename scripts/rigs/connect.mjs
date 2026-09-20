@@ -13,7 +13,7 @@ await withDirectory('connect', async (directory, cleanup) => {
   const sshd = await startSshd(directory, { host: '::1', config: scoped ? `ListenAddress ${scoped}\n` : '' });
   cleanup(sshd.stop);
   const config = join(directory, 'config.yaml');
-  const source = `version: 1\ndefaults:\n  port: ${sshd.port}\n  auth:\n    method: key\n    identity_files: [${JSON.stringify(sshd.identity)}]\n  host_keys:\n    policy: accept-new\nprofiles:\n  loopback:\n    label: IPv6 profile\n    host: "[::1]"\n`;
+  const source = `version: 1\ndefaults:\n  remote_sessions: false\n  port: ${sshd.port}\n  auth:\n    method: key\n    identity_files: [${JSON.stringify(sshd.identity)}]\n  host_keys:\n    policy: accept-new\nprofiles:\n  loopback:\n    label: IPv6 profile\n    host: "[::1]"\n`;
   await writeFile(config, source);
   const app = await launch(directory, config);
   cleanup(app.close);
@@ -21,7 +21,7 @@ await withDirectory('connect', async (directory, cleanup) => {
   const dialogs = await app.modal();
   const dialog = dialogs.locator('#connect-dialog');
   const search = dialog.getByRole('combobox', { name: 'Profile or Host', exact: true });
-  const options = dialog.locator('.connect-list').locator('.profile-item, .destination-item');
+  const options = dialog.locator('.picker-list').locator('.profile-item, .destination-item');
   const add = page.locator('.rail').getByRole('button', { name: 'New Connection', exact: true });
   const openConnect = async () => {
     await add.click();

@@ -85,7 +85,7 @@ export async function testTerminalRendering(app, first, second) {
   await dialog.getByRole('combobox', { name: 'Terminal Font', exact: true }).selectOption('JetBrains Mono');
   await dialog.getByRole('spinbutton', { name: 'Terminal Font Size', exact: true }).fill('13');
   await closeSettings(page);
-  await expect.poll(settings).toEqual({ appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalLigatures: true, terminalFont: 'JetBrains Mono', terminalFontSize: 13 });
+  await expect.poll(settings).toEqual({ appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalLigatures: true, terminalFont: 'JetBrains Mono', terminalFontSize: 13, remoteSessionIntegration: true });
   await expect.poll(async () => (await terminalSize()).join('x')).toBe(initialSize.join('x'));
   await draw();
   console.log('Terminal font family and size apply live, keep the session, fall back for a missing family and restore the terminal size.');

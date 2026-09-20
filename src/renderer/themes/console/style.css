@@ -231,7 +231,7 @@
   .console-windows .connection-items > li { position: relative; display: flex; flex: none; counter-increment: console-window; }
   .console-windows .row { display: flex; flex: none; }
   /* An entry always holds room for its buttons at its end, and a numbered one a cell for the flag of the current one: showing them moves nothing and covers nothing. The first entry starts at the lines' inset. */
-  .console-windows .nav-item { gap: 6px; width: auto; min-width: 6ch; height: 100%; padding: 0 calc(var(--actions) * 3.5ch - 0.5ch) 0 0.5ch; border-radius: 0; font-weight: 400; }
+  .console-windows .nav-item { gap: 6px; width: auto; min-width: 6ch; height: 100%; padding: 0 max(0.5ch, calc(var(--actions) * 3.5ch - 0.5ch)) 0 0.5ch; border-radius: 0; font-weight: 400; }
   .console-windows .terminal-entry:first-child .nav-item { padding-left: var(--console-inset); }
   .console-windows .row:hover > .nav-item:not([aria-current="page"]) { background: var(--console-hover); }
   .console-windows .nav-item[aria-current="page"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
@@ -419,24 +419,24 @@
   .details-list dt, .details-list dd { padding: 5px 0; }
   .details-row:last-child > * { border-bottom: 0; }
   .connect > .dialog-header { padding-right: 12px; }
-  .connect-search { margin: 10px 16px 0; }
-  .connect-search .icon { left: 8px; width: 14px; height: 14px; }
-  .connect-search .input { padding-left: 29px; }
-  .connect-body { padding: 8px 16px 14px; }
-  .connect-list { gap: 0; }
-  :is(.profile-item, .destination-item) { gap: 1.5ch; padding: 4px 1ch; }
+  .picker-search { margin: 10px 16px 0; }
+  .picker-search .icon { left: 8px; width: 14px; height: 14px; }
+  .picker-search .input { padding-left: 29px; }
+  .picker-body { padding: 8px 16px 14px; }
+  .picker-list { gap: 0; }
+  .picker-item { gap: 1.5ch; padding: 4px 1ch; }
   /* A profile's identicon stands bare, with its status in the gap after it. */
-  .connect-tile { width: 3ch; height: 36px; background: none; color: var(--accent-text); }
-  .connect-tile .status-dot { top: calc(50% - 3.5px); right: calc(-0.75ch - 3.5px); bottom: auto; width: 7px; height: 7px; border: 0; }
-  .destination-item .connect-tile { border: 0; color: var(--text-faint); }
+  .tile { width: 3ch; height: 36px; background: none; color: var(--accent-text); }
+  .tile .status-dot { top: calc(50% - 3.5px); right: calc(-0.75ch - 3.5px); bottom: auto; width: 7px; height: 7px; border: 0; }
+  .destination-item .tile { border: 0; color: var(--text-faint); }
   /* The chosen result is in inverse video. */
-  .connect:has(.connect-search .input:focus, .connect-list :focus-visible, .connect-list:hover) [data-chosen] { background: var(--accent); color: var(--on-accent); }
-  .connect:has(.connect-search .input:focus, .connect-list :focus-visible, .connect-list:hover) [data-chosen] :is(.connect-tile, .profile-label, .profile-endpoint, .destination-label, .destination-target) { color: inherit; }
-  .connect:has(.connect-search .input:focus, .connect-list :focus-visible, .connect-list:hover) [data-chosen] .tag { background: transparent; box-shadow: inset 0 0 0 1px currentColor; color: inherit; }
-  .connect:has(.connect-search .input:focus, .connect-list :focus-visible, .connect-list:hover) [data-chosen] .status-dot { background: currentColor; }
-  .connect:has(.connect-search .input:focus, .connect-list :focus-visible, .connect-list:hover) .row:has([data-chosen]) .profile-edit { color: var(--on-accent); }
-  .connect:has(.connect-search .input:focus, .connect-list :focus-visible, .connect-list:hover) .row:has([data-chosen]) .profile-edit:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
-  .connect:has(.connect-search .input:focus, .connect-list :focus-visible, .connect-list:hover) .row:has([data-chosen]) :focus-visible { outline-color: var(--on-accent); outline-offset: -2px; }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) [data-chosen] { background: var(--accent); color: var(--on-accent); }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) [data-chosen] :is(.tile, .item-label, .item-detail, .destination-label, .destination-target) { color: inherit; }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) [data-chosen] .tag { background: transparent; box-shadow: inset 0 0 0 1px currentColor; color: inherit; }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .profile-item[data-chosen] .status-dot { background: currentColor; }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .row:has([data-chosen]) .profile-edit { color: var(--on-accent); }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .row:has([data-chosen]) .profile-edit:hover { background: color-mix(in srgb, currentColor 20%, transparent); }
+  .picker:has(.picker-search .input:focus, .picker-list :focus-visible, .picker-list:hover) .row:has([data-chosen]) :focus-visible { outline-color: var(--on-accent); outline-offset: -2px; }
   .errors h3 { margin: 10px 16px 2px; }
   .error-row { padding: 6px 16px; }
   .theme-option { gap: 5px; padding: 6px 6px 5px; font-size: 11px; font-weight: 400; }

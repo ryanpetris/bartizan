@@ -6,7 +6,7 @@ import { parse } from 'yaml';
 import { withDirectory, launch } from './lib/harness.mjs';
 import { openSettings, closeSettings, chooseAppearance, pickerBackground } from './lib/settings.mjs';
 
-const defaults = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true };
+const defaults = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true, remoteSessionIntegration: true };
 const dialogBackground = { dark: 'rgb(30, 32, 41)', light: 'rgb(255, 255, 255)' };
 const railBackground = { dark: 'rgb(15, 16, 21)', light: 'rgb(228, 229, 238)' };
 

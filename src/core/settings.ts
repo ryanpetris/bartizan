@@ -11,4 +11,5 @@ export const settingsSchema = z.strictObject({
   terminalFont: fontSchema,
   terminalFontSize: fontSizeSchema,
   terminalLigatures: z.boolean(),
+  remoteSessionIntegration: z.boolean(),
 });

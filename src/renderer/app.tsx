@@ -1,3 +1,4 @@
+import { RemoteSessions } from './remote-sessions';
 import '@xterm/xterm/css/xterm.css';
 import { Component, useInsertionEffect, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -33,6 +34,7 @@ import { ModalLayer, Modal } from './overlay';
 import { Connect, openConnect } from './connect';
 import { Details } from './details';
 import { Quit, openQuit } from './quit';
+import { KillSession } from './kill-session';
 import { Home } from './home';
 import { Icon } from './ui';
 import { chooseMenuItem } from './menu';
@@ -213,6 +215,7 @@ function App() {
         <main className="main">
           <terminals.Terminals />
           <browser.Browser />
+          <RemoteSessions />
           <section className="view empty-view" aria-label="Nothing Open" hidden={store.selection?.kind !== 'connection'}>
             <span className="empty-mark">
               <Icon name="terminal" />
@@ -230,6 +233,7 @@ function App() {
           <Connect />
           <errors.Errors />
           <Quit />
+          <KillSession />
         </Modal>
       </FocusRecovery>
     </ModalLayer>
