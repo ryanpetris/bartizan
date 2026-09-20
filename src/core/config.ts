@@ -47,7 +47,7 @@ export const specSchema = z.strictObject({
   }).optional(),
   host_keys: z.strictObject({ policy: z.enum(['ask', 'strict', 'accept-new', 'off']).optional(), fingerprints: z.array(z.string().regex(fingerprintPattern, 'Expected a SHA256 host key fingerprint')).optional(), public_keys: z.array(z.string().refine(value => { try { publicKeyFingerprint(value); return true; } catch { return false; } }, 'Expected an Ed25519, ECDSA or RSA public host key')).optional() }).optional(),
   remote_sessions: z.boolean().optional(),
-  terminal: z.strictObject({ ligatures: z.boolean().optional(), font: fontSchema.optional(), font_size: fontSizeSchema.optional(), scrollback: z.number().int().min(0).max(100000).optional() }).optional(),
+  terminal: z.strictObject({ webgl: z.boolean().optional(), ligatures: z.boolean().optional(), font: fontSchema.optional(), font_size: fontSizeSchema.optional(), scrollback: z.number().int().min(0).max(100000).optional() }).optional(),
   ssh: sshSchema.optional(),
 });
 export type Spec = z.infer<typeof specSchema>;

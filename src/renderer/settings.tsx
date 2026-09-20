@@ -232,6 +232,10 @@ function SettingsDialog() {
             <input id="settings-remote-sessions" type="checkbox" checked={settings.remoteSessionIntegration}
               onChange={(e) => save({ remoteSessionIntegration: e.target.checked })} />
           </Field>
+          <Field label="WebGL Rendering" id="settings-webgl">
+            <input id="settings-webgl" type="checkbox" checked={settings.terminalWebgl}
+              onChange={(e) => save({ terminalWebgl: e.target.checked })} />
+          </Field>
           <Field label="Terminal Ligatures" id="settings-ligatures">
             <input
               id="settings-ligatures"

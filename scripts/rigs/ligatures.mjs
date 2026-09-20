@@ -17,7 +17,7 @@ await withDirectory('ligatures', async (directory, cleanup) => {
   const sshd = await startSshd(directory);
   cleanup(sshd.stop);
   const config = join(directory, 'config.yaml');
-  await writeFile(config, `version: 1\nprofiles:\n  joined:\n${sshProfile(sshd)}  separate:\n${sshProfile(sshd, '    terminal:\n      ligatures: false\n')}`);
+  await writeFile(config, `version: 1\nsettings:\n  terminalWebgl: true\nprofiles:\n  joined:\n${sshProfile(sshd)}  separate:\n${sshProfile(sshd, '    terminal:\n      ligatures: false\n')}`);
   const app = await launch(directory, config, { args: softwareGL });
   cleanup(app.close);
   const { application, page, api, state, waitState, recordOutput, output, errors } = app;

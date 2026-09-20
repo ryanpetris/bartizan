@@ -58,6 +58,7 @@ const definitions: Record<string, Definition> = {
   'terminal.font': { kind: 'font' },
   'terminal.font_size': { number: [8, 32], unit: 'px' },
   'terminal.ligatures': { kind: 'choice', boolean: true },
+  'terminal.webgl': { kind: 'choice', boolean: true },
   'terminal.scrollback': { number: [0, 100000], unit: 'lines' },
   'ssh.ConnectTimeout': { number: [0, 86400], unit: 'seconds' },
   'ssh.ServerAliveInterval': { number: [0, 86400], unit: 'seconds' },
@@ -461,6 +462,7 @@ function Editor({ draft, initialError }: { draft: ProfileDraft; initialError?: u
         'terminal.font': store.state.settings.terminalFont,
         'terminal.font_size': store.state.settings.terminalFontSize,
         'terminal.ligatures': store.state.settings.terminalLigatures,
+        'terminal.webgl': store.state.settings.terminalWebgl,
       } as Record<string, unknown>
     )[path];
   const method = (read('auth.method', values['auth.method'], undefined) ??

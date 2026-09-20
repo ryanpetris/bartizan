@@ -2,6 +2,7 @@ import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { openSettings, closeSettings } from './lib/settings.mjs';
 import { launch, sshProfile, startSshd, waitFor, withDirectory } from './lib/harness.mjs';
 
 // BARTIZAN_RIG_DISPLAY selects the Ozone platform, such as wayland on a Wayland desktop.
@@ -10,7 +11,7 @@ const display = process.env.BARTIZAN_RIG_DISPLAY || 'x11';
 await withDirectory('graphics', async (directory, cleanup) => {
   const sshd = await startSshd(directory); cleanup(sshd.stop);
   const config = join(directory, 'config.yaml');
-  await writeFile(config, `version: 1\nprofiles:\n  fixture:\n${sshProfile(sshd)}`);
+  await writeFile(config, `version: 1\nprofiles:\n  fixture:\n${sshProfile(sshd)}  enabled:\n${sshProfile(sshd, '    terminal:\n      webgl: true\n')}  disabled:\n${sshProfile(sshd, '    terminal:\n      webgl: false\n')}`);
   const app = await launch(directory, config, { args: [`--ozone-platform=${display}`] }); cleanup(app.close);
   const { application, page, api, state, waitState, errors } = app;
   let logs = '';
@@ -27,7 +28,46 @@ await withDirectory('graphics', async (directory, cleanup) => {
   const canvasSelector = '.terminal-surface:not([hidden]) .xterm-screen > canvas:not(.xterm-link-layer)';
   const canvas = page.locator(canvasSelector);
   await select(first);
+  await expect(canvas).toHaveCount(0);
+  await expect(page.locator('.terminal-surface:not([hidden]) .xterm-rows')).toBeVisible();
+  await api('input', first, "echo DOM_RENDERING_OK\n");
+  await expect(page.locator('.terminal-surface:not([hidden]) .xterm-rows')).toContainText('DOM_RENDERING_OK');
+  const settingsDialog = await openSettings(page);
+  const webgl = settingsDialog.getByRole('checkbox', { name: 'WebGL Rendering', exact: true });
+  await expect(webgl).not.toBeChecked();
+  await webgl.check();
+  await expect.poll(async () => (await state()).settings.terminalWebgl).toBe(true);
+  await closeSettings(page);
   await expect(canvas, 'WebGL is required; set BARTIZAN_RIG_SOFTWARE_GL=1 without a graphics driver').toHaveCount(1);
+  await select(second);
+  await expect(canvas).toHaveCount(1);
+  await api('settings', { terminalWebgl: false });
+  await expect(canvas).toHaveCount(0);
+  await select(first);
+  await expect(canvas).toHaveCount(0);
+  await api('settings', { terminalWebgl: true });
+  await expect(canvas).toHaveCount(1);
+
+  for (const enabled of [true, false]) {
+    await api('settings', { terminalWebgl: !enabled });
+    const override = await api('connect', { profileId: enabled ? 'enabled' : 'disabled' });
+    const connected = await waitState(s => s.terminals.some(t => t.connectionId === override && t.status === 'connected'));
+    await app.chooseConnection(override);
+    await select(connected.terminals.find(t => t.connectionId === override).id);
+    if (!enabled) await expect(page.locator('.terminal-surface:not([hidden]) .xterm-rows')).toBeVisible();
+    await expect(canvas).toHaveCount(enabled ? 1 : 0);
+    await api('settings', { terminalWebgl: enabled });
+    await api('settings', { terminalWebgl: !enabled });
+    await expect(canvas).toHaveCount(enabled ? 1 : 0);
+    await api('disconnect', override);
+    await api('removeConnection', override);
+  }
+  await api('settings', { terminalWebgl: true });
+  await app.chooseConnection(connection);
+  await select(first);
+  await expect(canvas).toHaveCount(1);
+  await expect(page.locator('#error-count')).toBeHidden();
+  console.log('WebGL toggles live, inherited terminals follow global settings, and explicit profile values override them without errors.');
   // A full screen exercises character measurement when switching renderers, including styled and wide characters.
   await api('input', first, "printf '\\033[2J\\033[H'; printf '%30000s' '' | tr ' ' X; printf '\\033[1;3mλ界\\033[0m\\033]2;GRAPHICS_FULL_SCREEN\\007'; sleep 600\n");
   await expect(page.locator(`[data-kind="terminal"][data-id="${first}"]`)).toContainText('GRAPHICS_FULL_SCREEN');
@@ -164,6 +204,10 @@ await withDirectory('graphics', async (directory, cleanup) => {
   });
   await select(second);
   await expect(canvas).toHaveCount(0);
+  await expect(page.locator('#error-count')).toHaveText('1');
+  await api('settings', { terminalWebgl: false });
+  await expect(page.locator('#error-count')).toBeHidden();
+  await api('settings', { terminalWebgl: true });
   await expect(page.locator('#error-count')).toHaveText('1');
   console.log('Graphics errors persist through backend updates and history clearing, resolve per terminal, and collapse to one global failure.');
 

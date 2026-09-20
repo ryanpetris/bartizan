@@ -194,6 +194,12 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await expect(form.locator('[name="label"]')).toHaveValue('Alpha');
   await expect(form.locator('[name="username"]')).toHaveValue('');
   await expect(form.locator('[name="port"]')).toHaveAttribute('placeholder', String(sshd.port));
+  await section('Terminal');
+  const webgl = form.getByRole('combobox', { name: 'WebGL Rendering', exact: true });
+  await expect(webgl).toHaveValue('');
+  await expect(webgl.locator('option:checked')).toHaveText('Inherit (Disabled)');
+  await webgl.selectOption('false');
+  await webgl.selectOption('');
   await section('Authentication');
   await expect(form.locator('select[name="auth.password"]')).toHaveValue('literal');
   await expect(form.locator('[name="auth.password.value"]')).toHaveAttribute('placeholder', '••••••••');

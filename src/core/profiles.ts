@@ -7,7 +7,7 @@ import { writeAtomic } from './files';
 import { settingsSchema } from './settings';
 import type { Settings } from '../shared';
 
-const fields = ['remote_sessions', 'label', 'host', 'username', 'port', 'auth.method', 'auth.identity_files', 'auth.agent', 'auth.password', 'auth.passphrase', 'host_keys.policy', 'host_keys.fingerprints', 'host_keys.public_keys', 'terminal.scrollback', 'terminal.font', 'terminal.font_size', 'terminal.ligatures', 'ssh.ConnectTimeout', 'ssh.ServerAliveInterval', 'ssh.ServerAliveCountMax', 'ssh.ForwardAgent', 'ssh.Compression', 'ssh.TCPKeepAlive', 'ssh.AddressFamily', 'ssh.LogLevel', 'ssh.KexAlgorithms', 'ssh.Ciphers', 'ssh.MACs', 'ssh.HostKeyAlgorithms', 'ssh.PubkeyAcceptedAlgorithms'] as const;
+const fields = ['remote_sessions', 'label', 'host', 'username', 'port', 'auth.method', 'auth.identity_files', 'auth.agent', 'auth.password', 'auth.passphrase', 'host_keys.policy', 'host_keys.fingerprints', 'host_keys.public_keys', 'terminal.scrollback', 'terminal.font', 'terminal.font_size', 'terminal.ligatures', 'terminal.webgl', 'ssh.ConnectTimeout', 'ssh.ServerAliveInterval', 'ssh.ServerAliveCountMax', 'ssh.ForwardAgent', 'ssh.Compression', 'ssh.TCPKeepAlive', 'ssh.AddressFamily', 'ssh.LogLevel', 'ssh.KexAlgorithms', 'ssh.Ciphers', 'ssh.MACs', 'ssh.HostKeyAlgorithms', 'ssh.PubkeyAcceptedAlgorithms'] as const;
 export const profileChangesSchema = z.strictObject({ token: z.string().uuid(), values: specSchema, reset: z.array(z.enum(fields)).max(fields.length), tags: tagsSchema.optional() });
 export const profileSaveSchema = profileChangesSchema.extend({ id: profileIdSchema.optional(), connect: z.boolean() });
 type Changes = z.infer<typeof profileChangesSchema>;

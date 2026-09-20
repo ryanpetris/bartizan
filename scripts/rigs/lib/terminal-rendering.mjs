@@ -3,9 +3,11 @@ import { expect } from '@playwright/test';
 import { chooseAppearance, openSettings, closeSettings } from './settings.mjs';
 
 export async function testTerminalRendering(app, first, second) {
-  const { application, page, state } = app;
+  const { application, page, api, state } = app;
   const settings = async () => (await state()).settings;
   await page.emulateMedia({ colorScheme: null });
+  // The renderers this exercises draw with WebGL, which is off by default.
+  await api('settings', { terminalWebgl: true });
   const renderer = '.terminal-surface .xterm-screen > canvas:not(.xterm-link-layer)';
   const select = id => page.locator(`[data-kind="terminal"][data-id="${id}"]`).click();
   const background = () => page.locator('.terminal-host').evaluate(e => getComputedStyle(e).backgroundColor);
@@ -85,7 +87,7 @@ export async function testTerminalRendering(app, first, second) {
   await dialog.getByRole('combobox', { name: 'Terminal Font', exact: true }).selectOption('JetBrains Mono');
   await dialog.getByRole('spinbutton', { name: 'Terminal Font Size', exact: true }).fill('13');
   await closeSettings(page);
-  await expect.poll(settings).toEqual({ appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalLigatures: true, terminalFont: 'JetBrains Mono', terminalFontSize: 13, remoteSessionIntegration: true });
+  await expect.poll(settings).toEqual({ appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalLigatures: true, terminalWebgl: true, terminalFont: 'JetBrains Mono', terminalFontSize: 13, remoteSessionIntegration: true });
   await expect.poll(async () => (await terminalSize()).join('x')).toBe(initialSize.join('x'));
   await draw();
   console.log('Terminal font family and size apply live, keep the session, fall back for a missing family and restore the terminal size.');

@@ -68,6 +68,7 @@ The fields below work in `defaults` or an individual profile, except `tags`.
 | `terminal.font` | Override the global terminal font |
 | `terminal.font_size` | Override the global size, from 8 to 32 |
 | `terminal.ligatures` | Override the global ligature setting |
+| `terminal.webgl` | Override global WebGL rendering, disabled by default |
 | `remote_sessions` | Boolean; overrides the global remote sessions setting |
 | `terminal.scrollback` | Integer from 0 to 100000; default 5000 lines |
 

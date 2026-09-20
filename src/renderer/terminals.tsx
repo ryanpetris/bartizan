@@ -406,6 +406,10 @@ export function write(id: string, data: string) {
   pending.set(id, chunks);
 }
 
+/** A connection's WebGL override, or the live global setting when inherited. */
+const effectiveWebgl = (session: TerminalSession) =>
+  connectionOf(session.connectionId)?.terminal.webgl ?? store.state.settings.terminalWebgl;
+
 function fitVisible() {
   const entry = visibleEntry();
   // Cell metrics come from the font, so a terminal opens only once its font has loaded.
@@ -419,7 +423,7 @@ function fitVisible() {
     entry.focusPending = undefined;
   }
   const before = [entry.terminal.cols, entry.terminal.rows];
-  if (!entry.rendererAttempted && !webglFailed) startGraphics(entry);
+  if (effectiveWebgl(entry.session) && !entry.rendererAttempted && !webglFailed) startGraphics(entry);
   entry.fit.fit();
   if (!entry.element.dataset.sized || before[0] !== entry.terminal.cols || before[1] !== entry.terminal.rows) {
     entry.element.dataset.sized = 'true';
@@ -497,7 +501,14 @@ function update() {
     entry.session = session;
     syncFont(entry);
     syncLigatures(entry);
+    if (!effectiveWebgl(session)) {
+      stopGraphics(entry);
+      entry.rendererAttempted = false;
+      localErrors.setCurrent(graphicsErrorKey(entry));
+    }
   }
+  if (webglFailed) localErrors.setCurrent('webgl', [...entries.values()].some(entry => effectiveWebgl(entry.session))
+    ? { source: 'webgl', label: 'App', message: 'WebGL rendering is disabled.' } : undefined);
   const session = current();
   for (const [id, entry] of entries) {
     const shown = id === session?.id;
