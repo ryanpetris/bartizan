@@ -1,3 +1,4 @@
+import type { HelperEnvelope, HelperMessage } from './helper-messages';
 import type { API, Event } from './shared';
 import type { Transport } from './transport';
 export function createClient(transport: Transport): API {
@@ -32,7 +33,13 @@ return {
   disconnect: id => call('disconnect', id),
   removeConnection: id => call('remove-connection', id),
   reconnect: id => call('reconnect', id),
-  discoverRemoteSessions: id => call('discover-remote-sessions', id),
+  sendHelperMessage: (id, message) => call('helper-message', id, message),
+  onHelperMessage: (type, callback) => transport.onEvent(event => {
+    if (event.type === 'helper' && event.message.type === type) {
+      try { callback(structuredClone(event) as unknown as HelperEnvelope<Extract<HelperMessage, { type: typeof type }>>); }
+      catch (error) { console.error(error); }
+    }
+  }),
   resumeRemoteSessions: (id, keys, takeover) => call('resume-remote-sessions', id, keys, takeover),
   killRemoteSession: (id, key) => call('kill-remote-session', id, key),
   newTerminal: id => call('new-terminal', id),

@@ -3,7 +3,6 @@ import type { RemoteSession } from '../shared';
 import { api, run, store, render, connectionOf } from './store';
 import { Button, Icon } from './ui';
 import { openModal } from './dialogs';
-import { backendName } from '../shared';
 
 let asked: { connectionId: string; session: RemoteSession } | undefined;
 export function openKill(connectionId: string, session: RemoteSession) {
@@ -25,15 +24,14 @@ function KillDialog({ asked: { connectionId, session } }: { asked: NonNullable<t
   useLayoutEffect(() => {
     if (!connection?.remoteSessions?.sessions.some(s => s.key === session.key)) dialog.current?.close();
   });
-  const context = [`${backendName(session.backend)} on ${connection?.label ?? ''}`.trim(), session.windows && `${session.windows} ${session.backend === 'herdr' ? 'tab' : 'window'}${session.windows === 1 ? '' : 's'}`]
-    .filter(Boolean).join(' · ');
+  const context = `${session.group} on ${connection?.label ?? ''}`.trim();
   return <dialog ref={dialog} id="kill-dialog" className="prompt-dialog" aria-labelledby="kill-title"
     onClose={() => { asked = undefined; render(); }}>
     <div className="dialog-form">
       <header className="dialog-header">
         <span className="dialog-icon warning"><Icon name="alert" /></span>
         <div className="dialog-titles">
-          <h2 id="kill-title">Kill session “{session.name}”?</h2>
+          <h2 id="kill-title">Kill session “{session.label}”?</h2>
           <p className="dialog-context">{context}</p>
         </div>
       </header>

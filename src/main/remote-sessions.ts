@@ -1,8 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { stripVTControlCharacters } from 'node:util';
 import { execFile } from 'node:child_process';
-import discoveryProgram from './remote-discovery.py';
-import { backends, type RemoteSession } from '../shared';
 import type { Spec } from '../core/config';
 
 export const quoteShell = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
@@ -38,67 +36,4 @@ export function remoteCommand(socket: string, spec: Spec, command: string, input
     child.stdin?.on('error', () => {});
     child.stdin?.end(input);
   });
-}
-/** env finds the interpreter on PATH without a shell function or alias standing in for it. */
-export const discoveryCommand = 'exec /usr/bin/env python3 -';
-export { discoveryProgram };
-const unsafe = '\\x00-\\x1f\\x7f-\\x9f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069';
-const control = /[\x00-\x1f\x7f-\x9f]/;
-const controls = new RegExp(`[${unsafe}]`, 'g');
-/** Failure text keeps the line breaks it is written with, and loses everything else that moves the cursor. */
-const failure = new RegExp(`[${unsafe.replace('\\x00-\\x1f', '\\x00-\\x09\\x0b-\\x1f')}]`, 'g');
-const text = (value: unknown, limit: number) => (typeof value === 'string' ? value.slice(0, limit) : undefined);
-const exact = (value: unknown, limit: number) => (typeof value === 'string' && value.length <= limit ? value : undefined);
-/** A host describes its own sessions, so the listing it is allowed to fill the interface with is bounded. */
-const LIMIT = 100;
-const label = (value: unknown, limit: number) => text(value, limit)?.replace(controls, ' ');
-const count = (value: unknown) => (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined);
-/**
- * Reads a discovery listing, which arrives from a host that is not trusted to describe itself: an entry that fails to
- * name a backend, or gives an identifier that could not be used as one, is dropped rather than shown.
- */
-export function parseDiscovery(output: string): { sessions: RemoteSession[]; failures: Partial<Record<RemoteSession['backend'], string>> } {
-  // The listing is the last line written, so a warning printed ahead of it does not lose every session.
-  const listing: unknown = JSON.parse(output.split('\n').map(line => line.trim()).filter(Boolean).at(-1) ?? '');
-  const listed = listing && typeof listing === 'object' ? (listing as Record<string, unknown>) : undefined;
-  if (!listed || !Array.isArray(listed.sessions)) throw new Error('Invalid session listing');
-  const sessions: RemoteSession[] = [];
-  const seen = new Set<string>();
-  for (const value of listed.sessions) {
-    if (sessions.length >= LIMIT) break;
-    if (!value || typeof value !== 'object') continue;
-    const entry = value as Record<string, unknown>;
-    const backend = backends.find(name => name === entry.backend);
-    const id = exact(entry.id, 4096);
-    const name = label(entry.name, 4096);
-    if (!backend || !id || name === undefined || control.test(id) || id.startsWith('-')) continue;
-    const key = `${backend}:${id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    sessions.push({ key, backend, id, name, clients: count(entry.clients) ?? 0, windows: count(entry.windows), activity: count(entry.activity), where: label(entry.where, 512), doing: label(entry.doing, 128) });
-  }
-  const reported = listed.errors && typeof listed.errors === 'object' ? (listed.errors as Record<string, unknown>) : {};
-  const failures: Partial<Record<RemoteSession['backend'], string>> = {};
-  for (const backend of backends) {
-    const reason = text(reported[backend], 1024)?.replace(/\r\n?/g, '\n').replace(failure, ' ').trim();
-    if (reason) failures[backend] = reason;
-  }
-  return { sessions, failures };
-}
-export function attachCommand(session: RemoteSession, takeover: boolean): string {
-  const id = quoteShell(session.id);
-  switch (session.backend) {
-    case 'tmux': return takeover ? `exec tmux attach-session -d -t ${id}` :
-      `attached=$(tmux display-message -p -t ${id} '#{session_attached}') || exit; if [ "$attached" != 0 ]; then printf '%s\\n' 'Session is attached' >&2; exit 1; fi; exec tmux attach-session -t ${id}`;
-    case 'screen': return `exec screen ${takeover ? '-d -r' : '-r'} ${id}`;
-    case 'herdr': return `exec herdr session attach ${id}`;
-  }
-}
-export function killCommand(session: RemoteSession): string {
-  const id = quoteShell(session.id);
-  switch (session.backend) {
-    case 'tmux': return `tmux kill-session -t ${id}`;
-    case 'screen': return `screen -S ${id} -X quit`;
-    case 'herdr': return `herdr session stop ${id}`;
-  }
 }

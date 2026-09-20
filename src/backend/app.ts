@@ -57,6 +57,7 @@ export async function createBackend(options: BackendOptions) {
     const spec = entry.info.profileId ? catalog.profiles.find(p => p.id === entry.info.profileId)?.spec ?? entry.spec : entry.spec;
     return spec?.remote_sessions ?? catalog.defaults.remote_sessions ?? settings.remoteSessionIntegration;
   });
+  sessions.messages.listen(event => send({ type: 'helper', ...event }));
   let closed = false;
   let connecting = Promise.resolve();
   const serialize = <T>(work: () => Promise<T>) => {
@@ -162,7 +163,7 @@ export async function createBackend(options: BackendOptions) {
     const spec = entry.info.profileId ? resolveSpec(catalog, entry.info.profileId, {}) : entry.spec;
     return sessions.create(spec, entry.info.profileId, entry.info.id, false);
   }));
-  handle('discover-remote-sessions', (id: unknown) => sessions.discoverRemoteSessions(z.string().parse(id)));
+  handle('helper-message', (id: unknown, message: unknown) => sessions.messages.send(z.string().parse(id), z.object({ type: z.literal('sessions.refresh') }).parse(message)));
   handle('resume-remote-sessions', (id: unknown, keys: unknown, takeover: unknown) => sessions.resumeRemoteSessions(z.string().parse(id), z.array(z.string().max(8192)).max(1000).parse(keys), z.boolean().parse(takeover)));
   handle('kill-remote-session', (id: unknown, key: unknown) => sessions.killRemoteSession(z.string().parse(id), z.string().max(8192).parse(key)));
   handle('new-terminal', (id: unknown) => serialize(async () => sessions.newTerminal(z.string().parse(id))));

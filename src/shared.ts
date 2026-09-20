@@ -1,3 +1,5 @@
+import type { RemoteSession, SessionFailure, HelperMessage, HelperRequest, HelperListener } from './helper-messages';
+export type { RemoteSession } from './helper-messages';
 import type { Spec, PublicSpec, PublicProfile } from './core/config';
 import type { ConnectionInfo } from './main/connection-info';
 import type { Challenge } from './main/askpass';
@@ -75,15 +77,7 @@ export function parseDestination(input: string): { host: string; username?: stri
   const username = value.slice(0, at);
   if (username && usernamePattern.test(username)) return { ...destination, username };
 }
-export const backends = ['tmux', 'screen', 'herdr'] as const;
-/** Backends are written as their own projects write them. */
-export const backendName = (backend: RemoteSession['backend']) => (backend === 'herdr' ? 'Herdr' : backend);
-/** `clients` counts the terminals attached to the session; `windows` counts tmux windows or Herdr tabs, `where` is a
- * working directory or workspace name, `doing` a running command or agent state, and `activity` a Unix time. */
-export type RemoteSession = { key: string; backend: 'tmux' | 'screen' | 'herdr'; id: string; name: string; clients: number; windows?: number; activity?: number; where?: string; doing?: string; error?: string };
-/** A failure carries the backend that reported it, except one that stopped the whole listing. */
-export type RemoteSessionError = { backend?: RemoteSession['backend']; message: string };
-export type RemoteSessions = { sessions: RemoteSession[]; loading: boolean; errors: RemoteSessionError[] };
+export type RemoteSessions = { sessions: RemoteSession[]; loading: boolean; errors: SessionFailure[] };
 export type Connection = { id: string; profileId?: string; label: string; host: string; username?: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number; terminal: NonNullable<Spec['terminal']>; remoteSessions?: RemoteSessions };
 export type TerminalSession = { remoteSession?: RemoteSession; id: string; connectionId: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number };
 export type CertificateChallenge = { id: string; url: string; origin: string; error: string; fingerprint: string; subject: string; issuer: string; validFrom: string; validTo: string };
@@ -100,7 +94,7 @@ export type AuthAnswer = string | null | { username: string; password: string };
 export type Capabilities = { embeddedBrowser: boolean; nativeFilePicker: boolean };
 export type State = {
   capabilities: Capabilities; settings: Settings; configError?: string; profiles: PublicProfile[]; defaults: PublicSpec; file: string; connections: Connection[]; terminals: TerminalSession[]; workspaces: Workspace[]; challenges: AuthChallenge[] };
-export type Event = { type: 'transport-error'; message: string } | { type: 'menu'; index: number } | { type: 'select-browser'; id: string } | { type: 'state'; state: State } | { type: 'data'; id: string; data: string } | { type: 'errors'; log: ErrorLog; initial?: boolean } | { type: 'browser-shortcut'; id: string; action: 'focus-address' | 'new-connection' | 'find' }
+export type Event = { type: 'helper'; connectionId: string; message: HelperMessage } | { type: 'transport-error'; message: string } | { type: 'menu'; index: number } | { type: 'select-browser'; id: string } | { type: 'state'; state: State } | { type: 'data'; id: string; data: string } | { type: 'errors'; log: ErrorLog; initial?: boolean } | { type: 'browser-shortcut'; id: string; action: 'focus-address' | 'new-connection' | 'find' }
   /** Closing the window waits for the user to confirm quitting while a connection is live. */
   | { type: 'confirm-quit' }
   /** A tab's icon as a data URL, its find-in-page result, and the address of the link under the pointer. */
@@ -144,7 +138,8 @@ export interface API {
   disconnect(id: string): Promise<void>;
   removeConnection(id: string): Promise<void>;
   reconnect(id: string): Promise<string>;
-  discoverRemoteSessions(connectionId: string): Promise<void>;
+  sendHelperMessage(connectionId: string, message: HelperRequest): Promise<void>;
+  onHelperMessage<T extends HelperMessage['type']>(type: T, callback: HelperListener<T>): () => void;
   resumeRemoteSessions(connectionId: string, keys: string[], takeover: boolean): Promise<string[]>;
   killRemoteSession(connectionId: string, key: string): Promise<void>;
   newTerminal(connectionId: string): Promise<string>;

@@ -1,0 +1,33 @@
+export type RemoteSession = {
+  source: string; key: string; label: string; group: string; detail: string; attached: boolean;
+  commands: { resume?: string; takeover?: string; stop?: string };
+  error?: string;
+};
+export type SessionFailure = { source?: string; message: string };
+export type HelperRequest = { type: 'sessions.refresh' };
+export type HelperMessage =
+  | { type: 'sessions.upsert'; source: string; session: RemoteSession }
+  | { type: 'sessions.remove'; source: string; key: string }
+  | { type: 'sessions.snapshot'; sources: string[]; sessions: RemoteSession[]; errors: SessionFailure[] }
+  | { type: 'helper.error'; message: string };
+export type HelperEnvelope<M = HelperMessage> = { connectionId: string; message: M };
+export type HelperListener<T extends HelperMessage['type']> = (event: HelperEnvelope<Extract<HelperMessage, { type: T }>>) => void;
+
+/** Each consumer receives its own message so reconciliation cannot alter another subscriber's input. */
+export class HelperMessages {
+  private listeners = new Set<(event: HelperEnvelope) => void>();
+  constructor(readonly send: (connectionId: string, message: HelperRequest) => Promise<void>, private failed: (error: unknown) => void = console.error) {}
+  listen(callback: (event: HelperEnvelope) => void) {
+    this.listeners.add(callback);
+    return () => { this.listeners.delete(callback); };
+  }
+  on<T extends HelperMessage['type']>(type: T, callback: HelperListener<T>) {
+    return this.listen(event => { if (event.message.type === type) callback(event as HelperEnvelope<Extract<HelperMessage, { type: T }>>); });
+  }
+  publish(connectionId: string, message: HelperMessage) {
+    for (const listener of [...this.listeners]) {
+      try { listener(structuredClone({ connectionId, message })); }
+      catch (error) { this.failed(error); }
+    }
+  }
+}

@@ -1,5 +1,6 @@
-import { channelArgs, remoteCommand, discoveryCommand, discoveryProgram, parseDiscovery, attachCommand, killCommand, loginCommand, sessionError } from './remote-sessions';
-import { backends } from '../shared';
+import { channelArgs, remoteCommand, loginCommand, sessionError } from './remote-sessions';
+import { HelperMessages, type HelperMessage } from '../helper-messages';
+import { RemoteHelper } from './remote-helper';
 import * as pty from 'node-pty';
 import { spawn, execFile, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -13,11 +14,19 @@ import type { Connection, TerminalSession } from '../shared';
 import { masterArgs, preflight } from '../core/ssh';
 import { unusedPort } from '../core/relay';
 import { Askpass } from './askpass';
-export type LiveConnection = { info: Connection; spec: Spec; process?: ChildProcess; port: number; socket: string; cleanup: () => void; ended: Promise<void>; observed: Partial<ConnectionInfo>; detailsPending?: Promise<ConnectionInfo>; discovery?: Promise<void> };
+export type LiveConnection = { info: Connection; spec: Spec; process?: ChildProcess; port: number; socket: string; cleanup: () => void; ended: Promise<void>; observed: Partial<ConnectionInfo>; detailsPending?: Promise<ConnectionInfo>; helper?: RemoteHelper };
 export class Sessions {
+  readonly messages = new HelperMessages(async (connectionId, message) => {
+    const helper = this.entries.get(connectionId)?.helper;
+    if (!helper) throw new Error('Remote helper is disconnected');
+    await helper.send(message);
+  });
   entries = new Map<string, LiveConnection>();
   terminals = new Map<string, { info: TerminalSession; process?: pty.IPty; cols: number; rows: number; closing?: boolean; repaint?: ReturnType<typeof setTimeout> }>();
-  constructor(private directory: string, private askpass: Askpass, private askpassHelper: string, private changed: () => void, private data: (id: string, chunk: string) => void, private diagnostic: (message: string, connectionId: string, label: string) => void, private integration: (entry: LiveConnection) => boolean = () => false) { mkdirSync(directory, { recursive: true, mode: 0o700 }); }
+  constructor(private directory: string, private askpass: Askpass, private askpassHelper: string, private changed: () => void, private data: (id: string, chunk: string) => void, private diagnostic: (message: string, connectionId: string, label: string) => void, private integration: (entry: LiveConnection) => boolean = () => false) {
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    this.messages.listen(({ connectionId, message }) => this.receiveHelperMessage(connectionId, message));
+  }
   async create(spec: Spec, profileId?: string, retainedId?: string, initialTerminal = true): Promise<string> {
     const existing = [...this.entries.values()].find(e => profileId && e.info.profileId === profileId && e.info.status !== 'closed');
     if (existing) return existing.info.id;
@@ -59,6 +68,7 @@ export class Sessions {
         failure = info.status !== 'closed' && exitCode !== 0;
         diagnosticTerminal = openTerminal()?.info.id;
         info.status = 'closed'; info.remoteSessions = undefined; info.exitCode = exitCode; entry.process = undefined;
+        entry.helper?.stop(); entry.helper = undefined;
         if (this.entries.get(id) === entry) this.stopTerminals(id);
         cleanup(); ended(); this.changed();
       };
@@ -107,7 +117,7 @@ export class Sessions {
             const listed = entry.info.remoteSessions.sessions.find(s => s.key === session.key);
             if (listed) listed.error = error; else entry.info.remoteSessions.sessions.push({ ...session, error });
           }
-          void this.discoverRemoteSessions(entry.info.id);
+          void this.messages.send(entry.info.id, { type: 'sessions.refresh' }).catch(() => {});
         }
       });
     } catch (error) { terminal.info.status = 'closed'; this.data(id, `${String(error)}\r\n`); }
@@ -116,38 +126,35 @@ export class Sessions {
   syncIntegration(entry?: LiveConnection) {
     for (const live of entry ? [entry] : this.entries.values()) {
       const enabled = this.integration(live) && live.info.status === 'connected';
-      if (!enabled) live.info.remoteSessions = undefined;
-      else if (!live.info.remoteSessions) {
-        live.info.remoteSessions = { sessions: [], loading: false, errors: [] };
-        void this.discoverRemoteSessions(live.info.id);
+      if (!enabled) {
+        live.helper?.stop(); live.helper = undefined; live.info.remoteSessions = undefined;
+      } else if (!live.helper) {
+        live.info.remoteSessions = { sessions: [], loading: true, errors: [] };
+        const helper = new RemoteHelper(live.socket, live.spec, message => {
+          if (this.entries.get(live.info.id) === live && live.helper === helper) this.messages.publish(live.info.id, message);
+        });
+        live.helper = helper;
       }
     }
   }
-  async discoverRemoteSessions(connectionId: string): Promise<void> {
-    const entry = this.entries.get(connectionId);
-    if (!entry || entry.info.status !== 'connected' || !this.integration(entry)) return;
-    if (entry.discovery) return entry.discovery;
-    const state = entry.info.remoteSessions ??= { sessions: [], loading: false, errors: [] };
-    state.loading = true; this.changed();
-    entry.discovery = (async () => {
-      let listed: ReturnType<typeof parseDiscovery> | undefined, failure: string | undefined;
-      try {
-        listed = parseDiscovery(await remoteCommand(entry.socket, entry.spec, discoveryCommand, discoveryProgram));
-      } catch (error) { failure = error instanceof Error ? error.message : String(error); }
-      if (this.entries.get(connectionId) !== entry || entry.info.remoteSessions !== state || entry.info.status !== 'connected') return;
-      if (!listed) { state.errors = failure ? [{ message: failure }] : []; return; }
-      const found = listed;
-      // A backend that failed keeps the sessions it last reported, so a passing fault does not empty the list.
-      const existing = state.sessions, previous = new Map(existing.map(s => [s.key, s]));
-      state.sessions = backends.flatMap(backend => (found.failures[backend] ? existing : found.sessions).filter(s => s.backend === backend))
-        .map(s => ({ ...s, error: previous.get(s.key)?.error }));
-      state.errors = backends.flatMap(backend => { const failed = found.failures[backend]; return failed ? [{ backend, message: failed }] : []; });
-    })().finally(() => {
-      state.loading = false; entry.discovery = undefined;
-      if (entry.info.remoteSessions && entry.info.remoteSessions !== state) void this.discoverRemoteSessions(connectionId);
-      this.changed();
-    });
-    return entry.discovery;
+  private receiveHelperMessage(connectionId: string, message: HelperMessage) {
+    const state = this.entries.get(connectionId)?.info.remoteSessions;
+    if (!state) return;
+    const previous = new Map(state.sessions.map(session => [session.key, session]));
+    if (message.type === 'helper.error') {
+      state.loading = false; state.errors = [{ message: message.message }];
+    } else if (message.type === 'sessions.snapshot') {
+      const covered = new Set(message.sources);
+      const failed = new Set(message.errors.map(error => error.source));
+      state.sessions = [...message.sessions, ...state.sessions.filter(session => !covered.has(session.source) && (failed.has(undefined) || failed.has(session.source)))];
+      state.errors = message.errors; state.loading = false;
+    } else if (message.type === 'sessions.remove') {
+      state.sessions = state.sessions.filter(session => session.key !== message.key || session.source !== message.source);
+    } else {
+      state.sessions = [message.session, ...state.sessions.filter(session => session.key !== message.session.key)];
+    }
+    state.sessions = state.sessions.slice(0, 100).map(session => ({ ...session, error: previous.get(session.key)?.error }));
+    this.changed();
   }
   resumeRemoteSessions(connectionId: string, keys: string[], takeover: boolean): string[] {
     const entry = this.entries.get(connectionId);
@@ -155,12 +162,12 @@ export class Sessions {
     const opened: string[] = [];
     for (const key of new Set(keys)) {
       const session = entry.info.remoteSessions?.sessions.find(s => s.key === key);
-      if (!session || session.clients > 0 && !takeover) continue;
+      if (!session || session.attached && !takeover) continue;
       if ([...this.terminals.values()].some(t => t.info.connectionId === connectionId && t.info.remoteSession?.key === key && t.info.status !== 'closed')) continue;
-      const id = this.allocateTerminal(connectionId);
+      const command = takeover ? session.commands.takeover ?? session.commands.resume : session.commands.resume;
+      if (!command) continue;
+      const id = this.newTerminal(connectionId, command, { ...session, error: undefined });
       const terminal = this.terminals.get(id)!;
-      terminal.info.remoteSession = { ...session, error: undefined };
-      this.startTerminal(entry, id, loginCommand(attachCommand(session, takeover)));
       if (terminal.process) {
         opened.push(id);
         session.error = undefined;
@@ -177,16 +184,17 @@ export class Sessions {
     const entry = this.entries.get(connectionId);
     if (!entry || entry.info.status !== 'connected' || !this.integration(entry)) throw new Error('Session integration is unavailable');
     const session = entry.info.remoteSessions?.sessions.find(s => s.key === key);
-    if (!session) throw new Error('Unknown session');
-    await remoteCommand(entry.socket, entry.spec, killCommand(session));
-    // A listing already in flight was answered before the kill, so it cannot say what the host has left.
-    await entry.discovery?.catch(() => {});
-    await this.discoverRemoteSessions(connectionId);
+    if (!session?.commands.stop) throw new Error('Session cannot be stopped');
+    await remoteCommand(entry.socket, entry.spec, session.commands.stop);
+    void this.messages.send(connectionId, { type: 'sessions.refresh' }).catch(() => {});
   }
-  newTerminal(connectionId: string): string {
+  newTerminal(connectionId: string, command?: string, remoteSession?: TerminalSession['remoteSession']): string {
     const entry = this.entries.get(connectionId);
     if (!entry || entry.info.status !== 'connected') throw new Error('Connection is not connected');
-    const id = this.allocateTerminal(connectionId); this.startTerminal(entry, id); this.changed(); return id;
+    const id = this.allocateTerminal(connectionId);
+    this.terminals.get(id)!.info.remoteSession = remoteSession;
+    this.startTerminal(entry, id, command ? loginCommand(command) : undefined);
+    this.changed(); return id;
   }
   async details(id: string): Promise<ConnectionInfo> {
     const entry = this.entries.get(id);
@@ -242,7 +250,9 @@ export class Sessions {
   }
   async disconnect(id: string) {
     const entry = this.entries.get(id);
-    if (!entry || !entry.process) return;
+    if (!entry) return;
+    entry.helper?.stop(); entry.helper = undefined;
+    if (!entry.process) return;
     entry.info.status = 'closed'; entry.info.remoteSessions = undefined; this.stopTerminals(id); this.changed();
     const child = entry.process;
     child.kill();

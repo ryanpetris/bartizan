@@ -6,7 +6,6 @@ import {
   type Workspace,
   type TerminalSession,
   type RemoteSession,
-  backendName,
 } from '../shared';
 import type { PublicProfile as Profile } from '../core/config';
 import { themes } from '../themes';
@@ -219,7 +218,7 @@ export function terminalName(terminal: TerminalSession) {
   const session = terminal.remoteSession;
   if (title?.trim()) return title;
   // Attaching execs straight into the multiplexer, which sets no title of its own, so the session names the terminal.
-  if (session) return `${backendName(session.backend)}: ${session.name}`;
+  if (session) return `${session.group}: ${session.label}`;
   return value === 1 ? 'Terminal' : `Terminal ${value}`;
 }
 /** Each browser session has its own colour. */
@@ -532,6 +531,20 @@ export function reconnect(connectionId: string) {
 }
 export const removeConnection = (connectionId: string) =>
   run('session', api.removeConnection(connectionId), connectionId);
+
+export const remoteRefreshing = new Set<string>();
+const finishRefresh = (connectionId: string) => { remoteRefreshing.delete(connectionId); render(); };
+api.onHelperMessage('sessions.snapshot', ({ connectionId }) => finishRefresh(connectionId));
+api.onHelperMessage('helper.error', ({ connectionId }) => finishRefresh(connectionId));
+onRender(() => {
+  for (const id of remoteRefreshing) if (!connectionOf(id)?.remoteSessions) remoteRefreshing.delete(id);
+});
+export async function refreshRemoteSessions(connectionId: string) {
+  if (remoteRefreshing.has(connectionId)) return;
+  remoteRefreshing.add(connectionId); render();
+  try { await api.sendHelperMessage(connectionId, { type: 'sessions.refresh' }); }
+  catch (error) { finishRefresh(connectionId); await run('session', Promise.reject(error), connectionId); }
+}
 
 export const remoteOpening = new Set<string>();
 /** The live terminal of this connection showing a session, which is what makes it one already open here. */

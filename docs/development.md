@@ -93,3 +93,5 @@ The [release workflow](../.github/workflows/release.yml) runs for tags matching 
 The workflow generates `SHA256SUMS`, uploads the artifacts, then creates and publishes a GitHub release. Publishing requires pushing a release tag; ordinary local builds do not publish.
 
 See [Architecture](architecture.md) for the source layout and state flow.
+
+See [Remote helper](remote-helper.md) for the session stream, message subscriptions and socket discovery checks.
