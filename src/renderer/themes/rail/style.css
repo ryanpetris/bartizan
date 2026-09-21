@@ -5,7 +5,7 @@
   --radius: 8px;
   --radius-lg: 14px;
   --field-radius: 10px;
-  --rail-width: 60px;
+  --rail-width: max(60px, env(titlebar-area-x, 0px));
   --panel-width: 248px;
   --panel-thin-width: 56px;
   --titlebar-height: env(titlebar-area-height, 44px);
@@ -174,8 +174,8 @@
 /* Rail */
 :root[data-theme="rail"] .rail { display: flex; flex-direction: column; min-height: 0; background: var(--bg-rail); user-select: none; }
 :root[data-theme="rail"] .rail-nav { display: contents; }
-/* Home stands as far from the first connection as the connections stand from each other. */
-:root[data-theme="rail"] .rail-brand { display: grid; place-items: center; flex: none; padding-top: 8px; app-region: drag; }
+/* Home sits below left-side window controls, with the same gap to the first connection as between connections. */
+:root[data-theme="rail"] .rail-brand { display: grid; place-items: center; flex: none; padding-top: calc(8px + min(env(titlebar-area-x, 0px), var(--titlebar-height))); app-region: drag; }
 /* Home is a badge like a connection's, and the mark on it takes the badge's colours: the mark's windows are cut from its tower. */
 :root[data-theme="rail"] .home-button {
   --rail-badge: var(--badge);
@@ -365,7 +365,7 @@
 
 /* Errors: toasts at the panel's foot, and their shadows, end inside the panel, short of the view. */
 :root[data-theme="rail"] .error-toaster[data-sonner-toaster] { --border-radius: 12px; }
-:root[data-theme="rail"] .error-toaster[data-sonner-toaster][data-y-position="bottom"] { clip-path: inset(-100vh -9px -12px -69px); }
+:root[data-theme="rail"] .error-toaster[data-sonner-toaster][data-y-position="bottom"] { left: calc(var(--rail-width) + 9px); clip-path: inset(-100vh -9px -12px calc(-1 * (var(--rail-width) + 9px))); }
 :root[data-theme="rail"] .error-toaster [data-sonner-toast] { box-shadow: var(--toast-shadow); }
 /* The mark stands beside the title, and the message is set small enough for a host name to stay whole in the panel's width. */
 :root[data-theme="rail"] .error-toaster [data-sonner-toast][data-styled="true"] { align-items: flex-start; gap: 8px; padding: 12px 14px 13px 12px; }

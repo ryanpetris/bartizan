@@ -3,4 +3,6 @@
 import { chmod } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export default ({ appOutDir }) => chmod(join(appOutDir, 'chrome-sandbox'), 0o4755);
+export default async ({ appOutDir, electronPlatformName }) => {
+  if (electronPlatformName === 'linux') await chmod(join(appOutDir, 'chrome-sandbox'), 0o4755);
+};

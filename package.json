@@ -17,6 +17,7 @@
     "start": "npm run build && electron .",
     "postinstall": "electron-builder install-app-deps",
     "package": "npm run build && node scripts/native-linux.mjs && electron-builder --linux --publish never",
+    "package:mac": "npm run build && electron-builder --mac --arm64 -c.npmRebuild=true --publish never",
     "web": "npm run build && node dist/server.cjs",
     "screenshots": "node scripts/screenshots.mjs"
   },
@@ -106,6 +107,20 @@
       "fpm": [
         "--description",
         "SSH terminals and remote browsing"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.developer-tools",
+      "icon": "assets/icon.png",
+      "artifactName": "${name}-${version}-mac-${arch}.${ext}",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "notarize": false,
+      "extraFiles": [
+        "LICENSE"
       ]
     }
   },

@@ -2,7 +2,15 @@
 
 # Installation
 
-Bartizan runs on Linux x86-64. Download a package from the [releases page](https://github.com/ryanpetris/bartizan/releases/latest).
+Bartizan runs on Linux x86-64 and macOS on Apple Silicon. Download a package from the [releases page](https://github.com/ryanpetris/bartizan/releases/latest).
+
+## macOS
+
+Open the `.dmg` and drag Bartizan into Applications. Open Bartizan once, then go to **System Settings → Privacy & Security → Open Anyway** and confirm the launch. The app uses an ad-hoc signature and is not notarized; no Apple Developer ID is required to build it. See [Apple's instructions](https://support.apple.com/guide/mac-help/mh40616/mac) for approving the app.
+
+Bartizan uses the system OpenSSH client. Closing the main window quits the app, with confirmation when connections are active. **Command-Q** quits directly.
+
+## Linux
 
 | Package | Install or run |
 | --- | --- |

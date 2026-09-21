@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, nativeTheme, clipboard, type IpcMainInvokeEvent, type IpcMainEvent } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, dialog, nativeTheme, clipboard, type IpcMainInvokeEvent, type IpcMainEvent, type MenuItemConstructorOptions } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
@@ -38,8 +38,8 @@ else void app.whenReady().then(async () => {
   nativeTheme.themeSource = settings.appearance;
   // The native window controls follow the theme's title bar and the appearance.
   const titleBarOverlay = () => { const { height, dark, light } = themes[settings.theme].controls; return { height, ...(nativeTheme.shouldUseDarkColors ? dark : light) }; };
-  const window = new BrowserWindow({ width: 1250, height: 820, minWidth: 800, minHeight: 500, title: 'Bartizan', titleBarStyle: 'hidden', titleBarOverlay: titleBarOverlay(), webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false } });
-  const updateTitleBar = () => { if (!window.isDestroyed()) window.setTitleBarOverlay(titleBarOverlay()); };
+  const window = new BrowserWindow({ width: 1250, height: 820, minWidth: 800, minHeight: 500, title: 'Bartizan', titleBarStyle: 'hidden', titleBarOverlay: process.platform === 'darwin' ? true : titleBarOverlay(), webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false } });
+  const updateTitleBar = () => { if (process.platform !== 'darwin' && !window.isDestroyed()) window.setTitleBarOverlay(titleBarOverlay()); };
   nativeTheme.on('updated', updateTitleBar);
   window.once('closed', () => nativeTheme.off('updated', updateTitleBar));
   window.setMenuBarVisibility(false);
@@ -65,14 +65,17 @@ else void app.whenReady().then(async () => {
   handle('respond-application', (id: unknown, consentId: unknown, accepted: unknown) => applications.respond(z.string().parse(id), z.string().parse(consentId), z.boolean().parse(accepted)));
   const overlays = new Overlays(window);
   browsers.added = () => overlays.raise();
-  // A menu's accelerators receive only the keys that a page, or the application's own page, leaves alone. The menu bar stays hidden.
+  // A menu's accelerators receive only the keys that a page, or the application's own page, leaves alone.
   const pageShortcut = (name: PageShortcut) => {
     // A dialog open over the page keeps the page's keys from it.
     if (overlays.holdsModal()) return;
     const target = browsers.target();
     if (target) browsers.pageShortcut(name, target).catch(error => reportError('browser', String(error), target.connectionId));
   };
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Page', submenu: (Object.keys(pageShortcuts) as PageShortcut[]).flatMap(name => pageShortcuts[name].map(accelerator => ({ label: name, accelerator, click: () => pageShortcut(name) }))) }]));
+  const menu: MenuItemConstructorOptions[] = process.platform === 'darwin' ? [{ role: 'appMenu' }, { role: 'editMenu' }] : [];
+  menu.push({ label: 'Page', submenu: (Object.keys(pageShortcuts) as PageShortcut[]).flatMap(name => pageShortcuts[name].map(accelerator => ({ label: name, accelerator, click: () => pageShortcut(name) }))) });
+  if (process.platform === 'darwin') menu.push({ role: 'windowMenu' });
+  Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
   const linkMenus = new LinkMenus(window, sessions, browsers, serialize, id => send({ type: 'select-browser', id }), (message, id, label) => reportError('link', message, id, label));
   browsers.openPopup = (id, url) => linkMenus.open(id, url, undefined, true);
   browsers.pageMenu = (id, tabId, params) => { try { linkMenus.page(id, tabId, params); } catch {} };

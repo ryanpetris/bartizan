@@ -5,8 +5,9 @@ import { browserSessionName } from '../shared';
 import type { Browsers } from './browser';
 import type { Sessions } from './sessions';
 
-/** Whether `xdg-open` is on PATH, as `which xdg-open` reports. */
+/** macOS opens links through Launch Services; Linux needs `xdg-open` on PATH. */
 export function externalBrowserAvailable() {
+  if (process.platform === 'darwin') return true;
   return (process.env.PATH ?? '').split(delimiter).some(directory => {
     try { accessSync(join(directory, 'xdg-open'), constants.X_OK); return true; } catch { return false; }
   });

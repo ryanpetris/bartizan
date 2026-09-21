@@ -39,10 +39,10 @@ jobs:
         run: BARTIZAN_EXECUTABLE=release/linux-unpacked/bartizan node scripts/rigs.mjs --docker smoke
       - name: Record checksums
         working-directory: release
-        run: sha256sum *.AppImage *.pkg.tar.zst *.deb *.tar.gz > SHA256SUMS
+        run: sha256sum *.AppImage *.pkg.tar.zst *.deb *.tar.gz > SHA256SUMS-linux
       - uses: actions/upload-artifact@v7
         with:
-          name: packages
+          name: packages-linux
           compression-level: 0
           if-no-files-found: error
           path: |
@@ -50,9 +50,38 @@ jobs:
             release/*.pkg.tar.zst
             release/*.deb
             release/*.tar.gz
-            release/SHA256SUMS
+            release/SHA256SUMS-linux
+  build-mac:
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Set release version
+        run: npm version "${RELEASE_TAG#v}" --no-git-tag-version --ignore-scripts --allow-same-version
+      - name: Install dependencies
+        run: npm ci
+      - name: Build package
+        run: npm run package:mac
+      - name: Record checksums
+        working-directory: release
+        run: shasum -a 256 *.dmg > SHA256SUMS-mac
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-mac
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            release/*.dmg
+            release/SHA256SUMS-mac
   publish:
-    needs: build
+    needs: [build, build-mac]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -63,14 +92,17 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: packages
+          pattern: packages-*
+          merge-multiple: true
           path: release
       - name: Verify checksums
         working-directory: release
-        run: sha256sum -c SHA256SUMS
+        run: |
+          cat SHA256SUMS-linux SHA256SUMS-mac > SHA256SUMS
+          sha256sum -c SHA256SUMS
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes release/*.AppImage release/*.pkg.tar.zst release/*.deb release/*.tar.gz release/SHA256SUMS
+          gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes release/*.AppImage release/*.pkg.tar.zst release/*.deb release/*.tar.gz release/*.dmg release/SHA256SUMS
           gh release edit "$RELEASE_TAG" --draft=false

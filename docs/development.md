@@ -4,7 +4,7 @@
 
 ## Run From Source
 
-Use Linux with Node.js 24 or newer, npm and OpenSSH. Building the native `node-pty` dependency also needs Python, make and a C++ compiler. Electron needs the desktop libraries listed in [the rig image](../packaging/rig.Dockerfile) and a working Chromium sandbox.
+Use Linux or macOS with Node.js 24 or newer, npm and OpenSSH. Building the native `node-pty` dependency also needs Python, make and a C++ compiler. On macOS, install Xcode Command Line Tools with `xcode-select --install`. On Linux, Electron needs the desktop libraries listed in [the rig image](../packaging/rig.Dockerfile) and a working Chromium sandbox.
 
 From a checkout:
 
@@ -86,9 +86,17 @@ BARTIZAN_EXECUTABLE=release/linux-unpacked/bartizan npm run rigs -- --docker smo
 
 `BARTIZAN_EXECUTABLE` accepts a path relative to the repository for both local and Docker runs.
 
+On an Apple Silicon Mac:
+
+```sh
+npm run package:mac
+```
+
+Electron Builder rebuilds `node-pty` for Electron and ARM64, then writes `release/mac-arm64/Bartizan.app` and a `bartizan-<version>-mac-arm64.dmg` to `release/`. Packaging uses an ad-hoc signature, with hardened runtime and notarization disabled. It needs no Apple Developer account, certificates or signing secrets. Chromium's renderer sandbox remains enabled.
+
 ## Releases
 
-The [release workflow](../.github/workflows/release.yml) runs for tags matching `vX.Y.Z`. It derives the package version from the tag, installs dependencies, checks types and unit tests, builds packages, and runs the smoke rig against the packaged executable. The repository's package version is `0.0.0`.
+The [release workflow](../.github/workflows/release.yml) runs for tags matching `vX.Y.Z`. It derives the package version from the tag, installs dependencies, checks types and unit tests, builds Linux packages, and runs the smoke rig against the packaged Linux executable. A separate `macos-15` job builds the Apple Silicon DMG. There are no macOS-specific tests or rigs. The repository's package version is `0.0.0`.
 
 The workflow generates `SHA256SUMS`, uploads the artifacts, then creates and publishes a GitHub release. Publishing requires pushing a release tag; ordinary local builds do not publish.
 

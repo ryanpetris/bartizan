@@ -4,14 +4,14 @@
 <h1 align="center">Bartizan</h1>
 <p align="center">SSH terminals and web browsing through the same connection.</p>
 <p align="center">
-  <a href="https://github.com/ryanpetris/bartizan/releases/latest">Download for Linux</a> ·
+  <a href="https://github.com/ryanpetris/bartizan/releases/latest">Download</a> ·
   <a href="docs/README.md">Documentation</a> ·
   <a href="docs/development.md">Development</a>
 </p>
 
 ![Bartizan in its Rail, Tabs and Console themes in turn, each showing a synthetic development workspace with four SSH terminals and two browser sessions](docs/images/bartizan.png)
 
-Keep a shell, build output, logs and browser tabs together for each remote connection. Bartizan is an open source Linux desktop app built on your installed OpenSSH client.
+Keep a shell, build output, logs and browser tabs together for each remote connection. Bartizan is an open source desktop app for Linux and macOS built on your installed OpenSSH client.
 
 - Open several terminals over one SSH connection.
 - Browse through the connection's SOCKS forward, including DNS lookups. If SSH drops, browser traffic stops until you reconnect.
@@ -23,10 +23,11 @@ Bartizan keeps its own SSH configuration and trust store. Your existing SSH conf
 
 ## Install
 
-Download the latest release for Linux x86-64:
+Download the latest release for Linux x86-64 or macOS on Apple Silicon:
 
 | Package | Format |
 | --- | --- |
+| macOS disk image | `.dmg` |
 | AppImage | `.AppImage` |
 | Debian / Ubuntu | `.deb` |
 | Arch Linux | `.pkg.tar.zst` |
@@ -34,7 +35,7 @@ Download the latest release for Linux x86-64:
 
 **[Get Bartizan →](https://github.com/ryanpetris/bartizan/releases/latest)**
 
-You need OpenSSH and a working Chromium sandbox. See the [installation guide](docs/installation.md) for package commands and requirements.
+OpenSSH is required. See the [installation guide](docs/installation.md) for macOS approval steps, Linux package commands and sandbox requirements.
 
 ## Get Connected
 
