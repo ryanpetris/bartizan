@@ -14,7 +14,7 @@ if (typeof electron === 'string') {
   const { build } = await import('esbuild');
   const { withDirectory } = await import('./lib/harness.mjs');
   await withDirectory('downloads', async directory => {
-    await build({ entryPoints: [fileURLToPath(new URL('../../src/main/browser.ts', import.meta.url))], outfile: join(directory, 'browser.mjs'), bundle: true, platform: 'node', format: 'esm', external: ['electron'], logLevel: 'error' });
+    await build({ entryPoints: ['browser', 'browser-window'].map(name => fileURLToPath(new URL(`../../src/main/${name}.ts`, import.meta.url))), outdir: directory, outExtension: { '.js': '.mjs' }, bundle: true, platform: 'node', format: 'esm', external: ['electron'], logLevel: 'error' });
     const home = name => { mkdirSync(join(directory, name)); return join(directory, name); };
     // Services the session bus starts can keep output pipes open after Electron exits, so the rig waits for the exit.
     const child = spawn('dbus-run-session', ['--', electron, fileURLToPath(import.meta.url)], {
@@ -35,11 +35,11 @@ if (typeof electron === 'string') {
   app.enableSandbox();
   app.whenReady()
     .then(() => import(pathToFileURL(join(directory, 'browser.mjs')).href))
-    .then(({ Browsers }) => run(Browsers))
+    .then(async ({ Browsers }) => run(Browsers, (await import(pathToFileURL(join(directory, 'browser-window.mjs')).href)).BrowserWindowController))
     .then(() => app.exit(0), error => { console.error(error); app.exit(1); });
 }
 
-async function run(Browsers) {
+async function run(Browsers, BrowserWindowController) {
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const until = async (predicate, message) => {
     for (const deadline = Date.now() + 20000; !predicate(); await sleep(50)) if (Date.now() > deadline) throw new Error(`Timed out waiting for ${message}`);
@@ -68,8 +68,9 @@ async function run(Browsers) {
   mkdirSync(downloads);
   const window = new BrowserWindow({ width: 900, height: 700, webPreferences: { sandbox: true } });
   await window.loadURL('data:text/html,Host');
-  const browsers = new Browsers(window, () => {}, () => {}, () => {});
-  const connection = { info: { id: 'fixture', profileId: 'fixture', status: 'connected' }, port: 1 };
+  const host = new BrowserWindowController();
+  const connection = { info: { id: 'fixture', profileId: 'fixture', status: 'connected' }, port: 1, changed() {} };
+  const browsers = new Browsers(connection, host, window, () => {}, () => {});
 
   const counts = { accepted: 0, rejected: 0, cancelled: 0, completed: 0 };
   const total = () => counts.accepted + counts.rejected;
@@ -81,15 +82,16 @@ async function run(Browsers) {
   };
   /** Opens a tab on the fixture page, in a new browser session unless one is given, and shows it. */
   const tab = async session => {
-    const id = await browsers.open(connection, undefined, session ?? 'new');
+    const id = await browsers.open(undefined, session ?? 'new');
     const entry = browsers.entries.get(id);
     if (!session) {
       await entry.session.setProxy({ mode: 'direct' });
       entry.session.on('will-download', observe);
     }
-    const [tabId, view] = [...entry.views].at(-1);
+    const [tabId, controller] = [...entry.tabs].at(-1);
+    const view = controller.view;
     await view.webContents.loadURL(`${origin}/`);
-    browsers.show(id, { x: 0, y: 0, width: 900, height: 700 });
+    host.show(id, { x: 0, y: 0, width: 900, height: 700 });
     return { id, entry, tabId, view };
   };
   const inPage = (view, script) => view.webContents.executeJavaScript(script);
@@ -105,9 +107,9 @@ async function run(Browsers) {
   await until(() => total() === 20, 'the second tab burst');
   assert.equal(counts.accepted, 1);
   assert.equal(dialogs().length, 1);
-  await assert.rejects(browsers.close(a.id), /Close the download dialog first/);
-  await assert.rejects(browsers.action(a.id, 'close', b.tabId), /Close the download dialog first/);
-  assert.equal(a.entry.views.size, 2);
+  await assert.rejects(a.entry.close(), /Close the download dialog first/);
+  await assert.rejects(host.action(a.id, 'close', b.tabId), /Close the download dialog first/);
+  assert.equal(a.entry.tabs.size, 2);
   console.log('A browser session shows one save dialog at a time and keeps its tabs while it is open.');
 
   await press('Escape');
@@ -120,7 +122,7 @@ async function run(Browsers) {
   await until(() => total() === 40 && dialogs().length === 1, 'the other tab dialog');
   assert.equal(counts.accepted, 2);
   await press('Escape');
-  await browsers.action(a.id, 'select', a.tabId);
+  await host.action(a.id, 'select', a.tabId);
   for (const type of ['mouseDown', 'mouseUp']) a.view.webContents.sendInputEvent({ type, button: 'left', x: 30, y: 30, clickCount: 1 });
   await burst(a.view);
   await until(() => total() === 50 && dialogs().length === 1, 'the dialog after a click');
@@ -128,7 +130,7 @@ async function run(Browsers) {
   await press('Escape');
   await until(() => counts.cancelled === 3, 'the cancelled downloads');
   a.entry.session.off('will-download', observe);
-  await browsers.close(a.id);
+  await a.entry.close();
   const late = new Promise(resolve => a.entry.session.once('will-download', event => resolve(event.defaultPrevented)));
   a.entry.session.downloadURL(`${origin}/download?closed`);
   assert.equal(await late, true);
@@ -139,7 +141,7 @@ async function run(Browsers) {
   await burst(d.view);
   await until(() => counts.accepted === 4 && dialogs().length === 1, 'the dialog before the page closes');
   await closeItself(d.view);
-  await until(() => d.entry.views.size === 0, 'the page to close');
+  await until(() => d.entry.tabs.size === 0, 'the page to close');
   assert.deepEqual(d.entry.info.tabs, []);
   await press('alt+s');
   await until(() => counts.completed === 1, 'the saved download');
@@ -148,13 +150,13 @@ async function run(Browsers) {
   const saved = join(downloads, 'fixture.txt');
   assert.equal(readFileSync(saved, 'utf8'), 'fixture');
   rmSync(saved);
-  await browsers.close(d.id);
+  await d.entry.close();
   console.log('A page that closes itself leaves its download to be saved and its session open.');
 
   const c = await tab();
   await burst(c.view);
   await until(() => counts.accepted === 5 && dialogs().length === 1, 'the dialog before disconnecting');
-  await browsers.closeConnection('fixture');
+  await browsers.closeConnection();
   assert.equal(browsers.entries.size, 0);
   await press('alt+s');
   await sleep(500);
@@ -166,17 +168,17 @@ async function run(Browsers) {
   await inPage(e.view, 'const frame = document.createElement("iframe"); frame.src = "/slow1"; document.body.append(frame)');
   await until(() => dialogs().length === 1, 'the dialog for the transfer');
   await closeItself(e.view);
-  await until(() => e.entry.views.size === 0, 'the page to close');
+  await until(() => e.entry.tabs.size === 0, 'the page to close');
   await press('alt+s');
   await until(() => counts.last.getReceivedBytes() > 0, 'the transfer to run');
   assert.equal(counts.last.getState(), 'progressing');
   let cancelled = counts.cancelled;
   assert.ok(browsers.entries.has(e.id));
-  await browsers.close(e.id);
+  await e.entry.close();
   await until(() => counts.last.getState() === 'cancelled', 'the transfer to stop');
   assert.equal(counts.cancelled, cancelled + 1);
-  assert.equal(unrelated.entry.views.size, 1);
-  await browsers.close(unrelated.id);
+  assert.equal(unrelated.entry.tabs.size, 1);
+  await unrelated.entry.close();
   console.log('A saved transfer continues after its page closes, and closing its session cancels it.');
 
   const f = await tab();
@@ -186,11 +188,12 @@ async function run(Browsers) {
   await until(() => counts.last.getReceivedBytes() > 0, 'the transfer before disconnecting');
   assert.equal(counts.last.getState(), 'progressing');
   cancelled = counts.cancelled;
-  browsers.sync([]);
+  connection.info.status = 'closed';
+  browsers.sync();
   await until(() => counts.last.getState() === 'cancelled', 'the transfer to stop on disconnect');
   assert.equal(counts.cancelled, cancelled + 1);
   assert.ok(browsers.entries.has(f.id));
-  await browsers.close(f.id);
+  await f.entry.close();
   await until(() => readdirSync(downloads).length === 0, 'the cancelled transfers to remove their files');
   console.log('Disconnecting cancels running downloads and keeps the session.');
   server.close();

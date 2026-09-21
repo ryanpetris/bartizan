@@ -277,7 +277,7 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await form.locator('[name="label"]').press('Enter');
   await expect(form).toBeHidden();
   assert.deepEqual((await profiles()).beta, { label: 'Beta live', host: '127.0.0.1', tags: ['web', 'live'] });
-  assert.deepEqual((await state()).connections.map(c => [c.id, c.label, c.status]), [[beta, 'Beta', 'connected']]);
+  assert.deepEqual((await state()).connections.map(c => [c.id, c.label, c.status]), [[beta, 'Beta live', 'connected']]);
   console.log('A connected profile shows the reconnect notice for unsaved or invalid changes other than tags, and saving leaves its connection running.');
 
   await edit('alpha');

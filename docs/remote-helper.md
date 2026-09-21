@@ -4,7 +4,7 @@
 
 Each connected SSH master with remote session integration enabled runs a Python 3.9+ helper on a separate channel. It queries local tmux and Herdr sockets and checks Screen sockets every two seconds. Discovery does not execute those programs. Full snapshots are sent on startup, every minute and when requested. Closing the channel ends the helper; an interrupted helper channel restarts automatically while the SSH connection remains connected.
 
-The helper uses newline-delimited JSON on stdin and stdout. A request is:
+A small [Python loader](../src/main/remote-loader.py), bundled as text with the app, reads the helper’s UTF-8 source from stdin using a byte count supplied on the command line and executes it in memory. The same source runs on every connection and includes session discovery and application launching. No script file is written on the remote host. After the source, stdin carries newline-delimited JSON requests and stdout carries newline-delimited JSON responses. Discovery starts disabled; after the initial empty snapshot signals readiness, the connection controller sends its current `sessions.configure` command. Each helper restart repeats this initialization without replaying application commands. A request is:
 
 ```json
 {"type":"sessions.refresh"}
@@ -32,7 +32,7 @@ Commands are shell programs supplied by the connected host. Available actions ar
 
 A snapshot's `sources` identifies successfully scanned sockets, including confirmed empty ones. Its `sessions` replaces records from those sources. Errors contain `message` and, when a socket is known, `source`. Records from failed sources are retained. If directory enumeration failed, the error has no source and records outside the successful scans are retained too. Otherwise unlisted sources are absent and their records are removed, including after helper reconnection.
 
-The backend exposes `sessions.messages.send`, `.on` and `.listen`. The client exposes `sendHelperMessage` and `onHelperMessage`. Subscribers receive `{connectionId, message}` independently; one subscriber cannot consume another's message. The channel supervisor publishes `helper.error` on failure. Refresh disables only its button until any snapshot or error for that connection, or a failed send. There is no response-to-click matching.
+The backend exposes `sessions.messages.send`, `.on` and `.listen`. The client exposes `sendHelperMessage` and `onHelperMessage`. Subscribers receive `{connectionId, message}` independently; one subscriber cannot consume another's message. The channel supervisor publishes `helper.error` on failure. Empty snapshots maintain the heartbeat while discovery is disabled. Refresh disables only its button until any snapshot or error for that connection, or a failed send. There is no response-to-click matching.
 
 Socket discovery honors `TMUX_TMPDIR`, `TMUX`, `SCREENDIR`, `XDG_CONFIG_HOME` and `HERDR_SOCKET_PATH`, alongside conventional locations. Actions include the selected socket or directory explicitly. Arbitrary custom sockets outside these locations must be exposed through the remote login environment. tmux discovery speaks its native protocol 8; unsupported socket protocols surface as source errors. Python uses its standard library only.
 

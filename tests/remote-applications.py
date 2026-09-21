@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 root = Path(__file__).resolve().parents[1]
 namespace = {'__name__': 'application_test'}
-exec((root / 'src/main/remote-applications.py').read_text() + '\n' + (root / 'src/main/remote-helper.py').read_text(), namespace)
+exec((root / 'src/main/remote-helper.py').read_text(), namespace)
 Applications, VSCode, Launch = (namespace[name] for name in ('Applications', 'VSCode', 'Launch'))
 
 class ApplicationsTest(unittest.TestCase):

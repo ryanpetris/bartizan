@@ -2,7 +2,7 @@ import { Menu, clipboard, shell, type BrowserWindow, type ContextMenuParams, typ
 import { accessSync, constants } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { browserSessionName } from '../shared';
-import type { Browsers } from './browser';
+import type { BrowserWindowController } from './browser-window';
 import type { Sessions } from './sessions';
 
 /** macOS opens links through Launch Services; Linux needs `xdg-open` on PATH. */
@@ -20,7 +20,7 @@ export function linkURL(input: string) {
 }
 
 export class LinkMenus {
-  constructor(private window: BrowserWindow, private sessions: Sessions, private browsers: Browsers,
+  constructor(private window: BrowserWindow, private sessions: Sessions, private browsers: BrowserWindowController,
     private serialize: <T>(action: () => Promise<T>) => Promise<T>, private selected: (id: string) => void, private error: (message: string, connectionId: string, label?: string) => void) {}
 
   /**
@@ -91,11 +91,12 @@ export class LinkMenus {
   }
   private items(connectionId: string, url: string, { current: currentId, first }: { current?: string; first?: string }): MenuItemConstructorOptions[] {
     const target = linkURL(url);
-    if (!this.sessions.entries.has(connectionId)) return [];
-    if (currentId && this.browsers.entries.get(currentId)?.info.connectionId !== connectionId) return [];
-    const label = this.sessions.entries.get(connectionId)?.info.label;
-    const sessions = [...this.browsers.entries.values()].filter(e => e.info.connectionId === connectionId && !e.info.application);
-    const connected = this.sessions.entries.get(connectionId)?.info.status === 'connected';
+    const connection = this.sessions.entries.get(connectionId);
+    if (!connection) return [];
+    if (currentId && !connection.browsers?.entries.has(currentId)) return [];
+    const label = connection.info.label;
+    const sessions = [...connection.browsers?.entries.values() ?? []].filter(e => !e.info.application);
+    const connected = connection.info.status === 'connected';
     const items: MenuItemConstructorOptions[] = [
       { label: 'Open Link', enabled: Boolean(currentId) || sessions.length > 0 || connected, click: () => this.open(connectionId, target, currentId ?? first, !currentId) },
       { label: 'Open in New Browser Session', enabled: connected, click: () => this.open(connectionId, target, 'new') },

@@ -22,7 +22,14 @@ await withDirectory('applications', async (directory, cleanup) => {
   await writeFile(join(version, 'complete'), '');
   const executable = async (file, text) => { await writeFile(file, text); await chmod(file, 0o700); };
   // Exercise the production helper over SSH with an unavailable release service.
-  await executable(join(bin, 'python3'), `#!/usr/bin/python3\nimport sys, os\nif len(sys.argv) > 3 and sys.argv[2] == '-c':\n open(${JSON.stringify(helperPid)}, 'w').write(str(os.getpid()))\n program = sys.argv[3]\n program = program.replace('if __name__ == "__main__":', 'VSCode.release = lambda self: (_ for _ in ()).throw(OSError("offline"))\\nif __name__ == "__main__":')\n os.execv('/usr/bin/python3', ['python3', '-u', '-c', program])\nos.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])\n`);
+  await executable(join(bin, 'python3'), `#!/usr/bin/python3
+import sys, os
+if len(sys.argv) > 3 and sys.argv[2] == '-c':
+    open(${JSON.stringify(helperPid)}, 'w').write(str(os.getpid()))
+    program = "import urllib.request\\nurllib.request.urlopen = lambda *args, **kwargs: (_ for _ in ()).throw(OSError('offline'))\\n" + sys.argv[3]
+    os.execv('/usr/bin/python3', ['python3', '-u', '-c', program] + sys.argv[4:])
+os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
+`);
   const login = join(directory, 'login');
   await executable(login, '#!/bin/sh\nexec /bin/sh -c "$2"\n');
   const shell = join(directory, 'shell');

@@ -5,15 +5,14 @@ import { ensureConfiguration, loadCatalog, resolveSpec, redactSpec, specSchema, 
 import { masterArgs } from '../core/ssh';
 import { Askpass } from '../main/askpass';
 import { Sessions } from '../main/sessions';
+import { Configuration } from '../core/configuration';
 import { Errors } from '../core/errors';
 import { defaultSettings, type Capabilities, type Settings, type State, type Event } from '../shared';
-import { profileDraft, profileChangesSchema, profileSaveSchema, prepareProfile, saveProfile, saveSettings, resolveDraft, type Draft } from '../core/profiles';
+import { profileDraft, profileChangesSchema, profileSaveSchema, prepareProfile, saveProfile, saveSettings, resolveDraft, draftSpec, type Draft } from '../core/profiles';
 
 export type Handler = (...args: any[]) => unknown;
 export type BackendExtension = {
-  sync(): void;
   state(): Pick<State, 'workspaces'> & { challenges: State['challenges'] };
-  closeConnection(id: string): Promise<void>;
   answer(id: string, value: unknown): boolean;
   replay(): void;
   close(): void;
@@ -39,24 +38,21 @@ export async function createBackend(options: BackendOptions) {
     catalog = loadCatalog(file);
   } catch (error) { configError = String(error); }
   settings = catalog.settings;
+  const configuration = new Configuration(catalog);
+  configuration.on('changed', catalog => { settings = catalog.settings; options.appearance?.(settings); });
   const errors = new Errors(log => send({ type: 'errors', log }));
   const reportError = (source: string, message: string, connectionId?: string, label?: string) => errors.report({ source, message, connectionId, label: connectionId ? label ?? sessions.entries.get(connectionId)?.info.label : 'App' });
   const state = (): State => {
     errors.sync(configError);
-    return { ...catalog, settings, capabilities, configError, defaults: redactSpec(catalog.defaults), profiles: catalog.profiles.map(p => ({ ...p, spec: redactSpec(p.spec) })), connections: [...sessions.entries.values()].map(e => e.info), terminals: [...sessions.terminals.values()].map(e => e.info), workspaces: extension?.state().workspaces ?? [], challenges: [...askpass.challenges, ...(extension?.state().challenges ?? [])] };
+    return { ...catalog, settings, capabilities, configError, defaults: redactSpec(catalog.defaults), profiles: catalog.profiles.map(p => ({ ...p, spec: redactSpec(p.spec) })), connections: [...sessions.entries.values()].map(e => e.info), terminals: [...sessions.entries.values()].flatMap(connection => [...connection.terminals.values()].map(terminal => terminal.info)), workspaces: extension?.state().workspaces ?? [], challenges: [...askpass.challenges, ...(extension?.state().challenges ?? [])] };
   };
   const changed = () => {
     if (closed) return;
-    sessions.syncIntegration();
-    extension?.sync();
     send({ type: 'state', state: state() });
   };
   const askpass = new Askpass(changed, changed, (message, id) => reportError('credentials', message, id));
 
-  const sessions = new Sessions(join(options.directory, 'ssh'), askpass, options.helper, changed, (id, data) => send({ type: 'data', id, data }), (message, id, label) => reportError('ssh', message, id, label), entry => {
-    const spec = entry.info.profileId ? catalog.profiles.find(p => p.id === entry.info.profileId)?.spec ?? entry.spec : entry.spec;
-    return spec?.remote_sessions ?? catalog.defaults.remote_sessions ?? settings.remoteSessionIntegration;
-  });
+  const sessions = new Sessions(join(options.directory, 'ssh'), askpass, options.helper, changed, (id, data) => send({ type: 'data', id, data }), (message, id, label) => reportError('ssh', message, id, label), configuration);
   sessions.messages.listen(event => send({ type: 'helper', ...event }));
   let closed = false;
   let connecting = Promise.resolve();
@@ -64,16 +60,9 @@ export async function createBackend(options: BackendOptions) {
     const result = connecting.then(() => { if (closed) throw new Error('Backend is closed'); return work(); }); connecting = result.then(() => {}, () => {}); return result;
   };
   const terminalConnection = (id: unknown) => {
-    const terminal = sessions.terminals.get(z.string().parse(id));
-    if (!terminal) throw new Error('Terminal is closed');
-    return terminal.info.connectionId;
-  };
-  const removeConnection = async (id: string) => {
-    const entry = sessions.entries.get(id);
-    if (!entry) return;
-    if (entry.info.status !== 'closed') throw new Error('Disconnect before removing a connection');
-    await entry.ended; await extension?.closeConnection(id);
-    sessions.remove(id);
+    const connection = sessions.terminalOwner(z.string().parse(id));
+    if (!connection) throw new Error('Terminal is closed');
+    return connection.info.id;
   };
   /** Connects a profile in its existing navigation entry, if it has one. */
   const createConnection = (spec: Spec, profileId?: string) =>
@@ -88,15 +77,14 @@ export async function createBackend(options: BackendOptions) {
   handle('reload-config', () => serialize(async () => {
     try {
       catalog = loadCatalog(file); configError = undefined;
-      settings = catalog.settings; options.appearance?.(settings);
+      configuration.publish(catalog);
     } catch (error) { configError = String(error); throw error; }
     finally { changed(); }
   }));
   handle('settings', (patch: unknown) => serialize(async () => {
     catalog = saveSettings(catalog, patch as Partial<typeof settings>);
     configError = undefined;
-    settings = catalog.settings;
-    options.appearance?.(settings);
+    configuration.publish(catalog);
     changed();
   }));
   const commandPreview = (spec: Spec, port?: number) => {
@@ -128,7 +116,7 @@ export async function createBackend(options: BackendOptions) {
   handle('profile-connect', (input: unknown) => { const owner = client; return serialize(async () => {
     const { changes, draft } = draftInput(input, owner);
     if (draft.id) throw new Error('Save the profile before connecting');
-    return createConnection({ ...resolveDraft(catalog, draft, changes), remote_sessions: changes.values.remote_sessions });
+    return createConnection(draftSpec(draft, changes));
   }); });
   handle('profile-save', (input: unknown) => { const owner = client; return serialize(async () => {
     const { id, connect, ...fields } = profileSaveSchema.parse(input);
@@ -138,36 +126,36 @@ export async function createBackend(options: BackendOptions) {
     const spec = connect ? resolveSpec(prepared.catalog, prepared.id, {}) : undefined;
     saveProfile(draft, prepared);
     catalog = prepared.catalog; configError = undefined;
-    settings = catalog.settings; options.appearance?.(settings);
+    configuration.publish(catalog);
     const result: import('../shared').ProfileSaveResult = { profileId: prepared.id };
     changed();
     if (spec) {
-      try { result.connectionId = await createConnection(spec, prepared.id); }
+      try { result.connectionId = await createConnection({}, prepared.id); }
       catch (error) { result.connectionError = String(error); }
     }
     return result;
   }); });
-  handle('details', (id: unknown) => sessions.details(z.string().parse(id)));
+  handle('details', (id: unknown) => sessions.get(z.string().parse(id)).details());
   const targetSchema = z.union([z.strictObject({ profileId: z.string() }), z.strictObject({ host: z.string(), username: z.string().optional(), port: specSchema.shape.port })]);
   handle('connect', (input: unknown) => serialize(async () => {
     const target = targetSchema.parse(input);
-    if (!('profileId' in target)) return createConnection({ ...resolveSpec(catalog, undefined, target), remote_sessions: undefined });
-    return createConnection(resolveSpec(catalog, target.profileId, {}), target.profileId);
+    if (!('profileId' in target)) return createConnection(target);
+    return createConnection({}, target.profileId);
   }));
-  const disconnect = (id: string) => sessions.disconnect(id);
+  const disconnect = (id: string) => sessions.entries.get(id)?.disconnect() ?? Promise.resolve();
   handle('disconnect', (id: unknown) => serialize(() => disconnect(z.string().parse(id))));
-  handle('remove-connection', (id: unknown) => serialize(() => removeConnection(z.string().parse(id))));
+  handle('remove-connection', (id: unknown) => serialize(() => sessions.remove(z.string().parse(id))));
   handle('reconnect', (id: unknown) => serialize(async () => {
     const entry = sessions.entries.get(z.string().parse(id)); if (!entry) throw new Error('Unknown connection');
     if (entry.info.status !== 'closed') throw new Error('Disconnect before reconnecting');
-    const spec = entry.info.profileId ? resolveSpec(catalog, entry.info.profileId, {}) : entry.spec;
-    return sessions.create(spec, entry.info.profileId, entry.info.id, false);
+    await entry.connect(false);
+    return entry.info.id;
   }));
   handle('helper-message', (id: unknown, message: unknown) => sessions.messages.send(z.string().parse(id), z.object({ type: z.literal('sessions.refresh') }).parse(message)));
-  handle('resume-remote-sessions', (id: unknown, keys: unknown, takeover: unknown) => sessions.resumeRemoteSessions(z.string().parse(id), z.array(z.string().max(8192)).max(1000).parse(keys), z.boolean().parse(takeover)));
-  handle('kill-remote-session', (id: unknown, key: unknown) => sessions.killRemoteSession(z.string().parse(id), z.string().max(8192).parse(key)));
-  handle('new-terminal', (id: unknown) => serialize(async () => sessions.newTerminal(z.string().parse(id))));
-  handle('close-terminal', (id: unknown) => serialize(async () => sessions.closeTerminal(z.string().parse(id))));
+  handle('resume-remote-sessions', (id: unknown, keys: unknown, takeover: unknown) => sessions.get(z.string().parse(id)).resumeRemoteSessions(z.array(z.string().max(8192)).max(1000).parse(keys), z.boolean().parse(takeover)));
+  handle('kill-remote-session', (id: unknown, key: unknown) => sessions.get(z.string().parse(id)).killRemoteSession(z.string().max(8192).parse(key)));
+  handle('new-terminal', (id: unknown) => serialize(async () => sessions.get(z.string().parse(id)).newTerminal()));
+  handle('close-terminal', (id: unknown) => serialize(async () => sessions.terminals.get(z.string().parse(id))?.close()));
   handle('answer', (id: unknown, value: unknown) => {
     const challengeId = z.string().parse(id);
     if (extension?.answer(challengeId, value)) return;
@@ -175,8 +163,8 @@ export async function createBackend(options: BackendOptions) {
     if (value === null && connectionId) void serialize(() => disconnect(connectionId)).catch(error => { if (!closed) reportError('ssh', String(error), connectionId); });
   });
   handle('capabilities', () => capabilities);
-  handle('input', (id, data) => { if (typeof id !== 'string' || typeof data !== 'string' || data.length > 1024 * 1024) throw new Error('Invalid terminal input'); sessions.input(id, data); });
-  handle('resize', (id, cols, rows, repaint) => { if (typeof id !== 'string' || !Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || rows < 1 || cols > 1000 || rows > 1000) throw new Error('Invalid terminal size'); sessions.resize(id, cols, rows, repaint === true); });
+  handle('input', (id, data) => { if (typeof id !== 'string' || typeof data !== 'string' || data.length > 1024 * 1024) throw new Error('Invalid terminal input'); sessions.terminals.get(id)?.input(data); });
+  handle('resize', (id, cols, rows, repaint) => { if (typeof id !== 'string' || !Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || rows < 1 || cols > 1000 || rows > 1000) throw new Error('Invalid terminal size'); sessions.terminals.get(id)?.resize(cols, rows, repaint === true); });
   const extension = options.extend?.({ sessions, changed, send, handle, serialize, terminalConnection, reportError });
   await askpass.start();
   options.appearance?.(settings);

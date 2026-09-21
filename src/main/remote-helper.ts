@@ -2,10 +2,14 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import program from './remote-helper.py';
-import applications from './remote-applications.py';
+import helperLoader from './remote-loader.py';
+export { helperLoader };
 import type { Spec } from '../core/config';
 import type { HelperMessage, HelperRequest } from '../helper-messages';
 import { channelArgs, loginCommand, quoteShell, sessionError } from './remote-sessions';
+
+
+const source = Buffer.from(program, 'utf8');
 
 const key = z.string().min(1).max(4096);
 const printable = (max: number) => z.string().max(max).transform(s => s.replace(/[\x00-\x1f\x7f-\x9f\u2028-\u202e\u2066-\u2069]/g, ' '));
@@ -49,25 +53,30 @@ export class RemoteHelper {
   private retry?: ReturnType<typeof setTimeout>;
   private watchdog?: ReturnType<typeof setTimeout>;
   private stopped = false;
+  private initialized = false;
   private delay = 1000;
   private ready?: Promise<void>;
   private resolveReady?: () => void;
   private rejectReady?: (error: Error) => void;
-  constructor(private socket: string, private spec: Spec, private receive: (message: HelperMessage) => void, private discovery = true) { this.start(); }
+  constructor(private socket: string, private spec: Spec, private receive: (message: HelperMessage) => void, private initialize: () => HelperRequest[]) { this.start(); }
   async send(message: HelperRequest): Promise<void> {
-    if (message.type === 'sessions.configure') this.discovery = message.enabled;
     if (message.type.startsWith('applications.')) message = applicationRequest.parse(message);
-    await this.ready;
     const child = this.child;
-    if (!child || child.killed || !child.stdin.writable) return Promise.reject(new Error('Remote helper is disconnected'));
+    await this.ready;
+    if (!child || child !== this.child || child.killed || !child.stdin.writable) return Promise.reject(new Error('Remote helper is disconnected'));
     return new Promise((resolve, reject) => child.stdin.write(JSON.stringify(message) + '\n', error => error ? reject(error) : resolve()));
+  }
+  reconfigure() {
+    if (!this.initialized || !this.child || this.child.killed) return;
+    for (const request of this.initialize()) this.child.stdin.write(JSON.stringify(request) + '\n');
   }
   private start() {
     if (this.stopped) return;
+    this.initialized = false;
     this.ready = new Promise<void>((resolve, reject) => { this.resolveReady = resolve; this.rejectReady = reject; });
     void this.ready.catch(() => {});
     const marker = `bartizan-${randomUUID()}`;
-    const command = loginCommand(`printf '%s\\n' ${quoteShell(marker)}; exec /usr/bin/env python3 -u -c ${quoteShell(applications + '\n' + `session_discovery = ${this.discovery ? 'True' : 'False'}\n` + program)}`);
+    const command = loginCommand(`printf '%s\\n' ${quoteShell(marker)}; exec /usr/bin/env python3 -u -c ${quoteShell(helperLoader)} ${source.length}`);
     const child = this.child = spawn('ssh', [...channelArgs(this.socket, this.spec), '-T', '--', this.spec.host!, command], { stdio: 'pipe', env: { ...process.env, LC_ALL: 'C' } });
     let buffer = '', diagnostic = '', framed = false, failure = '';
     const active = () => !this.stopped && this.child === child;
@@ -81,6 +90,7 @@ export class RemoteHelper {
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', text => { diagnostic = (diagnostic + text).slice(-4096); });
     child.stdin.on('error', () => {});
+    child.stdin.write(source);
     child.stdout.on('data', text => {
       if (!active()) return;
       buffer += text;
@@ -91,7 +101,15 @@ export class RemoteHelper {
         if (!framed) { framed = line === marker; continue; }
         try {
           const message = parseHelperMessage(line);
-          if (message.type === 'sessions.snapshot') { this.resolveReady?.(); this.delay = 1000; arm(90000); }
+          if (message.type === 'sessions.snapshot') {
+            this.delay = 1000; arm(90000);
+            if (!this.initialized) {
+              this.initialized = true;
+              this.reconfigure();
+              this.resolveReady?.();
+              continue;
+            }
+          }
           this.receive(message);
         } catch (error) { fail(error instanceof Error ? error.message : 'Invalid helper message'); return; }
       }
@@ -100,7 +118,7 @@ export class RemoteHelper {
     child.on('close', () => {
       if (!active()) return;
       this.rejectReady?.(new Error(failure || 'Remote helper disconnected'));
-      this.child = undefined;
+      this.child = undefined; this.initialized = false;
       clearTimeout(this.watchdog);
       this.retry = setTimeout(() => this.start(), this.delay);
       this.delay = Math.min(this.delay * 2, 30000);

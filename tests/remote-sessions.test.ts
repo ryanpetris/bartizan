@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { quoteShell, channelArgs, sessionError, loginCommand } from '../src/main/remote-sessions';
 import { parseHelperMessage } from '../src/main/remote-helper';
 import { HelperMessages, type HelperMessage, type RemoteSession } from '../src/helper-messages';
-import { Sessions, type LiveConnection } from '../src/main/sessions';
+import { connectionFixture } from './connection-fixture';
+import type { RemoteHelper } from '../src/main/remote-helper';
 
 const session = (key: string, source = 'one'): RemoteSession => ({ source, key, label: 'build', group: 'tmux', detail: '2 windows', attached: false, commands: { resume: "exec tmux -S '/socket' attach-session -t '$0'" } });
 const snapshot = (sources: string[], sessions: RemoteSession[], errors: { source?: string; message: string }[] = []): HelperMessage => ({ type: 'sessions.snapshot', sources, sessions, errors });
@@ -46,19 +47,19 @@ test('subscribers independently receive messages and unsubscribe without consumi
 test('snapshots remove only confirmed sources and keep errors separate from incoming records', () => {
   const directory = mkdtempSync(join(tmpdir(), 'bartizan-helper-'));
   try {
-    const sessions = new Sessions(directory, {} as any, '', () => {}, () => {}, () => {});
-    const entry = { info: { id: 'c', status: 'connected', remoteSessions: { sessions: [session('a'), { ...session('b', 'two'), error: 'attach failed' }], loading: true, errors: [] } } } as unknown as LiveConnection;
-    sessions.entries.set('c', entry);
-    sessions.messages.publish('c', snapshot(['one'], [], [{ source: 'two', message: 'timeout' }]));
+    const { connection: entry } = connectionFixture(directory);
+    entry.info.remoteSessions = { sessions: [session('a'), { ...session('b', 'two'), error: 'attach failed' }], loading: true, errors: [] };
+    for (const session of entry.info.remoteSessions!.sessions) entry.remoteSessions.set(session.key, session);
+    entry.receiveHelperMessage(snapshot(['one'], [], [{ source: 'two', message: 'timeout' }]));
     assert.deepEqual(entry.info.remoteSessions!.sessions.map(s => s.key), ['b']);
     const incoming = session('b', 'two');
-    sessions.messages.publish('c', { type: 'sessions.upsert', source: 'two', session: incoming });
+    entry.receiveHelperMessage({ type: 'sessions.upsert', source: 'two', session: incoming });
     assert.equal(entry.info.remoteSessions!.sessions[0].error, 'attach failed');
     assert.equal(incoming.error, undefined);
-    sessions.messages.publish('c', snapshot([], [], [{ message: 'Directory unavailable' }]));
+    entry.receiveHelperMessage(snapshot([], [], [{ message: 'Directory unavailable' }]));
     assert.equal(entry.info.remoteSessions!.sessions.length, 1);
     // A restarted helper has no memory of vanished sockets; its inventory still reconciles them.
-    sessions.messages.publish('c', snapshot([], []));
+    entry.receiveHelperMessage(snapshot([], []));
     assert.deepEqual(entry.info.remoteSessions!.sessions, []);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
@@ -74,13 +75,13 @@ test('login commands preserve literal arguments and channels require the existin
 test('fresh records take priority over retained failures at the session limit', () => {
   const directory = mkdtempSync(join(tmpdir(), 'bartizan-helper-'));
   try {
-    const sessions = new Sessions(directory, {} as any, '', () => {}, () => {}, () => {});
-    const entry = { info: { id: 'c', remoteSessions: { sessions: Array.from({ length: 100 }, (_, i) => session(String(i), 'failed')), loading: false, errors: [] } } } as unknown as LiveConnection;
-    sessions.entries.set('c', entry);
-    sessions.messages.publish('c', snapshot(['fresh'], [session('new', 'fresh')], [{ source: 'failed', message: 'timeout' }]));
+    const { connection: entry } = connectionFixture(directory);
+    entry.info.remoteSessions = { sessions: Array.from({ length: 100 }, (_, i) => session(String(i), 'failed')), loading: false, errors: [] };
+    for (const session of entry.info.remoteSessions!.sessions) entry.remoteSessions.set(session.key, session);
+    entry.receiveHelperMessage(snapshot(['fresh'], [session('new', 'fresh')], [{ source: 'failed', message: 'timeout' }]));
     assert.equal(entry.info.remoteSessions!.sessions.length, 100);
     assert.ok(entry.info.remoteSessions!.sessions.some(s => s.key === 'new'));
-    sessions.messages.publish('c', { type: 'sessions.upsert', source: 'fresh', session: session('newer', 'fresh') });
+    entry.receiveHelperMessage({ type: 'sessions.upsert', source: 'fresh', session: session('newer', 'fresh') });
     assert.ok(entry.info.remoteSessions!.sessions.some(s => s.key === 'newer'));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
@@ -88,11 +89,11 @@ test('fresh records take priority over retained failures at the session limit', 
 test('shutdown stops helpers even without a state-change callback or a running SSH master', async () => {
   const directory = mkdtempSync(join(tmpdir(), 'bartizan-helper-'));
   try {
-    const sessions = new Sessions(directory, {} as any, '', () => {}, () => {}, () => {});
+    const { connection: entry } = connectionFixture(directory);
     let stopped = 0;
-    sessions.entries.set('c', { info: { id: 'c', status: 'closed' }, helper: { stop: () => { stopped++; } } } as unknown as LiveConnection);
-    await sessions.close();
+    entry.helper = { stop: () => { stopped++; } } as unknown as RemoteHelper;
+    await entry.dispose();
     assert.equal(stopped, 1);
-    assert.equal(sessions.entries.get('c')!.helper, undefined);
+    assert.equal(entry.helper, undefined);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

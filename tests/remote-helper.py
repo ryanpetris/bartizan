@@ -41,7 +41,7 @@ def run():
             invalid = root / "herdr" / "herdr.sock"
             invalid.parent.mkdir()
             invalid.write_text("not a socket")
-            program = "import runpy; m=runpy.run_path(" + repr(spec.origin) + "); m['monitor'].__globals__.update(INTERVAL=.1,SNAPSHOT_INTERVAL=.4); m['monitor']()"
+            program = "import runpy; m=runpy.run_path(" + repr(spec.origin) + "); m['monitor'].__globals__.update(INTERVAL=.1,SNAPSHOT_INTERVAL=.4,session_discovery=True); m['monitor']()"
             child = subprocess.Popen([sys.executable, "-u", "-c", program], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
             pending = bytearray()
             def message(kind, predicate=lambda m: True):

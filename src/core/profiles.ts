@@ -122,9 +122,13 @@ export function saveProfile(draft: Draft, prepared: ReturnType<typeof preparePro
 }
 
 /** Resolves an unsaved draft as a connection without a profile. */
-export function resolveDraft(catalog: Catalog, draft: Draft, changes: Changes): Spec {
+export function draftSpec(draft: Draft, changes: Changes): Spec {
   const { tags: _tags, ...spec } = applyChanges(new Document({ profiles: { draft: draft.profile ?? {} } }), 'draft', changes);
-  return resolveSpec(catalog, undefined, locate(spec, draft.file));
+  return locate(spec, draft.file);
+}
+
+export function resolveDraft(catalog: Catalog, draft: Draft, changes: Changes): Spec {
+  return resolveSpec(catalog, undefined, draftSpec(draft, changes));
 }
 
 /** Saves application preferences, leaving the rest of the document in place. */

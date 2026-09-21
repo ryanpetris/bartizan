@@ -11,7 +11,7 @@ export class Certificates {
   private approved = new Map<string, string>();
   private pending = new Map<string, Pending>();
   private navigation = new Map<string, string>();
-  constructor(private changed: () => void, private muted: Set<string>) {}
+  constructor(private changed: () => void, private muted: Set<string>, private route: (id: string, pending: boolean) => void = () => {}) {}
 
   attach(tab: BrowserTab, contents: WebContents) {
     contents.on('certificate-error', (event, address, error, certificate, callback, mainFrame) => {
@@ -29,6 +29,7 @@ export class Certificates {
       if (this.approved.get(info.origin) === key) { callback(true); return; }
       if (!mainFrame || !address.startsWith('https:') || this.navigation.get(tab.id) !== requestURL(address) || this.muted.has(tab.id) || tab.certificate) { callback(false); return; }
       this.pending.set(info.id, { tab, key, certificate: info, callback });
+      this.route(info.id, true);
       tab.certificate = info;
       this.changed();
     });
@@ -53,7 +54,7 @@ export class Certificates {
   private finish(id: string, allow: boolean) {
     const pending = this.pending.get(id);
     if (!pending) return;
-    this.pending.delete(id);
+    this.pending.delete(id); this.route(id, false);
     delete pending.tab.certificate;
     if (!allow) pending.tab.error = pending.certificate.error;
     try { pending.callback(allow); } catch {} finally { this.changed(); }

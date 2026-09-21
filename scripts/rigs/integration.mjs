@@ -9,7 +9,7 @@ import { withDirectory, startSshd, launch, waitFor } from './lib/harness.mjs';
 import { handleAuthentication, testAuthentication } from './lib/http-auth.mjs';
 import { testTerminalRendering } from './lib/terminal-rendering.mjs';
 import { testClipboard } from './lib/clipboard.mjs';
-import { testPageClose, testDisconnectCleanup, testTransportDiagnostics, testAuthenticationTransportLoss } from './lib/browser-lifecycle.mjs';
+import { testPageClose, testDisconnectCleanup, testTransportDiagnostics, testAuthenticationTransportLoss, testBrowserStartupDisconnect } from './lib/browser-lifecycle.mjs';
 import { testHostKeyPins } from './lib/host-keys.mjs';
 import { testProfileLaunch } from './lib/profile-launch.mjs';
 import { testProfileTags } from './lib/tags.mjs';
@@ -84,6 +84,22 @@ await withDirectory('integration', async (directory, cleanup) => {
   assert.equal((await state()).connections.length, 0);
   assert.equal((await state()).workspaces.length, 0);
   console.log('A connection that fails to start leaves no connection or browser session.');
+  const retained = await api('connect', { profileId: 'other' });
+  await waitState(s => s.connections.find(c => c.id === retained)?.status === 'connected');
+  await api('disconnect', retained);
+  const terminalsBeforeFailure = (await state()).terminals.map(t => t.id);
+  const validConfig = await readFile(config, 'utf8');
+  await writeFile(config, validConfig.replace('  other:\n', '  other:\n    ssh:\n      Ciphers: not-a-cipher\n'));
+  await api('reloadConfig');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await assert.rejects(api('connect', { profileId: 'other' }));
+    assert.deepEqual((await state()).terminals.map(t => t.id), terminalsBeforeFailure);
+  }
+  await writeFile(config, validConfig);
+  await api('reloadConfig');
+  await api('removeConnection', retained);
+  console.log('Failed transport setup on a retained connection leaves no extra terminal tabs.');
+
 
   await recordOutput(page);
   const first = await api('connect', { profileId: 'rig' });
@@ -168,6 +184,7 @@ await withDirectory('integration', async (directory, cleanup) => {
   await waitState(s => !s.connections.some(c => c.id === rejected));
   console.log('Authentication failure output remains visible until its terminal closes.');
   await testTransportDiagnostics(app, sshd.pid);
+  await testBrowserStartupDisconnect(app, url('startup-disconnect'));
 
   /** Opens a new browser session showing a page. */
   const browse = async (connection, address) => {

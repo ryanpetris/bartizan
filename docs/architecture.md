@@ -13,8 +13,14 @@ Bartizan has one Electron application window containing a React interface around
 | [`src/main/main.ts`](../src/main/main.ts) | Electron startup, window lifecycle, trusted IPC and platform operations |
 | [`src/web/`](../src/web/) | HTTP assets, WebSocket transport and server CLI |
 | [`src/renderer/web-api.ts`](../src/renderer/web-api.ts) | Browser transport, clipboard, menus and external links |
-| [`src/main/sessions.ts`](../src/main/sessions.ts) | SSH master processes and terminal PTYs |
-| [`src/main/browser.ts`](../src/main/browser.ts) | Browser partitions, tabs, page tools, downloads and HTTP authentication |
+| [`src/main/sessions.ts`](../src/main/sessions.ts) | Connection registry and terminal request routing |
+| [`src/main/connection.ts`](../src/main/connection.ts) | Persistent connection controller, effective configuration, helper and remote sessions |
+| [`src/main/ssh-connection.ts`](../src/main/ssh-connection.ts), [`src/main/terminal.ts`](../src/main/terminal.ts) | One SSH transport attempt and one terminal tab |
+| [`src/main/application-session.ts`](../src/main/application-session.ts) | One remote application launch and its browser session |
+| [`src/main/browser.ts`](../src/main/browser.ts) | Browser-session collection belonging to one connection |
+| [`src/main/browser-session.ts`](../src/main/browser-session.ts) | One browser partition, relay, downloads and authentication |
+| [`src/main/browser-tab.ts`](../src/main/browser-tab.ts) | One browser tab, its page view, tools and favicon |
+| [`src/main/browser-window.ts`](../src/main/browser-window.ts) | Window presentation and direct routing indexes |
 | [`src/main/overlays.ts`](../src/main/overlays.ts) | Views for interface drawn above pages |
 | [`src/main/certificates.ts`](../src/main/certificates.ts) | TLS warnings and temporary certificate approvals |
 | [`src/main/askpass.ts`](../src/main/askpass.ts) | OpenSSH authentication prompts and configured credentials |
@@ -50,6 +56,8 @@ A theme places error notifications inside the application page only beside a cor
 
 ## SSH Transport
 
+A connection controller lives until its connection entry is removed or the application shuts down. Disconnecting stops its transport, helper and terminal processes, ends application launches, and takes browser sessions offline. Terminal records, browser tabs and browser storage remain owned by that controller across reconnects. Each browser session and terminal tab owns its cleanup; a browser tab owns its native page and developer-tools views. Routing indexes point to these owners without assembling or searching application-wide resource lists.
+
 Each connection starts one OpenSSH master with `-M -N` and a private control socket. The master opens a SOCKS forward on a loopback port. A successful `ssh -O check` probe marks the connection ready.
 
 Each terminal runs another `ssh` process in a `node-pty` pseudo-terminal and uses the master's control socket. `ControlMaster=no` and `ProxyCommand=/bin/false` prevent that terminal from silently opening an independent transport when the master is missing.
@@ -72,7 +80,7 @@ Closing a session cancels downloads and authentication prompts, closes its views
 
 ## Configuration Writes
 
-[Configuration parsing](../src/core/config.ts) uses `yaml` and strict Zod schemas. Effective connection settings merge built-ins, shared defaults and profile values. Relative file paths resolve against the configuration file.
+[Configuration parsing](../src/core/config.ts) uses `yaml` and strict Zod schemas. Successful settings saves, profile saves and configuration reloads publish a configuration event. Each connection controller subscribes and resolves built-ins, shared defaults, its profile and explicit connection overrides. Global terminal preferences fill unspecified terminal settings. Discovery changes are sent to the helper immediately; SSH transport settings apply on the next connection. Controllers remain subscribed while disconnected and unsubscribe on disposal. Relative file paths resolve against the configuration file.
 
 [Profile persistence](../src/core/profiles.ts) edits the parsed YAML document rather than serializing only a new configuration object. A draft records the file contents and resolved target. Saving checks that both still match before atomically replacing the target, preserving symlinks and file permissions.
 

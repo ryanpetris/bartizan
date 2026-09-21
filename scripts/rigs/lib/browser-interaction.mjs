@@ -121,7 +121,7 @@ export async function testBrowserInteractions(app, httpPort, first) {
   assert.notEqual(chrome[0], chrome[1]);
   await chooseAppearance(app, 'system');
   console.log('Settings draws over the visible page and returns focus when it closes; browser controls and remote page color preference follow application appearance.');
-  await expect(page.locator('.rail-topbar').getByRole('heading', { level: 1 })).toContainText('Browser');
+  await expect(page.locator('.rail-topbar').getByRole('heading', { level: 1 })).toContainText('Remote fixture');
   const tabs = async () => (await state()).workspaces.find(w => w.id === workspaceId).tabs;
   const existingTabs = await tabs();
   await page.locator('.browser-toolbar').getByRole('button', { name: 'New Tab', exact: true }).click();

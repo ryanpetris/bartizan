@@ -6,8 +6,9 @@ import { configurationFile } from '../core/config';
 import { createBackend } from '../backend/app';
 import { dispatch, type Request } from '../transport';
 import { graphicsLog, observeGraphics } from './graphics';
-import { Applications, applications as applicationNames } from './applications';
+import { applications as applicationNames } from './application-session';
 import { Browsers } from './browser';
+import { BrowserWindowController } from './browser-window';
 import { LinkMenus } from './link-menu';
 import { Overlays } from './overlays';
 import { themes } from '../themes';
@@ -58,13 +59,22 @@ else void app.whenReady().then(async () => {
     capabilities: { embeddedBrowser: true, nativeFilePicker: true }, send,
     appearance(value) { settings = value; nativeTheme.themeSource = settings.appearance; updateTitleBar(); },
     extend({ sessions, changed, send, handle, serialize, terminalConnection, reportError }) {
-  const browsers = new Browsers(window, changed, (id, action) => send({ type: 'browser-shortcut', id, action }), send);
-  const applications = new Applications(sessions, browsers, changed);
-  handle('new-application', (id: unknown, application: unknown) => serialize(() => applications.open(z.string().parse(id), z.enum(Object.keys(applicationNames) as (keyof typeof applicationNames)[]).parse(application))));
-  handle('retry-application', (id: unknown) => applications.retry(z.string().parse(id)));
-  handle('respond-application', (id: unknown, consentId: unknown, accepted: unknown) => applications.respond(z.string().parse(id), z.string().parse(consentId), z.boolean().parse(accepted)));
+  const browsers = new BrowserWindowController();
+  const applicationOwner = (id: string) => {
+    const application = browsers.owner(id).application;
+    if (!application) throw new Error('Application is closed');
+    return application;
+  };
+  handle('new-application', (id: unknown, application: unknown) => serialize(() => sessions.get(z.string().parse(id)).openApplication(z.enum(Object.keys(applicationNames) as (keyof typeof applicationNames)[]).parse(application))));
+  handle('retry-application', (id: unknown) => applicationOwner(z.string().parse(id)).retry());
+  handle('respond-application', (id: unknown, consentId: unknown, accepted: unknown) => applicationOwner(z.string().parse(id)).respond(z.string().parse(consentId), z.boolean().parse(accepted)));
   const overlays = new Overlays(window);
-  browsers.added = () => overlays.raise();
+  sessions.added = connection => {
+    const owned = connection.browsers = new Browsers(connection, browsers, window, (id, action) => send({ type: 'browser-shortcut', id, action }), send);
+    owned.added = () => overlays.raise();
+    owned.openPopup = (id, url) => linkMenus.open(id, url, undefined, true);
+    owned.pageMenu = (id, tabId, params) => { try { linkMenus.page(id, tabId, params); } catch {} };
+  };
   // A menu's accelerators receive only the keys that a page, or the application's own page, leaves alone.
   const pageShortcut = (name: PageShortcut) => {
     // A dialog open over the page keeps the page's keys from it.
@@ -77,8 +87,6 @@ else void app.whenReady().then(async () => {
   if (process.platform === 'darwin') menu.push({ role: 'windowMenu' });
   Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
   const linkMenus = new LinkMenus(window, sessions, browsers, serialize, id => send({ type: 'select-browser', id }), (message, id, label) => reportError('link', message, id, label));
-  browsers.openPopup = (id, url) => linkMenus.open(id, url, undefined, true);
-  browsers.pageMenu = (id, tabId, params) => { try { linkMenus.page(id, tabId, params); } catch {} };
   handle('link-menu', (id: unknown, url: unknown, session: unknown) => linkMenus.show(terminalConnection(id), z.union([z.string().max(8192), z.array(z.string().max(8192)).max(64)]).parse(url), { first: z.string().optional().parse(session) }));
   handle('open-link', (id: unknown, url: unknown, session: unknown) => linkMenus.open(terminalConnection(id), z.string().max(8192).parse(url), z.string().optional().parse(session), true));
   handle('certificate-answer', (id: unknown, allow: unknown) => browsers.answerCertificate(z.string().uuid().parse(id), z.boolean().parse(allow)));
@@ -168,12 +176,10 @@ else void app.whenReady().then(async () => {
   // A page that loads while a question is unacknowledged, as after a crash, asks it.
   window.webContents.on('did-finish-load', () => { if (asked) { asked = performance.now(); send({ type: 'confirm-quit' }); } });
   return {
-    sync: () => { browsers.sync(sessions.entries.values()); applications.sync(); },
     state: () => ({ workspaces: [...browsers.entries.values()].map(e => e.info), challenges: browsers.challenges }),
-    closeConnection: id => browsers.closeConnection(id),
     answer: (id, value) => browsers.answerAuthentication(id, value),
     replay: () => browsers.replay(),
-    close: () => { browsers.shutdown(); overlays.close(); },
+    close: () => overlays.close(),
   };
     },
   });

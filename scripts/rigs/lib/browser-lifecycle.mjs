@@ -113,3 +113,48 @@ export async function testAuthenticationTransportLoss(app) {
   await api('removeConnection', id);
   console.log('A master lost during authentication closes immediately and dismisses its askpass challenge.');
 }
+
+export async function testBrowserStartupDisconnect(app, url) {
+  const { application, api, waitState } = app;
+  const main = await application.evaluate(() => process.pid);
+  const children = async () => (await readFile(`/proc/${main}/task/${main}/children`, 'utf8')).trim().split(/\s+/);
+  const before = new Set(await children());
+  const id = await api('connect', { profileId: 'other' });
+  await waitState(s => s.connections.find(c => c.id === id)?.status === 'connected');
+  let master;
+  for (const pid of await children()) {
+    if (before.has(pid)) continue;
+    const args = (await readFile(`/proc/${pid}/cmdline`, 'utf8').catch(() => '')).split('\0');
+    if (args.includes('-M')) master = Number(pid);
+  }
+  assert.ok(master);
+  await application.evaluate(({ session }) => {
+    const original = session.fromPartition;
+    session.fromPartition = (...args) => {
+      const partition = original(...args);
+      if (!args[0].startsWith('browser-')) return partition;
+      session.fromPartition = original;
+      const offline = partition.enableNetworkEmulation.bind(partition);
+      partition.enableNetworkEmulation = options => { globalThis.rigBrowserOffline = options.offline; offline(options); };
+      const setProxy = partition.setProxy.bind(partition);
+      partition.setProxy = async options => {
+        await setProxy(options);
+        await new Promise(resolve => { globalThis.rigReleaseProxy = resolve; });
+      };
+      return partition;
+    };
+  });
+  const opening = api('newBrowser', id);
+  await expect.poll(() => application.evaluate(() => Boolean(globalThis.rigReleaseProxy))).toBe(true);
+  process.kill(master, 'SIGKILL');
+  await waitState(s => s.connections.find(c => c.id === id)?.status === 'closed');
+  await application.evaluate(() => { globalThis.rigReleaseProxy(); delete globalThis.rigReleaseProxy; });
+  const workspace = await opening;
+  assert.equal(await application.evaluate(() => globalThis.rigBrowserOffline), true);
+  const snapshot = await waitState(s => s.workspaces.find(w => w.id === workspace)?.tabs.length);
+  const tab = snapshot.workspaces.find(w => w.id === workspace).tabs[0].id;
+  await api('browser', workspace, 'navigate', tab, url);
+  await waitState(s => s.workspaces.find(w => w.id === workspace)?.tabs[0]?.error);
+  await api('removeConnection', id);
+  console.log('A browser created during SSH transport loss is offline before its first navigation.');
+}
