@@ -102,6 +102,7 @@ else void app.whenReady().then(async () => {
     if (['devtools', 'mute', 'zoom-in', 'zoom-out', 'zoom-reset', 'print', 'pdf'].includes(operation)) return browsers.action(workspaceId, operation, z.string().optional().parse(tab));
     return serialize(async () => {
       const entry = browsers.entries.get(workspaceId);
+      if (!entry && (operation === 'close' || operation === 'close-workspace')) return;
       if (!entry) throw new Error('Browser session is closed');
       await browsers.action(workspaceId, operation, z.string().optional().parse(tab), z.string().max(8192).optional().parse(url), true);
     });

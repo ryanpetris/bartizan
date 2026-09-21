@@ -116,7 +116,10 @@ await withDirectory('applications', async (directory, cleanup) => {
     await editors[0].session.cookies.set({ url: 'http://127.0.0.1', name: 'isolated', value: 'one' });
     if ((await editors[1].session.cookies.get({ name: 'isolated' })).length) throw new Error('Cookies leaked between applications');
   });
-  await api('browser', simultaneous, 'close-workspace');
+  await page.evaluate(id => Promise.all([
+    window.bartizan.browser(id, 'close-workspace'),
+    window.bartizan.browser(id, 'close-workspace'),
+  ]), simultaneous);
   await waitState(s => !s.workspaces.some(w => w.id === simultaneous));
   assert.equal((await app.state()).workspaces.find(w => w.id === first.id).application.event.type, 'applications.ready');
   const browser = await api('newBrowserTab', connection); assert.notEqual(browser, first.id);
@@ -156,9 +159,12 @@ await withDirectory('applications', async (directory, cleanup) => {
   let cancelledPid = 0;
   await expect.poll(async () => { const pid = Number(await readFile(pidFile, 'utf8')); if (pid > 0 && pid !== runningPid) cancelledPid = pid; return cancelledPid; }).toBeGreaterThan(0);
   const cancelled = (await app.state()).workspaces.find(w => w.application && w.id !== second).id;
+  const cancelledTab = (await app.state()).workspaces.find(w => w.id === cancelled).tabs[0].id;
   await expect(page.locator('.application-status[data-state="progress"]')).toBeVisible();
   await page.locator('.application-status').getByRole('button', { name: 'Cancel', exact: true }).click();
   await waitState(s => !s.workspaces.some(w => w.id === cancelled), 'cancelled launch');
+  await api('browser', cancelled, 'close', cancelledTab);
+  await assert.rejects(api('browser', cancelled, 'reload', cancelledTab), /Browser session is closed/);
   await expect.poll(() => { try { process.kill(cancelledPid, 0); return false; } catch { return true; } }).toBe(true);
   await api('browser', second, 'close-workspace');
   assert.deepEqual(app.errors, []);
