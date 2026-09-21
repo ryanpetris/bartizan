@@ -223,7 +223,6 @@ export function terminalName(terminal: TerminalSession) {
 }
 /** Each browser session has its own colour. */
 export const sessionColor = (workspace: Workspace) => `var(--session-${workspace.color % 9})`;
-export const tabTitle = (tab: { url: string; title: string }) => (tab.url ? tab.title || tab.url : 'New Tab');
 export const statusText = (item: Pick<Connection, 'status' | 'exitCode'>) =>
   item.status === 'connecting'
     ? 'Connecting'
@@ -334,7 +333,7 @@ export function groups(state = store.state): Group[] {
 export const firstSession = (connectionId: string) =>
   groups()
     .find((group) => group.connection.id === connectionId)
-    ?.entries.find((entry) => entry.workspace)?.workspace;
+    ?.entries.find((entry) => entry.workspace && !entry.workspace.application)?.workspace;
 /** A profile's connecting or connected connection, whether or not it has children. */
 export const activeConnection = (profileId?: string) =>
   profileId ? store.state.connections.find((c) => c.profileId === profileId && c.status !== 'closed') : undefined;
@@ -563,4 +562,9 @@ export async function resumeRemoteSessions(connectionId: string, keys: string[],
   if (token === choice && opened?.length) selectCreated({ kind: 'terminal', id: opened[0] });
   else if (store.selection?.kind === 'remote' && store.selection.id === connectionId && connectionOf(connectionId) && !remoteVisible(connectionOf(connectionId)!)) revisit(connectionId);
   render();
+}
+
+export function openApplication(connectionId: string, application: string) {
+  return run('application', api.newApplication(connectionId, application).then(id =>
+    whenPresent(state => state.workspaces.some(w => w.id === id && w.tabs.length), () => select({ kind: 'browser', id }))), connectionId);
 }

@@ -1,3 +1,4 @@
+import { ApplicationStatus } from './application-status';
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import type { BrowserAction, BrowserShortcut, Bounds } from '../shared';
 import { Icon, IconButton, Button, colorStyle } from './ui';
@@ -33,6 +34,7 @@ function actOnTab(action: BrowserAction) {
 }
 export function focusAddress() {
   if (!view?.hidden && !dialogOpen()) {
+    if (current().workspace?.application) return;
     address?.focus();
     address?.select();
   }
@@ -183,6 +185,7 @@ export function Browser() {
       style={colorStyle(workspace && sessionColor(workspace))}
     >
       <form
+        hidden={!!workspace?.application}
         className="browser-toolbar"
         onSubmit={(event) => {
           event.preventDefault();
@@ -323,7 +326,8 @@ export function Browser() {
           }}
           className="browser-slot"
         >
-          <div className="browser-empty" hidden={!(tab && !tab.url && !tab.loading && !challenge)}>
+          {workspace?.application && <ApplicationStatus workspace={workspace} />}
+          <div className="browser-empty" hidden={!!workspace?.application || !(tab && !tab.url && !tab.loading && !challenge)}>
             <Icon name="globe" className="icon empty-icon" />
           </div>
           <section
@@ -428,6 +432,7 @@ function pageVisible() {
       view &&
       workspace &&
       tab &&
+      (!workspace.application || workspace.application.event.type === 'applications.ready' && !tab.loading && !tab.error) &&
       (tab.url || tab.loading) &&
       !tab.certificate &&
       !view.hidden,

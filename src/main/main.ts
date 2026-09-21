@@ -6,6 +6,7 @@ import { configurationFile } from '../core/config';
 import { createBackend } from '../backend/app';
 import { dispatch, type Request } from '../transport';
 import { graphicsLog, observeGraphics } from './graphics';
+import { Applications, applications as applicationNames } from './applications';
 import { Browsers } from './browser';
 import { LinkMenus } from './link-menu';
 import { Overlays } from './overlays';
@@ -58,6 +59,10 @@ else void app.whenReady().then(async () => {
     appearance(value) { settings = value; nativeTheme.themeSource = settings.appearance; updateTitleBar(); },
     extend({ sessions, changed, send, handle, serialize, terminalConnection, reportError }) {
   const browsers = new Browsers(window, changed, (id, action) => send({ type: 'browser-shortcut', id, action }), send);
+  const applications = new Applications(sessions, browsers, changed);
+  handle('new-application', (id: unknown, application: unknown) => serialize(() => applications.open(z.string().parse(id), z.enum(Object.keys(applicationNames) as (keyof typeof applicationNames)[]).parse(application))));
+  handle('retry-application', (id: unknown) => applications.retry(z.string().parse(id)));
+  handle('respond-application', (id: unknown, consentId: unknown, accepted: unknown) => applications.respond(z.string().parse(id), z.string().parse(consentId), z.boolean().parse(accepted)));
   const overlays = new Overlays(window);
   browsers.added = () => overlays.raise();
   // A menu's accelerators receive only the keys that a page, or the application's own page, leaves alone. The menu bar stays hidden.
@@ -69,6 +74,7 @@ else void app.whenReady().then(async () => {
   };
   Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: 'Page', submenu: (Object.keys(pageShortcuts) as PageShortcut[]).flatMap(name => pageShortcuts[name].map(accelerator => ({ label: name, accelerator, click: () => pageShortcut(name) }))) }]));
   const linkMenus = new LinkMenus(window, sessions, browsers, serialize, id => send({ type: 'select-browser', id }), (message, id, label) => reportError('link', message, id, label));
+  browsers.openPopup = (id, url) => linkMenus.open(id, url, undefined, true);
   browsers.pageMenu = (id, tabId, params) => { try { linkMenus.page(id, tabId, params); } catch {} };
   handle('link-menu', (id: unknown, url: unknown, session: unknown) => linkMenus.show(terminalConnection(id), z.union([z.string().max(8192), z.array(z.string().max(8192)).max(64)]).parse(url), { first: z.string().optional().parse(session) }));
   handle('open-link', (id: unknown, url: unknown, session: unknown) => linkMenus.open(terminalConnection(id), z.string().max(8192).parse(url), z.string().optional().parse(session), true));
@@ -158,7 +164,7 @@ else void app.whenReady().then(async () => {
   // A page that loads while a question is unacknowledged, as after a crash, asks it.
   window.webContents.on('did-finish-load', () => { if (asked) { asked = performance.now(); send({ type: 'confirm-quit' }); } });
   return {
-    sync: () => browsers.sync(sessions.entries.values()),
+    sync: () => { browsers.sync(sessions.entries.values()); applications.sync(); },
     state: () => ({ workspaces: [...browsers.entries.values()].map(e => e.info), challenges: browsers.challenges }),
     closeConnection: id => browsers.closeConnection(id),
     answer: (id, value) => browsers.answerAuthentication(id, value),

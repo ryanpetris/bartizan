@@ -4,8 +4,19 @@ export type RemoteSession = {
   error?: string;
 };
 export type SessionFailure = { source?: string; message: string };
-export type HelperRequest = { type: 'sessions.refresh' };
-export type HelperMessage =
+export type ApplicationPhase = 'checking' | 'downloading' | 'extracting' | 'starting' | 'loading';
+export type ApplicationRequest =
+  | { type: 'applications.launch'; launchId: string; application: string; options?: Record<string, unknown> }
+  | { type: 'applications.respond'; launchId: string; consentId: string; accepted: boolean }
+  | { type: 'applications.stop'; launchId: string };
+export type ApplicationMessage =
+  | { type: 'applications.progress'; launchId: string; phase: ApplicationPhase; component?: string; release?: string; usingCachedRelease?: boolean; transfer?: { receivedBytes: number; totalBytes?: number } }
+  | { type: 'applications.consent'; launchId: string; consentId: string; content: { text: string; prompt?: string } }
+  | { type: 'applications.ready'; launchId: string; release?: string; view: { kind: 'browser'; url: string } }
+  | { type: 'applications.ended'; launchId: string; reason: 'cancelled' | 'stopped' | 'exited' | 'failed'; exitCode?: number; error?: { code: string; message: string } };
+export type ApplicationState = { application: string; launchId: string; event: ApplicationMessage };
+export type HelperRequest = { type: 'sessions.refresh' } | { type: 'sessions.configure'; enabled: boolean } | ApplicationRequest;
+export type HelperMessage = ApplicationMessage
   | { type: 'sessions.upsert'; source: string; session: RemoteSession }
   | { type: 'sessions.remove'; source: string; key: string }
   | { type: 'sessions.snapshot'; sources: string[]; sessions: RemoteSession[]; errors: SessionFailure[] }

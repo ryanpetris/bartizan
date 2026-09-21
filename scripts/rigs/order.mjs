@@ -53,10 +53,10 @@ await withDirectory('order', async (directory, cleanup) => {
   console.log('Connections reorder by dragging and from the Move Up and Move Down menu, by right click or Shift+F10, with moves past either end disabled.');
 
   await titles(one).click();
-  await menu(() => page.locator('.rail-panel .connection-add').click(), ['Terminal', 'Browser Session']);
+  await menu(() => page.locator('.rail-panel .connection-add').click(), ['Terminal', 'Browser Session', 'Visual Studio Code']);
   await choose('Terminal');
   await waitState(s => s.terminals.filter(t => t.connectionId === one).length === 2, 'second terminal');
-  await menu(() => page.locator('.rail-panel .connection-add').click(), ['Terminal', 'Browser Session']);
+  await menu(() => page.locator('.rail-panel .connection-add').click(), ['Terminal', 'Browser Session', 'Visual Studio Code']);
   await choose('Browser Session');
   const state = await waitState(s => s.workspaces[0]?.tabs.length === 1, 'browser session');
   const [t1, t2] = state.terminals.filter(t => t.connectionId === one).map(t => `terminal:${t.id}`);

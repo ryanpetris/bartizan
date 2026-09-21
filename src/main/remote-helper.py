@@ -12,6 +12,9 @@ import stat
 import struct
 import sys
 import time
+import threading
+
+session_discovery = globals().get("session_discovery", True)
 
 INTERVAL = 2.0
 SNAPSHOT_INTERVAL = 60.0
@@ -24,11 +27,15 @@ def identity(*parts):
     return hashlib.sha256(json.dumps(parts, ensure_ascii=True).encode()).hexdigest()
 
 
+emit_lock = threading.Lock()
+
+
 def emit(message):
     data = json.dumps(message, ensure_ascii=True)
     if len(data) > MAX_BYTES:
         raise ValueError("Session message is too large")
-    print(data, flush=True)
+    with emit_lock:
+        print(data, flush=True)
 
 
 def connect(path, deadline):
@@ -226,13 +233,17 @@ def candidates():
 
 
 def monitor():
+    global session_discovery
     known, previous = {}, {}
     next_scan = next_snapshot = 0.0
     pending = bytearray()
     while True:
         now = time.monotonic()
         if now >= next_scan:
-            paths, errors = candidates()
+            paths, errors = candidates() if session_discovery else ({}, [])
+            if not session_discovery:
+                known.clear()
+                previous.clear()
             known.update(paths)
             covered, sessions = [], []
             deadline = time.monotonic() + 10
@@ -286,12 +297,22 @@ def monitor():
             while b"\n" in pending:
                 line, _, tail = pending.partition(b"\n")
                 pending[:] = tail
-                if json.loads(line).get("type") == "sessions.refresh":
+                message = json.loads(line)
+                if message.get("type", "").startswith("applications."):
+                    applications.request(message)
+                elif message.get("type") == "sessions.configure":
+                    session_discovery = message["enabled"]
+                    next_scan = next_snapshot = 0.0
+                elif message.get("type") == "sessions.refresh":
                     next_scan = next_snapshot = 0.0
 
 
 if __name__ == "__main__":
+    applications = Applications(emit)
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:
         monitor()
     except (BrokenPipeError, KeyboardInterrupt):
         pass
+    finally:
+        applications.close()

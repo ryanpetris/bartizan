@@ -14,7 +14,7 @@ import type { Connection, TerminalSession } from '../shared';
 import { masterArgs, preflight } from '../core/ssh';
 import { unusedPort } from '../core/relay';
 import { Askpass } from './askpass';
-export type LiveConnection = { info: Connection; spec: Spec; process?: ChildProcess; port: number; socket: string; cleanup: () => void; ended: Promise<void>; observed: Partial<ConnectionInfo>; detailsPending?: Promise<ConnectionInfo>; helper?: RemoteHelper };
+export type LiveConnection = { info: Connection; spec: Spec; process?: ChildProcess; port: number; socket: string; cleanup: () => void; ended: Promise<void>; observed: Partial<ConnectionInfo>; detailsPending?: Promise<ConnectionInfo>; helper?: RemoteHelper; applications?: boolean; discovery?: boolean };
 export class Sessions {
   readonly messages = new HelperMessages(async (connectionId, message) => {
     const helper = this.entries.get(connectionId)?.helper;
@@ -125,21 +125,27 @@ export class Sessions {
   }
   syncIntegration(entry?: LiveConnection) {
     for (const live of entry ? [entry] : this.entries.values()) {
-      const enabled = this.integration(live) && live.info.status === 'connected';
+      const discovery = this.integration(live);
+      const enabled = (discovery || live.applications) && live.info.status === 'connected';
       if (!enabled) {
         live.helper?.stop(); live.helper = undefined; live.info.remoteSessions = undefined;
       } else if (!live.helper) {
-        live.info.remoteSessions = { sessions: [], loading: true, errors: [] };
+        if (discovery) live.info.remoteSessions = { sessions: [], loading: true, errors: [] };
+        live.discovery = discovery;
         const helper = new RemoteHelper(live.socket, live.spec, message => {
           if (this.entries.get(live.info.id) === live && live.helper === helper) this.messages.publish(live.info.id, message);
-        });
+        }, discovery);
         live.helper = helper;
+      } else if (live.discovery !== discovery) {
+        live.discovery = discovery;
+        live.info.remoteSessions = discovery ? { sessions: [], loading: true, errors: [] } : undefined;
+        void live.helper.send({ type: 'sessions.configure', enabled: discovery }).catch(() => {});
       }
     }
   }
   private receiveHelperMessage(connectionId: string, message: HelperMessage) {
     const state = this.entries.get(connectionId)?.info.remoteSessions;
-    if (!state) return;
+    if (!state || message.type.startsWith('applications.')) return;
     const previous = new Map(state.sessions.map(session => [session.key, session]));
     if (message.type === 'helper.error') {
       state.loading = false; state.errors = [{ message: message.message }];
@@ -150,7 +156,7 @@ export class Sessions {
       state.errors = message.errors; state.loading = false;
     } else if (message.type === 'sessions.remove') {
       state.sessions = state.sessions.filter(session => session.key !== message.key || session.source !== message.source);
-    } else {
+    } else if (message.type === 'sessions.upsert') {
       state.sessions = [message.session, ...state.sessions.filter(session => session.key !== message.session.key)];
     }
     state.sessions = state.sessions.slice(0, 100).map(session => ({ ...session, error: previous.get(session.key)?.error }));

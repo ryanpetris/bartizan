@@ -4,7 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { z } from 'zod';
 import { Relay } from '../core/relay';
-import { browserShortcut, stepZoom, type Bounds, type PageShortcut, type Workspace, type BrowserChallenge, type BrowserTab, type Download, type Event as AppEvent } from '../shared';
+import { browserShortcut, namedByAddress, stepZoom, type Bounds, type PageShortcut, type Workspace, type BrowserChallenge, type BrowserTab, type Download, type Event as AppEvent } from '../shared';
 import type { LiveConnection } from './sessions';
 import { Certificates } from './certificates';
 
@@ -23,6 +23,7 @@ const credentialField = z.string().max(4096).regex(/^[^\0\r\n]*$/, 'Credentials 
 const browserCredentials = z.strictObject({ username: credentialField, password: credentialField });
 
 export class Browsers {
+  openPopup?: (connectionId: string, url: string) => void;
   pageMenu?: (workspaceId: string, tabId: string, params: ContextMenuParams) => void;
   /** Called after a view is added above the views already in the window. */
   added?: () => void;
@@ -69,18 +70,18 @@ export class Browsers {
    * Opens a tab in the connection's `session`, or in a new session for 'new'. Otherwise the tab opens in the connection's
    * earliest session, or a new one; a named session that is gone is an error unless `fallback` is set.
    */
-  async open(connection: LiveConnection, url?: string, session?: string, fallback = false) {
-    const ours = [...this.entries.values()].filter(e => e.info.connectionId === connection.info.id);
+  async open(connection: LiveConnection, url?: string, session?: string, fallback = false, application?: Pick<Workspace, 'name' | 'application'>) {
+    const ours = [...this.entries.values()].filter(e => e.info.connectionId === connection.info.id && !e.info.application);
     const named = ours.find(e => e.info.id === session);
     if (session && session !== 'new' && !named && !fallback) throw new Error('Browser session is closed');
     const existing = session === 'new' ? undefined : named ?? ours[0];
-    const id = existing?.info.id ?? await this.create(connection);
-    try { await this.action(id, 'new', undefined, url, true); }
+    const id = existing?.info.id ?? await this.create(connection, application);
+    try { await this.action(id, 'new', undefined, url, true, application?.name); }
     catch (error) { if (!existing) await this.close(id, true); throw error; }
     return id;
   }
   /** Creates a browser session whose storage lives in memory until the session closes. */
-  private async create(connection: LiveConnection): Promise<string> {
+  private async create(connection: LiveConnection, application?: Pick<Workspace, 'name' | 'application'>): Promise<string> {
     if (connection.info.status !== 'connected') throw new Error('Connection is not connected');
     await Promise.all([...this.retiring.values()].filter(e => e.info.connectionId === connection.info.id).map(e => this.close(e.info.id, true)));
     const siblings = [...this.entries.values()].filter(e => e.info.connectionId === connection.info.id);
@@ -140,7 +141,7 @@ export class Browsers {
       ses.on('will-download', onDownload);
       const cancelDownloads = () => { for (const item of downloads) { try { item.cancel(); } catch {} } downloads.clear(); };
       const stopDownloads = () => { ses.off('will-download', rejectDownload); ses.on('will-download', rejectDownload); ses.off('will-download', onDownload); cancelDownloads(); };
-      this.entries.set(id, { port: connection.port, network: Promise.resolve(), info: { id, connectionId: connection.info.id, color, ordinal, tabs: [], downloads: [] }, session: ses, relay, certificates: new Certificates(this.changed, this.muted), views: new Map(), tools: new Map(), items: new Map(), saved: new Map(), stopDownloads, cancelDownloads, hasDownloadDialog: () => Boolean(download && !download.getSavePath()) });
+      this.entries.set(id, { port: connection.port, network: Promise.resolve(), info: { id, connectionId: connection.info.id, color, ordinal, tabs: [], downloads: [], ...application }, session: ses, relay, certificates: new Certificates(this.changed, this.muted), views: new Map(), tools: new Map(), items: new Map(), saved: new Map(), stopDownloads, cancelDownloads, hasDownloadDialog: () => Boolean(download && !download.getSavePath()) });
     } catch (error) { relay.close(); throw error; }
     this.changed(); return id;
   }
@@ -180,16 +181,17 @@ export class Browsers {
     if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) throw new Error('Enter an HTTP or HTTPS URL');
     return url.href;
   }
-  async action(id: string, action: string, tabId?: string, input?: string, userInitiated = false) {
+  async action(id: string, action: string, tabId?: string, input?: string, userInitiated = false, title?: string) {
     const entry = this.entries.get(id);
     if (!entry) throw new Error('Browser workspace is closed');
     if (['new', 'navigate', 'reload', 'hard-reload', 'back', 'forward'].includes(action)) await entry.network;
     if (this.entries.get(id) !== entry) throw new Error('Browser workspace is closed');
     if (action === 'close-workspace') { await this.close(id); return; }
+    if (entry.info.application && entry.info.tabs.length && action === 'new') throw new Error('Application tabs cannot contain browser tabs');
     if (action === 'new') {
       if (entry.views.size >= 32) throw new Error('Tab limit reached');
       const url = input ? this.url(input) : undefined;
-      const tab: BrowserTab = { id: randomUUID(), title: 'New Tab', url: url ?? '', loading: false, canBack: false, canForward: false, audible: false, muted: false, zoom: 100, devtools: false };
+      const tab: BrowserTab = { id: randomUUID(), title: title ?? 'New Tab', url: url ?? '', loading: false, canBack: false, canForward: false, audible: false, muted: false, zoom: 100, devtools: false };
       const view = new WebContentsView({ webPreferences: { session: entry.session, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: false } });
       view.setVisible(false);
       this.window.contentView.addChildView(view); this.added?.();
@@ -224,7 +226,7 @@ export class Browsers {
         if (input.type !== 'keyDown') return;
         if (!input.control && !input.meta && !input.alt && ['Enter', ' '].includes(input.key)) this.muted.delete(tab.id);
         const shortcut = browserShortcut(input);
-        if (!shortcut) return;
+        if (!shortcut || entry.info.application && shortcut !== 'new-connection') return;
         event.preventDefault();
         if (input.isAutoRepeat) return;
         // The address and the connection form belong to the application.
@@ -241,9 +243,12 @@ export class Browsers {
       const refresh = () => {
         if (!view.webContents || view.webContents.isDestroyed()) return;
         const contents = view.webContents;
-        tab.title = contents.getTitle() || 'New Tab';
         const current = contents.getURL();
-        if (current && current !== 'about:blank') tab.url = current;
+        if (current && current !== 'about:blank') {
+          const page = contents.getTitle();
+          tab.title = (page && !namedByAddress(page, current) ? page : '') || title || 'New Tab';
+          tab.url = current;
+        }
         tab.loading = contents.isLoading();
         tab.zoom = Math.round(contents.getZoomFactor() * 100);
         tab.canBack = contents.navigationHistory.canGoBack(); tab.canForward = contents.navigationHistory.canGoForward(); this.changed();
@@ -270,7 +275,8 @@ export class Browsers {
         const now = performance.now();
         if (/^https?:\/\//i.test(url) && !this.muted.has(tab.id) && now - lastPopup >= 1000) {
           lastPopup = now;
-          void this.action(id, 'new', undefined, url).catch(() => {});
+          if (entry.info.application) this.openPopup?.(entry.info.connectionId, url);
+          else void this.action(id, 'new', undefined, url).catch(() => {});
         }
         return { action: 'deny' };
       });
@@ -440,6 +446,7 @@ export class Browsers {
   }
   /** Runs a shortcut that a page left alone on a tab that shows a page; the find bar belongs to the application. */
   async pageShortcut(name: PageShortcut, { id, tabId }: { id: string; tabId: string }) {
+    if (this.entries.get(id)?.info.application) return;
     if (!this.entries.get(id)?.info.tabs.find(tab => tab.id === tabId)?.url) return;
     if (name === 'find') { this.window.webContents.focus(); this.shortcut(id, 'find'); }
     else await this.action(id, name, tabId, undefined, true);

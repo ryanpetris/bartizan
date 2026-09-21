@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 
 /** Each rig and the commands it needs besides node and xvfb-run. */
 const rigs = {
+  applications: ['sshd', 'python3', 'tmux'],
   sessions: ['sshd', 'tmux', 'screen', 'python3'],
   dev: ['sshd'],
   smoke: [],

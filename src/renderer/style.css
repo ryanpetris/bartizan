@@ -586,3 +586,28 @@ dialog:focus-visible { outline: none; }
 .tile .status-dot[data-standing="attached"] { background: var(--warn); }
 .tile .status-dot[data-standing="open"] { background: var(--accent); }
 .tile .status-dot[data-standing="error"] { background: var(--danger); }
+
+/* An application's launch, its consent notice and its failures, on the page the application will fill;
+   safe centring keeps the top of a card taller than the pane reachable. */
+.application-status { position: absolute; inset: 0; display: flex; align-items: safe center; justify-content: safe center; overflow: auto; padding: 24px; background: var(--bg-page); }
+.application-status[data-state="consent"] { align-items: flex-start; padding-top: 48px; }
+.application-card { display: flex; flex-direction: column; gap: 18px; width: min(420px, 100%); }
+.application-status[data-state="consent"] .application-card { width: min(620px, 100%); }
+/* The mark is larger here than in a dialog, and the name and its facts centre against it. */
+.application-card .dialog-header { align-items: center; }
+.application-card .dialog-icon { width: 40px; height: 40px; border-radius: 12px; }
+.application-card .dialog-icon .icon { width: 20px; height: 20px; }
+.application-card .dialog-titles { padding-top: 0; }
+/* A page names its own tab, so the heading keeps to one line and the block keeps its height. */
+.application-card .dialog-titles h2 { line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.application-card .dialog-context { margin-top: 3px; line-height: 15px; }
+.application-progress { display: grid; gap: 8px; }
+.application-progress progress { width: 100%; height: 4px; }
+/* The measure keeps its own column so changing digits leave the phase where it is. */
+.application-phase { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0; }
+.application-measure { flex: none; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.application-notice { max-height: 40vh; padding: 12px 14px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--field-muted); white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+.application-prompt { margin: 0; color: var(--text-strong); }
+.application-ended { margin: 0; color: var(--text-muted); }
+.application-link { display: inline; padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; text-decoration: underline; cursor: pointer; overflow-wrap: anywhere; }
+.application-link .icon { display: inline-block; width: 11px; height: 11px; margin-left: 3px; vertical-align: -1px; }

@@ -1,3 +1,4 @@
+import type { ApplicationState } from './helper-messages';
 import type { RemoteSession, SessionFailure, HelperMessage, HelperRequest, HelperListener } from './helper-messages';
 export type { RemoteSession } from './helper-messages';
 import type { Spec, PublicSpec, PublicProfile } from './core/config';
@@ -86,7 +87,14 @@ export type BrowserTab = { id: string; title: string; url: string; loading: bool
 /** A download whose save location has been chosen; sizes are in bytes, and `total` is 0 when unknown. */
 export type Download = { id: string; name: string; state: 'progressing' | 'completed' | 'cancelled' | 'failed'; received: number; total: number };
 /** A browser session; `name` is the name the user gave it. */
-export type Workspace = { id: string; connectionId: string; color: number; ordinal: number; name?: string; tabs: BrowserTab[]; activeTab?: string; downloads: Download[] };
+export type Workspace = { application?: ApplicationState; id: string; connectionId: string; color: number; ordinal: number; name?: string; tabs: BrowserTab[]; activeTab?: string; downloads: Download[] };
+/** An address as a page is named after it: without its scheme, without a trailing slash, and with its escapes read. */
+const bareAddress = (text: string) => {
+  try { text = decodeURI(text); } catch { /* A malformed escape stands as it is. */ }
+  return text.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+};
+/** Whether a page is named after its address, as a page with no title of its own is; an address can carry credentials. */
+export const namedByAddress = (title: string, url: string) => bareAddress(title) === bareAddress(url);
 export const browserSessionName = (workspace: Workspace) => workspace.name || `Browser ${workspace.ordinal}`;
 export type BrowserChallenge = { id: string; workspaceId: string; tabId: string; origin: string; realm: string; scheme: string };
 export type AuthChallenge = Challenge | BrowserChallenge;
@@ -144,6 +152,9 @@ export interface API {
   killRemoteSession(connectionId: string, key: string): Promise<void>;
   newTerminal(connectionId: string): Promise<string>;
   closeTerminal(id: string): Promise<void>;
+  newApplication(connectionId: string, application: string): Promise<string>;
+  retryApplication(workspaceId: string): Promise<void>;
+  respondApplication(workspaceId: string, consentId: string, accepted: boolean): Promise<void>;
   newBrowser(connectionId: string): Promise<string>;
   /** Opens a tab in the session, or else in the connection's earliest session or a new one, and returns the session. */
   newBrowserTab(connectionId: string, sessionId?: string): Promise<string>;

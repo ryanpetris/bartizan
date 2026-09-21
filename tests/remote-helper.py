@@ -126,6 +126,10 @@ def run():
         finally:
             subprocess.run(["screen", "-S", name, "-X", "quit"], env=env, check=True)
             if not existed:
+                for _ in range(40):
+                    if not any(screen_root.iterdir()):
+                        break
+                    time.sleep(.05)
                 screen_root.rmdir()
     print("Helper socket checks passed: UTF-8, unchanged attachments, executable-free discovery, updates, snapshots, EOF and Herdr RPC.")
 

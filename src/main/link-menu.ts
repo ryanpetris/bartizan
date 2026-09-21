@@ -79,6 +79,7 @@ export class LinkMenus {
   }
   /** Opens a link in a browser session of the connection and shows it; see `Browsers.open` for `session` and `fallback`. */
   open(connectionId: string, url: string, session?: string, fallback = false) {
+    if (session && this.browsers.entries.get(session)?.info.application) session = undefined;
     const target = linkURL(url);
     const label = this.sessions.entries.get(connectionId)?.info.label;
     void this.serialize(async () => {
@@ -92,7 +93,7 @@ export class LinkMenus {
     if (!this.sessions.entries.has(connectionId)) return [];
     if (currentId && this.browsers.entries.get(currentId)?.info.connectionId !== connectionId) return [];
     const label = this.sessions.entries.get(connectionId)?.info.label;
-    const sessions = [...this.browsers.entries.values()].filter(e => e.info.connectionId === connectionId);
+    const sessions = [...this.browsers.entries.values()].filter(e => e.info.connectionId === connectionId && !e.info.application);
     const connected = this.sessions.entries.get(connectionId)?.info.status === 'connected';
     const items: MenuItemConstructorOptions[] = [
       { label: 'Open Link', enabled: Boolean(currentId) || sessions.length > 0 || connected, click: () => this.open(connectionId, target, currentId ?? first, !currentId) },

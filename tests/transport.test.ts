@@ -56,6 +56,8 @@ test('backend shutdown drains active work and rejects queued work', async () => 
     },
   });
   try {
+    await assert.rejects(backend.request('new-application', ['connection', 'vscode']), /Unsupported operation/);
+    await assert.rejects(backend.request('helper-message', ['connection', { type: 'applications.launch', launchId: 'one', application: 'vscode' }]), /sessions.refresh/);
     const active = backend.request('hold', []);
     await entered;
     const queued = assert.rejects(backend.request('queued', []), /Backend is closed/);

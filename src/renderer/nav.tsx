@@ -13,10 +13,10 @@ import {
   connectionOf,
   terminalName,
   sessionColor,
-  tabTitle,
   statusText,
   openTerminal,
   openBrowser,
+  openApplication,
   openBrowserTab,
   render,
   reconnect,
@@ -222,7 +222,7 @@ function TabRow({
   tab: BrowserTab;
   outer?: React.HTMLAttributes<HTMLElement>;
 }) {
-  const title = tabTitle(tab),
+  const title = tab.title,
     state = tab.certificate ? 'certificate' : tab.loading ? 'loading' : tab.error ? 'error' : 'idle';
   const favicon = state === 'idle' ? faviconOf(tab.id) : undefined;
   const sound = tab.audible || tab.muted;
@@ -233,7 +233,7 @@ function TabRow({
       id={tab.id}
       data-workspace={workspace.id}
       label={title}
-      title={tab.url || undefined}
+      title={workspace.application ? undefined : tab.url || undefined}
       data-state={state}
       current={
         store.selection?.kind === 'browser' &&
@@ -319,6 +319,7 @@ function SessionName({ workspace }: { workspace: Workspace }) {
   );
 }
 function Session({ workspace }: { workspace: Workspace }) {
+  if (workspace.application) return <>{workspace.tabs.map(tab => <TabRow key={tab.id} workspace={workspace} tab={tab} />)}</>;
   return (
     <>
       {renaming === workspace.id ? <SessionName workspace={workspace} /> : <Row
@@ -388,6 +389,7 @@ export function ConnectionTools({ connection }: { connection: Group['connection'
           openMenu(event.currentTarget, [
             { label: 'Terminal', action: () => void openTerminal(id) },
             { label: 'Browser Session', action: () => void openBrowser(id) },
+            { label: 'Visual Studio Code', action: () => void openApplication(id, 'vscode') },
           ]) : void openTerminal(id)
         }
       />
@@ -429,7 +431,7 @@ export function ConnectionItems({ group: { connection, entries } }: { group: Gro
           {...orderable(
             `items:${connection.id}`,
             entry.key,
-            entry.workspace ? [{ label: 'Rename', action: () => renameSession(entry.workspace!.id) }] : [],
+            entry.workspace && !entry.workspace.application ? [{ label: 'Rename', action: () => renameSession(entry.workspace!.id) }] : [],
           )}
           style={colorStyle(entry.workspace && sessionColor(entry.workspace))}
         >
