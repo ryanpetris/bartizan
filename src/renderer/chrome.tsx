@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { browserSessionName } from '../shared';
 import { Icon, IconButton, colorStyle } from './ui';
-import { store, select, showConnect, connectionOf, terminalName, sessionColor, statusText, openTerminal, openBrowserTab, reconnect } from './store';
+import { store, select, showConnect, connectionOf, terminalName, activeTab, sessionColor, statusText, openTerminal, openBrowserTab, openApplication, reconnect } from './store';
 import { openSettings } from './settings';
 import { openDetails } from './details';
 
@@ -20,7 +20,8 @@ export function viewContext() {
   const name = terminal
     ? terminalName(terminal)
     : workspace
-      ? browserSessionName(workspace)
+      // An application fills its session with one tab and shows no session row, so its tab names the session.
+      ? (workspace.application && activeTab(workspace)?.title) || browserSessionName(workspace)
       : selection?.kind === 'remote'
         ? pageName.remote
         : selection?.kind === 'connect'
@@ -101,6 +102,12 @@ export function ContextActions() {
         label="New Browser Tab"
         hidden={!store.state.capabilities.embeddedBrowser || owner?.status !== 'connected'}
         onClick={() => owner && void openBrowserTab(owner.id, workspace?.id)}
+      />
+      <IconButton
+        icon="code"
+        label="Visual Studio Code"
+        hidden={!store.state.capabilities.embeddedBrowser || owner?.status !== 'connected'}
+        onClick={() => owner && void openApplication(owner.id, 'vscode')}
       />
       <IconButton
         icon="reload"

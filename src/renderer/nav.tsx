@@ -248,7 +248,7 @@ function TabRow({
         ) : favicon ? (
           <img className="favicon" src={favicon} alt="" draggable={false} onError={() => dropFavicon(tab.id)} />
         ) : (
-          <Icon name={state === 'error' || state === 'certificate' ? 'alert' : 'globe'} />
+          <Icon name={state === 'error' || state === 'certificate' ? 'alert' : workspace.application ? 'code' : 'globe'} />
         )
       }
       onSelect={() => selectTab(workspace.id, tab.id)}

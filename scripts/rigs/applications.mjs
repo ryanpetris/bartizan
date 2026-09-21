@@ -37,18 +37,6 @@ await withDirectory('applications', async (directory, cleanup) => {
   await app.chooseConnection(connection);
   await application.evaluate(({ Menu }) => { globalThis.rigMenus = []; Menu.prototype.popup = function () { globalThis.rigMenus.push(this); }; });
   await page.evaluate(() => { window.applicationSnapshots = []; window.bartizan.onEvent(event => { if (event.type === 'state') window.applicationSnapshots.push(event.state.workspaces); }); });
-  // Every name the launch is headed by, with whether a tab row carries the same one.
-  await page.evaluate(() => {
-    window.applicationHeadings = new Set();
-    const record = () => {
-      const heading = document.querySelector('.application-status h2');
-      if (!heading) return;
-      const rows = [...document.querySelectorAll('.nav-item[data-kind="tab"] .nav-label')];
-      window.applicationHeadings.add(`${heading.textContent}|${rows.some(row => row.textContent === heading.textContent)}`);
-    };
-    new MutationObserver(record).observe(document.body, { subtree: true, childList: true, characterData: true });
-    setInterval(record, 20);
-  });
   await page.locator('.connection-add:visible').click();
   await application.evaluate(() => { const item = globalThis.rigMenus.at(-1).items.find(i => i.label === 'Visual Studio Code'); if (!item) throw new Error('Visual Studio Code missing'); item.click(); });
   await expect(page.locator('.application-status')).toBeVisible();
@@ -60,6 +48,18 @@ await withDirectory('applications', async (directory, cleanup) => {
   await expect(page.locator('.application-notice')).toContainText('Fixture application terms', { timeout: 30000 });
   await expect(page.locator('.browser-toolbar')).toBeHidden();
   const first = (await app.state()).workspaces.find(w => w.application);
+  // The bar over the view carries the name of the tab in view, while the launch keeps the application's own name.
+  await page.evaluate(id => {
+    window.applicationNames = new Set();
+    const record = () => {
+      const row = document.querySelector(`.nav-item[data-kind="tab"][data-workspace="${id}"][aria-current="page"] .nav-label`)?.textContent;
+      const view = document.querySelector('#view-title .titlebar-item')?.textContent;
+      if (!row || !view) return;
+      window.applicationNames.add(`${view}|${row}|${document.querySelector('.application-status h2')?.textContent ?? ''}`);
+    };
+    new MutationObserver(record).observe(document.body, { subtree: true, childList: true, characterData: true });
+    setInterval(record, 20);
+  }, first.id);
   const initialSnapshots = await page.evaluate(id => window.applicationSnapshots.flatMap(workspaces => workspaces.filter(w => w.id === id)), first.id);
   assert.ok(initialSnapshots.length);
   assert.ok(initialSnapshots.every(w => w.application?.application === 'vscode' && w.name === 'Visual Studio Code' && w.tabs.every(t => t.title === 'Visual Studio Code')));
@@ -72,14 +72,24 @@ await withDirectory('applications', async (directory, cleanup) => {
   await expect(page.locator('.application-status [role=status]')).toHaveText('Starting Visual Studio Code Server');
   await waitState(s => s.workspaces.find(w => w.id === first.id)?.application.event.type === 'applications.ready', 'application ready');
   await expect(page.locator('.application-status')).toHaveCount(0);
+  // The application navigates itself from then on, and every state it passes through keeps the view with its page.
+  await page.evaluate(() => { window.applicationSnapshots.length = 0; });
+  const reloading = (await app.state()).workspaces.find(w => w.id === first.id).tabs[0].id;
+  await api('browser', first.id, 'reload', reloading);
+  const reloadStates = () => page.evaluate(id => window.applicationSnapshots.flatMap(workspaces => workspaces.filter(w => w.id === id)), first.id);
+  await expect.poll(async () => { const seen = await reloadStates(); return seen.some(w => w.tabs[0]?.loading) && seen.at(-1)?.tabs[0]?.loading === false; }).toBe(true);
+  for (const seen of await reloadStates())
+    assert.ok(seen.application.page === 'open' && seen.application.event.type === 'applications.ready' && seen.tabs[0]?.url && !seen.tabs[0].error,
+      `the launch took the view back while the application reloaded itself: ${JSON.stringify(seen.application)}`);
   const state = await app.state(), url = state.workspaces.find(w => w.id === first.id).tabs[0].url;
-  const headings = await page.evaluate(() => [...window.applicationHeadings]);
-  assert.ok(headings.some(entry => entry.startsWith('Visual Studio Code|')), headings.join(' , '));
-  for (const entry of headings) {
-    const name = entry.slice(0, entry.lastIndexOf('|'));
-    assert.ok(name, `the launch is headed by nothing: ${entry}`);
-    assert.equal(entry, `${name}|true`, `no tab row carries the name the launch is headed by: ${entry}`);
-    assert.ok(!url.includes(name), `the launch is headed by its address: ${entry}`);
+  const names = await page.evaluate(() => [...window.applicationNames]);
+  assert.ok(names.some(entry => entry.startsWith('Visual Studio Code|')), names.join(' , '));
+  assert.ok(names.some(entry => entry.startsWith('Editor fixture|')), `the bar over the view never took the page's own name: ${names.join(' , ')}`);
+  for (const entry of names) {
+    const [view, row, heading] = entry.split('|');
+    assert.equal(view, row, `the bar over the view and the tab row disagree: ${entry}`);
+    assert.ok(!url.includes(view), `the view is named after its address: ${entry}`);
+    assert.ok(heading === '' || heading === 'Visual Studio Code', `the launch is not headed by the application: ${entry}`);
   }
   assert.equal(new URL(url).hostname, '127.0.0.1'); assert.notEqual(new URL(url).port, '8000');
   for (const theme of ['tabs', 'console', 'rail']) {

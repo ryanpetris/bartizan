@@ -78,6 +78,11 @@ export class Applications {
       } else if (this.sessions.entries.get(workspace.connectionId)?.info.status !== 'connected' && workspace.application?.event.type !== 'applications.ended') {
         // State publication is already in progress; avoid reentering changed().
         workspace.application!.event = { type: 'applications.ended', launchId: id, reason: 'failed', error: { code: 'disconnected', message: 'Connection disconnected' } };
+      } else if (workspace.application?.event.type === 'applications.ready' && workspace.application.page !== 'open') {
+        const tab = workspace.tabs[0], launch = workspace.application;
+        // The view belongs to the application once a page it loaded has settled, after which it navigates itself.
+        if (tab?.loading) launch.page = 'loading';
+        else if (launch.page === 'loading' && tab?.url && !tab.error) launch.page = 'open';
       }
     }
     for (const connection of this.sessions.entries.values()) {

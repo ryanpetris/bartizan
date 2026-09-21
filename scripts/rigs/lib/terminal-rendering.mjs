@@ -108,7 +108,7 @@ export async function testTerminalRendering(app, first, second) {
     return Boolean(row) && document.querySelector('.titlebar-heading .titlebar-item')?.textContent === row && document.title.includes(` · ${row} — `);
   })).toBe(true);
   const topButtons = await titlebar.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label')));
-  for (const name of ['New Terminal', 'New Browser Tab', 'Connection Details']) assert.ok(topButtons.includes(name), name);
+  for (const name of ['New Terminal', 'New Browser Tab', 'Visual Studio Code', 'Connection Details']) assert.ok(topButtons.includes(name), name);
   await expect(page.locator('.rail-panel .connection-disconnect')).toBeVisible();
   const detailsButton = titlebar.getByRole('button', { name: 'Connection Details', exact: true });
   await detailsButton.click();

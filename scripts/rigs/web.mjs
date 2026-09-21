@@ -88,6 +88,7 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   await api('input', terminal, 'stty size\n');
   await page.waitForFunction(() => window.rigOutput.includes('37 91'));
   await expect(page.getByRole('button', { name: 'New Browser Tab', exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Visual Studio Code', exact: true })).toBeHidden();
   await page.locator('.connection-add').click();
   await page.waitForFunction(() => window.rigState.terminals.length === 2);
   await expect(page.getByRole('menu')).toHaveCount(0);
@@ -101,6 +102,7 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
     await api('settings', { theme });
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await expect(page.getByRole('button', { name: 'New Browser Tab', exact: true })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Visual Studio Code', exact: true })).toBeHidden();
     const count = await page.evaluate(() => window.rigState.terminals.length);
     await page.locator('.connection-add').click();
     await page.waitForFunction(count => window.rigState.terminals.length === count + 1, count);

@@ -1,6 +1,6 @@
 import { ApplicationStatus } from './application-status';
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import type { BrowserAction, BrowserShortcut, Bounds } from '../shared';
+import { applicationShowsPage, type BrowserAction, type BrowserShortcut, type Bounds } from '../shared';
 import { Icon, IconButton, Button, colorStyle } from './ui';
 import { api, render, describeError, dialogOpen, onFocusRequest, sessionColor, activeManifest } from './store';
 import { currentTab as current, findText, setFindText, targetOf } from './tab-state';
@@ -432,7 +432,7 @@ function pageVisible() {
       view &&
       workspace &&
       tab &&
-      (!workspace.application || workspace.application.event.type === 'applications.ready' && !tab.loading && !tab.error) &&
+      (!workspace.application || applicationShowsPage(workspace.application, tab)) &&
       (tab.url || tab.loading) &&
       !tab.certificate &&
       !view.hidden,

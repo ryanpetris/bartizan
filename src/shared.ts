@@ -95,6 +95,9 @@ const bareAddress = (text: string) => {
 };
 /** Whether a page is named after its address, as a page with no title of its own is; an address can carry credentials. */
 export const namedByAddress = (title: string, url: string) => bareAddress(title) === bareAddress(url);
+/** Whether an application's session shows the application's own page rather than its launch. */
+export const applicationShowsPage = (application: ApplicationState, tab: BrowserTab | undefined) =>
+  application.event.type === 'applications.ready' && application.page === 'open' && !!tab?.url && !tab.error;
 export const browserSessionName = (workspace: Workspace) => workspace.name || `Browser ${workspace.ordinal}`;
 export type BrowserChallenge = { id: string; workspaceId: string; tabId: string; origin: string; realm: string; scheme: string };
 export type AuthChallenge = Challenge | BrowserChallenge;

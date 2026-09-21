@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { formatBytes, type Workspace } from '../shared';
+import { applicationShowsPage, formatBytes, type Workspace } from '../shared';
 import { api, run, store, select } from './store';
 import { Button, Icon } from './ui';
 
@@ -19,8 +19,6 @@ export function ApplicationStatus({ workspace }: { workspace: Workspace }) {
   const application = workspace.application!;
   const event = application.event;
   const tab = workspace.tabs[0];
-  // The launch is headed by the name its tab and its row in the sidebar carry.
-  const name = tab?.title ?? workspace.name;
   const connection = store.state.connections.find(c => c.id === workspace.connectionId);
   const connected = connection?.status === 'connected';
   const answer = (accepted: boolean) => {
@@ -28,12 +26,12 @@ export function ApplicationStatus({ workspace }: { workspace: Workspace }) {
     setPending(event.consentId);
     void run('application', api.respondApplication(workspace.id, event.consentId, accepted).catch(error => { setPending(undefined); throw error; }), workspace.connectionId);
   };
-  if (event.type === 'applications.ready' && !tab?.loading && !tab?.error && tab?.url) return null;
+  if (applicationShowsPage(application, tab)) return null;
   const failure = event.type === 'applications.ended' ? event.error?.message : event.type === 'applications.ready' ? tab?.error : undefined;
   const state = event.type === 'applications.consent' ? 'consent' : failure ? 'failed' : event.type === 'applications.ended' ? 'ended' : 'progress';
   const progress = event.type === 'applications.progress' ? event : undefined;
   const transfer = progress?.transfer;
-  const label = progress ? `${verbs[progress.phase]}${progress.phase === 'checking' || !progress.component ? '' : ` ${progress.component}`}` : `Opening ${name}`;
+  const label = progress ? `${verbs[progress.phase]}${progress.phase === 'checking' || !progress.component ? '' : ` ${progress.component}`}` : `Opening ${workspace.name}`;
   const measure = transfer && (transfer.totalBytes ? `${formatBytes(transfer.receivedBytes)} of ${formatBytes(transfer.totalBytes)}` : formatBytes(transfer.receivedBytes));
   const facts = [connection?.label, progress?.release, progress?.usingCachedRelease && 'cached'].filter(Boolean);
   return <section className="application-status" data-state={state} aria-labelledby="application-title">
@@ -41,7 +39,7 @@ export function ApplicationStatus({ workspace }: { workspace: Workspace }) {
       <header className="dialog-header">
         <span className="dialog-icon session-badge"><Icon name="code" /></span>
         <div className="dialog-titles">
-          <h2 id="application-title">{name}</h2>
+          <h2 id="application-title">{workspace.name}</h2>
           <p className="dialog-context">{facts.join(' · ')}</p>
         </div>
       </header>

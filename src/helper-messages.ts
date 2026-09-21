@@ -14,7 +14,8 @@ export type ApplicationMessage =
   | { type: 'applications.consent'; launchId: string; consentId: string; content: { text: string; prompt?: string } }
   | { type: 'applications.ready'; launchId: string; release?: string; view: { kind: 'browser'; url: string } }
   | { type: 'applications.ended'; launchId: string; reason: 'cancelled' | 'stopped' | 'exited' | 'failed'; exitCode?: number; error?: { code: string; message: string } };
-export type ApplicationState = { application: string; launchId: string; event: ApplicationMessage };
+/** A launch and its view; `page` follows the page it serves, which the application navigates itself once that page is open. */
+export type ApplicationState = { application: string; launchId: string; event: ApplicationMessage; page?: 'loading' | 'open' };
 export type HelperRequest = { type: 'sessions.refresh' } | { type: 'sessions.configure'; enabled: boolean } | ApplicationRequest;
 export type HelperMessage = ApplicationMessage
   | { type: 'sessions.upsert'; source: string; session: RemoteSession }
