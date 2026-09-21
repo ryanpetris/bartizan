@@ -17,7 +17,9 @@ export type ApplicationMessage =
 /** A launch and its view; `page` follows the page it serves, which the application navigates itself once that page is open. */
 export type ApplicationState = { application: string; launchId: string; event: ApplicationMessage; page?: 'loading' | 'open' };
 export type HelperRequest = { type: 'sessions.refresh' } | { type: 'sessions.configure'; enabled: boolean } | ApplicationRequest;
-export type HelperMessage = ApplicationMessage
+export type ApplicationSpawned = { type: 'applications.spawned'; launchId: string; pid: number };
+export type HelperMessage = ApplicationMessage | ApplicationSpawned
+  | { type: 'helper.ready'; pid: number }
   | { type: 'sessions.upsert'; source: string; session: RemoteSession }
   | { type: 'sessions.remove'; source: string; key: string }
   | { type: 'sessions.snapshot'; sources: string[]; sessions: RemoteSession[]; errors: SessionFailure[] }

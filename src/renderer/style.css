@@ -516,11 +516,29 @@ dialog:focus-visible { outline: none; }
 .spacer { flex: 1; }
 .unsaved-notice { flex: none; margin: 0 auto 0 0; color: var(--warn-text); white-space: nowrap; }
 
-.details-dialog { width: min(680px, calc(100vw - 48px)); max-height: calc(100vh - var(--chrome-top) - 48px); }
-.details { display: flex; flex-direction: column; max-height: calc(100vh - var(--chrome-top) - 50px); }
-.details > .dialog-header { padding: 16px 20px; border-bottom: 1px solid var(--border); }
-.details > .dialog-actions { padding: 12px 20px; border-top: 1px solid var(--border); }
-.details-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 20px 16px; }
+/* Connection-owned pages follow the movable sessions. */
+.connection-items > :not(.pinned-entry) + .pinned-entry { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+.pinned-entry .nav-item:not([aria-current]) { color: var(--text-muted); }
+.connection-details { container: details / inline-size; overflow-y: auto; padding-bottom: 24px; }
+.details-content { --details-gap: 40px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px var(--details-gap); align-items: start; width: 100%; max-width: 720px; }
+.details-content > :is(.form-error, .details-processes) { grid-column: 1 / -1; }
+.details-status, .process-status { display: inline-flex; align-items: center; gap: 7px; color: var(--text-muted); }
+.details-content h3 { margin: 0 0 10px; color: var(--text-muted); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.process-list { margin: 12px 0 0; border-top: 1px solid var(--border-subtle); }
+.process-row { display: grid; grid-template-columns: minmax(150px, 34%) minmax(0, 1fr) max-content; grid-template-areas: "name status pid" "message message message"; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); }
+.process-name { grid-area: name; padding-right: 12px; color: var(--text-strong); overflow-wrap: anywhere; }
+.process-status { grid-area: status; }
+.process-pid { grid-area: pid; padding-left: 16px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.process-message { grid-area: message; margin-top: 2px; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: pre-wrap; overflow-wrap: anywhere; }
+.process-row .status-dot { background: var(--text-faint); }
+.process-row[data-status="running"] .status-dot { background: var(--ok); }
+.process-row:is([data-status="starting"], [data-status="retrying"], [data-status="stopping"]) .status-dot { background: var(--warn); animation: pulse 1.2s ease-in-out infinite; }
+.process-row[data-status="failed"] .status-dot { background: var(--danger); }
+.process-row[data-status="failed"] .process-message { color: var(--danger-text); }
+@container details (min-width: 840px) {
+  .details-content { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 1120px; }
+  .process-row { grid-template-columns: calc(50% + var(--details-gap) / 2) minmax(0, 1fr) max-content; }
+}
 .details-list { display: grid; grid-template-columns: minmax(150px, 34%) minmax(0, 1fr); margin: 12px 0 0; border-top: 1px solid var(--border-subtle); }
 .details-row { display: contents; }
 .details-list dt, .details-list dd { margin: 0; padding: 6px 0; border-bottom: 1px solid var(--border-subtle); }

@@ -66,12 +66,12 @@ function applyState(state: State) {
   const after = rows(state);
   if (shown && !after.some((row) => sameRow(row, shown))) {
     // The shown row, or a browser session's active tab, went away: show the row that took its place in navigation order, or
-    // the one before it, within the same connection.
+    // the one before it, within the same connection. Connection pages are selected explicitly.
     const before = rows(earlier);
     const index = before.findIndex((row) => sameRow(row, shown));
     const candidates = [...before.slice(index + 1), ...before.slice(0, index).reverse()];
     const next = candidates.find(
-      (row) => row.connectionId === shown.connectionId && after.some((a) => sameRow(a, row)),
+      (row) => row.kind !== 'details' && row.kind !== 'remote' && row.connectionId === shown.connectionId && after.some((a) => sameRow(a, row)),
     );
     store.selection = next && { kind: next.kind, id: next.id };
     if (next?.tab) activateTab(next.id, next.tab);
@@ -217,6 +217,7 @@ function App() {
           <terminals.Terminals />
           <browser.Browser />
           <RemoteSessions />
+          <Details />
           <Connect />
           <section className="view empty-view" aria-label="Nothing Open" hidden={store.selection?.kind !== 'connection'}>
             <span className="empty-mark">
@@ -230,7 +231,6 @@ function App() {
         <Modal>
           <ConnectionForm />
           <Challenges />
-          <Details />
           <Settings />
           <errors.Errors />
           <Quit />

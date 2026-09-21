@@ -438,12 +438,18 @@ export function ConnectionItems({ group: { connection, entries } }: { group: Gro
           {entry.terminal ? <TerminalRow terminal={entry.terminal} /> : <Session workspace={entry.workspace!} />}
         </li>
       ))}
-      {remoteVisible(connection) && <li className="terminal-entry remote-entry">
+      {remoteVisible(connection) && <li className="pinned-entry remote-entry">
         <Row tag="div" kind="remote" id={connection.id} label="Remote Sessions" icon={<Icon name="terminal" />}
           draggable={false} actions={[]}
           current={store.selection?.kind === 'remote' && store.selection.id === connection.id ? 'page' : undefined}
           onSelect={() => select({ kind: 'remote', id: connection.id })} />
       </li>}
+      <li className="pinned-entry details-entry">
+        <Row tag="div" kind="details" id={connection.id} label="Connection Details" icon={<Icon name="info" />}
+          draggable={false} actions={[]}
+          current={store.selection?.kind === 'details' && store.selection.id === connection.id ? 'page' : undefined}
+          onSelect={() => openDetails(connection.id)} />
+      </li>
     </ul>
   );
 }

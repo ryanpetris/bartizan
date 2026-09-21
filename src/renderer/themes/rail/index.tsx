@@ -13,8 +13,9 @@ function useReveal(selector: string) {
     revealed = useRef<{ list?: HTMLElement; id?: string }>({});
   useLayoutEffect(() => {
     const current = list.current?.querySelector<HTMLElement>(selector);
-    if (list.current === revealed.current.list && current?.dataset.id === revealed.current.id) return;
-    revealed.current = { list: list.current ?? undefined, id: current?.dataset.id };
+    const id = current ? `${current.dataset.kind}:${current.dataset.id}` : undefined;
+    if (list.current === revealed.current.list && id === revealed.current.id) return;
+    revealed.current = { list: list.current ?? undefined, id };
     current?.scrollIntoView({ block: 'nearest' });
   });
   return list;

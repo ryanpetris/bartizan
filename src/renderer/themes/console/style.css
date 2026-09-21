@@ -405,7 +405,7 @@
   dialog { bottom: var(--console-bottom); max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 24px); }
   dialog::backdrop { background: var(--console-backdrop); }
   .form-dialog { height: min(700px, calc(100vh - var(--chrome-top) - var(--console-bottom) - 24px)); max-height: none; }
-  .details, .errors { max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 26px); }
+  .errors { max-height: calc(100vh - var(--chrome-top) - var(--console-bottom) - 26px); }
   .dialog-icon { width: 26px; height: 26px; border: 1px solid var(--border-strong); border-radius: 0; background: transparent; }
   .dialog-icon.warning { border-color: var(--warn); background: transparent; }
   .dialog-icon.session-badge { border-color: var(--session-color); background: transparent; }
@@ -416,8 +416,8 @@
   .dialog-form { gap: 12px; padding: 16px; }
   .prompt { padding: 8px 10px; }
   .facts { gap: 6px 2ch; padding: 10px 12px; }
-  .form-shell > .dialog-header, .details > .dialog-header, .errors > .dialog-header { align-items: center; padding: 10px 16px; }
-  .form-shell > .dialog-actions, .details > .dialog-actions, .errors > .dialog-actions { padding: 10px 16px; }
+  .form-shell > .dialog-header, .errors > .dialog-header { align-items: center; padding: 10px 16px; }
+  .form-shell > .dialog-actions, .errors > .dialog-actions { padding: 10px 16px; }
   .form-layout { grid-template-columns: 22ch minmax(0, 1fr); }
   .section-nav { gap: 0; padding: 8px 0; }
   .section-tab { min-height: 26px; padding: 0 1.5ch; }
@@ -427,8 +427,8 @@
   .section-tab[aria-selected="true"]:focus-visible { outline-color: var(--on-accent); }
   .section-count { height: 16px; border-radius: 0; }
   .section-panels { padding: 2px 20px 20px; }
-  .panel-title, .errors h3, .picker-group { color: var(--accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; }
-  .panel-title::before, .errors h3::before, .picker-group::before { content: "# " / ""; color: var(--text-faint); font-weight: 400; }
+  .panel-title, .errors h3, .picker-group, .details-content h3 { color: var(--accent-text); font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+  .panel-title::before, .errors h3::before, .picker-group::before, .details-content h3::before { content: "# " / ""; color: var(--text-faint); font-weight: 400; }
   .field { padding: 8px 0; }
   .field-head { padding-top: 4px; }
   .field.overridden .field-label::after { border-radius: 0; }
@@ -438,11 +438,8 @@
   .command { padding: 10px 16px; }
   .command.error { font-family: var(--font-mono); font-size: 12px; }
   .form-notice { padding: 8px 16px 0; }
-  /* The header's rule and the actions' frame the list. */
-  .details-body { padding: 4px 16px; }
-  .details-list { margin-top: 0; border-top: 0; }
-  .details-list dt, .details-list dd { padding: 5px 0; }
-  .details-row:last-child > * { border-bottom: 0; }
+  .details-list dt, .details-list dd, .process-row { padding: 5px 0; }
+  .details-content { --details-gap: 4ch; }
   .errors h3 { margin: 10px 16px 2px; }
   .error-row { padding: 6px 16px; }
   .theme-option { gap: 5px; padding: 6px 6px 5px; font-size: 11px; font-weight: 400; }
@@ -451,3 +448,5 @@
 }
 
 @keyframes console-blink { 50% { opacity: 0.2; } }
+
+:root[data-theme="console"] .connection-items > :not(.pinned-entry) + .pinned-entry { margin: 0 0 0 1ch; padding: 0 0 0 1ch; border-top: 0; border-left: 1px solid var(--border-subtle); }

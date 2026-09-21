@@ -234,7 +234,7 @@
 :root[data-theme="tabs"] .tabs-strip .tab-items > .row.current > .nav-item[data-state="certificate"] .nav-icon { color: var(--warn); }
 /* A quiet rule parts neighbouring tabs that are neither in view nor under the pointer. */
 :root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row > .nav-item::after { content: ""; position: absolute; top: 50%; right: -3px; width: 1px; height: 14px; background: var(--border-strong); transform: translateY(-50%); }
-:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(:hover, .current) > .nav-item::after, :root[data-theme="tabs"] .tabs-strip .tab-items > .row:is(:last-child, :has(+ .row:is(:hover, .current))) > .nav-item::after, :root[data-theme="tabs"] .tabs-strip .terminal-entry:is(:last-child, :has(+ .session), :has(+ .terminal-entry > .row:is(:hover, .current))) .nav-item::after { opacity: 0; }
+:root[data-theme="tabs"] .tabs-strip :is(.terminal-entry, .tab-items) > .row:is(:hover, .current) > .nav-item::after, :root[data-theme="tabs"] .tabs-strip .tab-items > .row:is(:last-child, :has(+ .row:is(:hover, .current))) > .nav-item::after, :root[data-theme="tabs"] .tabs-strip .terminal-entry:is(:last-child, :has(+ .pinned-entry), :has(+ .session), :has(+ .terminal-entry > .row:is(:hover, .current))) .nav-item::after { opacity: 0; }
 :root[data-theme="tabs"] .tabs-strip .nav-meta { font-size: 10.5px; }
 /* A closed terminal leans, and its icon carries the hollow ring of a closed connection. */
 :root[data-theme="tabs"] .tabs-strip .nav-item[data-kind="terminal"][data-status="closed"] .nav-label { font-style: italic; }
@@ -325,3 +325,9 @@
 :root[data-theme="tabs"] .tag { border-radius: 8px; padding: 0 6px; }
 :root[data-theme="tabs"] .error-toaster[data-sonner-toaster][data-sonner-theme] { --border-radius: 12px; }
 :root[data-theme="tabs"] .error-toaster [data-sonner-toast] { box-shadow: var(--float-shadow); }
+
+/* Pinned connection pages use compact buttons beside the session tabs. */
+:root[data-theme="tabs"] .tabs-strip .pinned-entry { display: flex; align-items: center; padding: 0 2px 5px; }
+:root[data-theme="tabs"] .tabs-strip :not(.pinned-entry) + .pinned-entry { margin: 0 0 0 10px; padding-left: 10px; border-top: 0; border-left: 1px solid var(--border-subtle); }
+:root[data-theme="tabs"] .tabs-strip .pinned-entry .nav-item { width: auto; height: 26px; padding: 0 9px; gap: 7px; font-size: 12px; }
+:root[data-theme="tabs"] .tabs-strip .pinned-entry .nav-item[aria-current="page"]::before { content: none; }

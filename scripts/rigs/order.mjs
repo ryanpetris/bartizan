@@ -96,8 +96,8 @@ await withDirectory('order', async (directory, cleanup) => {
   await page.locator('.rail-panel').getByRole('button', { name: /^Close Browser \d+$/ }).focus();
   await page.keyboard.press('Enter');
   await waitState(s => !s.workspaces.some(w => w.connectionId === two), 'browser session closed');
-  await expect(page.locator('.rail-panel .nav-item[data-kind="terminal"]')).toBeFocused();
-  console.log('Closing the last session row moves focus to the remaining terminal.');
+  await expect(page.locator('.rail-panel .nav-item[data-kind="details"]')).toBeFocused();
+  console.log('Closing a session row moves focus to the next navigation item.');
 
   const kept = async () => {
     await titles(one).click();

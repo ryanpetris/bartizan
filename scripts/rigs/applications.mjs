@@ -42,8 +42,9 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   const connection = await api('connect', { profileId: 'test' });
   await waitState(s => s.connections[0]?.status === 'connected');
   await app.chooseConnection(connection);
+  assert.deepEqual((await app.state()).connections[0].processes, []);
   await application.evaluate(({ Menu }) => { globalThis.rigMenus = []; Menu.prototype.popup = function () { globalThis.rigMenus.push(this); }; });
-  await page.evaluate(() => { window.applicationSnapshots = []; window.bartizan.onEvent(event => { if (event.type === 'state') window.applicationSnapshots.push(event.state.workspaces); }); });
+  await page.evaluate(() => { window.applicationSnapshots = []; window.processSnapshots = []; window.bartizan.onEvent(event => { if (event.type === 'state') { window.applicationSnapshots.push(event.state.workspaces); window.processSnapshots.push(event.state.connections[0].processes); } }); });
   await page.locator('.connection-add:visible').click();
   await application.evaluate(() => { const item = globalThis.rigMenus.at(-1).items.find(i => i.label === 'Visual Studio Code'); if (!item) throw new Error('Visual Studio Code missing'); item.click(); });
   await expect(page.locator('.application-status')).toBeVisible();
@@ -55,6 +56,15 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await expect(page.locator('.application-notice')).toContainText('Fixture application terms', { timeout: 30000 });
   await expect(page.locator('.browser-toolbar')).toBeHidden();
   const first = (await app.state()).workspaces.find(w => w.application);
+  await page.locator('.nav-item[data-kind="details"]').click();
+  const launcher = page.locator('.process-row').filter({ has: page.getByText('Visual Studio Code Launcher', { exact: true }) });
+  await expect(launcher.locator('.process-status')).toHaveText('Running');
+  await expect(launcher.locator('.process-message')).toHaveText('Awaiting Approval');
+  assert.ok(await launcher.evaluate(row => { const name = row.querySelector('.process-name').getBoundingClientRect(), message = row.querySelector('.process-message').getBoundingClientRect(); return Math.abs(name.left - message.left) < 1 && message.top >= name.bottom && Math.abs(message.right - row.getBoundingClientRect().right) < 1; }), 'activity spans the row beneath the name');
+  await expect(launcher.locator('.process-pid')).toHaveText(/^PID \d+$/);
+  const starting = await page.evaluate(() => window.processSnapshots.flat());
+  for (const name of ['Bartizan Helper', 'Visual Studio Code Launcher']) assert.ok(starting.some(record => record.name === name && record.status === 'starting' && record.pid === undefined));
+  await page.locator(`.nav-item[data-kind="tab"][data-id="${applicationTab}"]`).click();
   // The bar over the view carries the name of the tab in view, while the launch keeps the application's own name.
   await page.evaluate(id => {
     window.applicationNames = new Set();
@@ -114,6 +124,14 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   const pid = Number(await readFile(join(data, 'bartizan/tools/vscode/server-data/fixture.pid'), 'utf8'));
   const simultaneous = await api('newApplication', connection, 'vscode');
   await waitState(s => s.workspaces.find(w => w.id === simultaneous)?.application.event.type === 'applications.ready', 'independent simultaneous session');
+  await page.locator('.nav-item[data-kind="details"]').click();
+  await expect(page.locator('.process-row')).toHaveCount(3);
+  await expect(page.locator('.process-status')).toHaveText(['Running', 'Running', 'Running']);
+  const processes = (await app.state()).connections[0].processes;
+  assert.equal(new Set(processes.map(record => record.id)).size, 3);
+  assert.equal(new Set(processes.map(record => record.pid)).size, 3);
+  assert.ok(processes.some(record => record.pid === pid));
+  await page.locator(`.nav-item[data-kind="tab"][data-id="${applicationTab}"]`).click();
   const simultaneousURL = (await app.state()).workspaces.find(w => w.id === simultaneous).application.event.view.url;
   assert.notEqual(new URL(url).port, new URL(simultaneousURL).port);
   await expect.poll(() => application.evaluate(({ webContents }) => webContents.getAllWebContents().filter(w => w.getTitle() === 'Editor fixture').length)).toBe(2);
@@ -138,23 +156,56 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await api('browser', first.id, 'close-workspace');
   await expect.poll(() => { try { process.kill(pid, 0); return false; } catch { return true; } }).toBe(true);
   await expect.poll(() => { try { process.kill(firstHelperPid, 0); return false; } catch { return true; } }).toBe(true);
+  await page.locator('.nav-item[data-kind="details"]').click();
+  await expect(page.locator('.process-row')).toHaveCount(0);
+  const stopped = await page.evaluate(() => window.processSnapshots);
+  assert.ok(stopped.some(records => records.some(record => record.status === 'stopping' && record.id === first.application.launchId)));
+  assert.ok(stopped.every(records => records.every(record => record.status !== 'stopped')));
   const second = await api('newApplication', connection, 'vscode');
   await waitState(s => s.workspaces.find(w => w.id === second)?.application.event.type === 'applications.ready', 'cached consent');
   const disconnectedPid = Number(await readFile(join(data, 'bartizan/tools/vscode/server-data/fixture.pid'), 'utf8'));
   await api('disconnect', connection);
   await expect.poll(() => { try { process.kill(disconnectedPid, 0); return false; } catch { return true; } }).toBe(true);
   await waitState(s => s.workspaces.find(w => w.id === second)?.application.event.type === 'applications.ended', 'disconnected application');
+  await page.locator('.nav-item[data-kind="details"]').click();
+  await expect(page.locator('.details-status')).toContainText('Closed');
+  await expect(page.locator('.process-status')).toHaveText(['Failed']);
+  await expect(page.locator('.process-pid')).toHaveText('');
   await api('reconnect', connection);
   await waitState(s => s.connections[0]?.status === 'connected');
   await api('retryApplication', second);
   await waitState(s => s.workspaces.find(w => w.id === second)?.application.event.type === 'applications.ready', 'retry');
   await api('settings', { remoteSessionIntegration: true });
   await waitState(s => s.connections[0].remoteSessions?.sessions.some(x => x.label === 'application-rig'), 'discovery enabled alongside application');
+  await expect(page.locator('.remote-entry + .details-entry')).toBeVisible();
+  await page.locator('.nav-item[data-kind="details"]').click();
+  await expect(page.locator('.process-row').filter({ hasText: 'Bartizan Helper' }).locator('.process-status')).toHaveText('Running');
+  // Both pinned pages share a connection ID; opening either one reveals its own row.
+  for (const theme of ['rail', 'console']) {
+    await api('settings', { theme });
+    const selector = theme === 'rail' ? '.rail-panel-scroll' : '.console-windows .console-scroll';
+    await page.locator(selector).evaluate((node, theme) => { node.style[theme === 'rail' ? 'maxHeight' : 'maxWidth'] = theme === 'rail' ? '90px' : '250px'; }, theme);
+    await page.locator('.nav-item[data-kind="remote"]').click();
+    await page.locator('.icon-button[aria-label="Connection Details"]').click();
+    await expect.poll(() => page.locator(selector).evaluate((node, theme) => {
+      const item = node.querySelector('.nav-item[data-kind="details"]').getBoundingClientRect(), box = node.getBoundingClientRect();
+      return theme === 'rail' ? item.top >= box.top && item.bottom <= box.bottom + 1 : item.left >= box.left && item.right <= box.right + 1;
+    }, theme)).toBe(true);
+    await page.locator(selector).evaluate(node => node.removeAttribute('style'));
+  }
   const previousHelper = Number(await readFile(helperPid, 'utf8'));
+  const helperRecord = (await app.state()).connections[0].processes.find(record => record.name === 'Bartizan Helper');
+  await page.locator('.nav-item[data-kind="remote"]').click();
+  await page.evaluate(() => { window.restartSessions = []; window.bartizan.onEvent(event => { if (event.type === 'state') window.restartSessions.push(event.state.connections[0].remoteSessions?.sessions ?? []); }); });
   process.kill(previousHelper, 'SIGTERM');
+  await expect.poll(() => page.evaluate(id => window.processSnapshots.some(records => records.some(record => record.id === id && record.status === 'retrying' && record.pid === undefined)), helperRecord.id)).toBe(true);
   await expect.poll(async () => { const pid = Number(await readFile(helperPid, 'utf8')); return pid > 0 && pid !== previousHelper; }).toBe(true);
   await api('sendHelperMessage', connection, { type: 'sessions.refresh' });
   await waitState(s => s.connections[0].remoteSessions?.sessions.some(x => x.label === 'application-rig'), 'discovery survives helper restart');
+  await expect.poll(async () => (await app.state()).connections[0].processes.find(record => record.id === helperRecord.id)?.status).toBe('running');
+  assert.notEqual((await app.state()).connections[0].processes.find(record => record.id === helperRecord.id).pid, helperRecord.pid);
+  assert.ok(await page.evaluate(() => window.restartSessions.every(sessions => sessions.some(session => session.label === 'application-rig'))), 'restart retains discovered sessions throughout');
+
   // Cancel on a launch in progress closes it and stops its remote process, as closing its tab does.
   await api('settings', { theme: 'tabs' });
   const pidFile = join(data, 'bartizan/tools/vscode/server-data/fixture.pid');
@@ -174,6 +225,36 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await assert.rejects(api('browser', cancelled, 'reload', cancelledTab), /Browser session is closed/);
   await expect.poll(() => { try { process.kill(cancelledPid, 0); return false; } catch { return true; } }).toBe(true);
   await api('browser', second, 'close-workspace');
+  // A tab can close while its first navigation waits for network cleanup after reconnect.
+  const racing = await api('newApplication', connection, 'vscode');
+  await waitState(s => s.workspaces.find(w => w.id === racing)?.application.event.type === 'applications.ready');
+  await expect.poll(() => application.evaluate(({ webContents }) => webContents.getAllWebContents().some(w => w.getTitle() === 'Editor fixture'))).toBe(true);
+  await application.evaluate(({ webContents }) => {
+    const session = webContents.getAllWebContents().find(w => w.getTitle() === 'Editor fixture').session;
+    const close = session.closeAllConnections.bind(session);
+    session.closeAllConnections = async () => {
+      session.closeAllConnections = close;
+      await close();
+      await new Promise(resolve => { globalThis.releaseApplicationNetwork = resolve; });
+    };
+  });
+  await api('disconnect', connection);
+  await expect.poll(() => application.evaluate(() => typeof globalThis.releaseApplicationNetwork)).toBe('function');
+  await api('reconnect', connection);
+  await waitState(s => s.connections[0].status === 'connected');
+  await api('retryApplication', racing);
+  const readyState = await waitState(s => s.workspaces.find(w => w.id === racing)?.application.event.type === 'applications.ready');
+  const racingLaunch = readyState.workspaces.find(w => w.id === racing).application.launchId;
+  const pausedHelper = Number(await readFile(helperPid, 'utf8'));
+  process.kill(pausedHelper, 'SIGSTOP');
+  cleanup(() => { try { process.kill(pausedHelper, 'SIGCONT'); } catch {} });
+  await page.evaluate(id => { window.pendingApplicationClose = window.bartizan.browser(id, 'close-workspace'); }, racing);
+  await waitState(s => !s.workspaces.some(w => w.id === racing));
+  await application.evaluate(() => globalThis.releaseApplicationNetwork());
+  await page.evaluate(() => window.pendingApplicationClose);
+  assert.equal((await app.state()).connections[0].processes.find(record => record.id === racingLaunch)?.status, 'stopping');
+  process.kill(pausedHelper, 'SIGCONT');
+  await waitState(s => !s.connections[0].processes.some(record => record.id === racingLaunch));
   assert.deepEqual(app.errors, []);
   console.log('Application launch, consent, native view, cache, cleanup, retry and cancel passed');
 });

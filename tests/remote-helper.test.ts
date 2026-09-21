@@ -8,6 +8,7 @@ import { mkdtempSync, writeFileSync, rmSync, readdirSync, readFileSync, statSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { RemoteHelper, helperLoader } from '../src/main/remote-helper';
+import type { ProcessReport } from '../src/shared';
 import type { HelperMessage } from '../src/helper-messages';
 import program from '../src/main/remote-helper.pyz';
 
@@ -58,11 +59,14 @@ test('helper starts from a split archive and accepts commands before stdin close
   const lines = createInterface({ input: child.stdout })[Symbol.asyncIterator]();
   child.stdin.write(source.subarray(0, 100));
   await setTimeout(20);
-  child.stdin.write(Buffer.concat([source.subarray(100), Buffer.from('{"type":"sessions.refresh"}\n')]));
-  for (let index = 0; index < 2; index++) {
-    const { value } = await lines.next();
-    assert.deepEqual(JSON.parse(value!), { type: 'sessions.snapshot', sources: [], sessions: [], errors: [] });
-  }
+  const observed: string[] = [];
+  child.stdout.on('data', chunk => observed.push(chunk.toString()));
+  child.stdin.write(source.subarray(100));
+  assert.deepEqual(JSON.parse((await lines.next()).value!), { type: 'helper.ready', pid: child.pid });
+  await setTimeout(50);
+  assert.equal(observed.join('').includes('sessions.snapshot'), false, 'discovery waits for configuration');
+  child.stdin.write('{"type":"sessions.configure","enabled":false}\n');
+  assert.deepEqual(JSON.parse((await lines.next()).value!), { type: 'sessions.snapshot', sources: [], sessions: [], errors: [] });
   const files = readdirSync(directory);
   assert.equal(files.length, 1);
   assert.match(files[0], /^bartizan-helper-/);
@@ -102,7 +106,7 @@ for (const signal of ['SIGTERM', 'SIGHUP', 'SIGINT'] as const) {
         const lines = createInterface({ input: child.stdout })[Symbol.asyncIterator]();
         child.stdin.write(source);
         const { value } = await lines.next();
-        assert.equal(JSON.parse(value!).type, 'sessions.snapshot');
+        assert.equal(JSON.parse(value!).type, 'helper.ready');
       } else {
         child.stdin.write(source.subarray(0, 100));
         const deadline = Date.now() + 5000;
@@ -195,32 +199,43 @@ test('helper restarts initialize current settings without replaying application 
   const temp = process.env.TMPDIR;
   process.env.TMPDIR = directory;
   process.env.PATH = directory + ':' + path;
+  const reports: ProcessReport[] = [];
   const messages: HelperMessage[] = [], initialized: boolean[] = [];
   let enabled = true;
   const helper = new RemoteHelper('/unused', { host: 'example.invalid' }, message => messages.push(message), () => {
     initialized.push(enabled);
     return [{ type: 'sessions.configure', enabled }];
-  });
+  }, report => reports.push(report));
   t.after(() => { helper.stop(); process.env.PATH = path; if (temp === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = temp; rmSync(directory, { recursive: true, force: true }); });
   const waitFor = async (predicate: () => boolean) => {
     const deadline = Date.now() + 5000;
     while (!predicate()) { assert.ok(Date.now() < deadline, JSON.stringify(messages)); await setTimeout(10); }
   };
+  assert.equal(reports.at(-1)!.status, 'starting');
   enabled = false; helper.reconfigure();
   await helper.send({ type: 'applications.launch', launchId: 'test', application: 'unknown' });
   await waitFor(() => messages.some(message => message.type === 'applications.ended'));
+  assert.equal(reports.at(-1)!.status, 'running');
+  assert.ok('pid' in reports.at(-1)!);
   assert.deepEqual(initialized, [false]);
   const child = (helper as unknown as { child: ReturnType<typeof spawn> }).child;
   child.kill('SIGKILL');
   await waitFor(() => messages.some(message => message.type === 'helper.error'));
+  assert.equal(reports.at(-1)!.status, 'retrying');
+  assert.ok(!('pid' in reports.at(-1)!));
   enabled = true; helper.reconfigure();
   enabled = false; helper.reconfigure();
   await waitFor(() => initialized.length === 2);
   await helper.send({ type: 'sessions.refresh' });
+  assert.equal(reports.at(-1)!.status, 'running');
+  assert.ok('pid' in reports.at(-1)!);
   assert.deepEqual(initialized, [false, false]);
   assert.equal(messages.filter(message => message.type === 'applications.ended').length, 1);
   const current = (helper as unknown as { child: ReturnType<typeof spawn> }).child;
   const closed = once(current, 'close');
   helper.stop();
+  assert.equal(reports.at(-1)!.status, 'stopping');
   await closed;
+  assert.equal(reports.at(-1)!.status, 'stopped');
+  assert.equal(new Set(reports.map(report => report.id)).size, 1);
 });

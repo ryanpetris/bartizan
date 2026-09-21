@@ -234,6 +234,7 @@ class Launch:
         self.check()
         self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                         stderr=subprocess.STDOUT, start_new_session=True)
+        self.emit("spawned", pid=self.process.pid)
         return self.process
 
     def stop_process(self):

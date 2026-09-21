@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { ApplicationMessage, ApplicationState } from '../helper-messages';
+import { formatBytes, type RemoteProcess } from '../shared';
+import type { ApplicationMessage, ApplicationState, ApplicationSpawned } from '../helper-messages';
 import type { ConnectionController } from './connection';
 import type { BrowserSession } from './browser-session';
 
@@ -8,11 +9,15 @@ export const applications = { vscode: 'Visual Studio Code' };
 /** One remote launch and the browser session displaying it. */
 export class ApplicationSession {
   id: string;
+  private closing = false;
+  private process!: RemoteProcess;
   static initial(application: string, launchId: string = randomUUID()): ApplicationState {
     return { application, launchId, event: { type: 'applications.progress', launchId, phase: 'checking' } };
   }
   constructor(readonly connection: ConnectionController, readonly browser: BrowserSession, readonly application: string) { this.id = browser.info.application!.launchId; }
   start() {
+    this.process = { id: this.id, name: `${applications[this.application as keyof typeof applications] ?? this.application} Launcher`, status: 'starting' };
+    this.connection.processes.report(this.process);
     this.browser.info.application = ApplicationSession.initial(this.application, this.id);
     this.connection.applications.set(this.id, this);
     if (this.connection.info.status !== 'connected') { this.fail('Connection disconnected'); return; }
@@ -26,26 +31,47 @@ export class ApplicationSession {
   receive(message: ApplicationMessage) {
     const state = this.browser.info.application!;
     state.event = message;
-    if (message.type === 'applications.ready') {
+    if (message.type === 'applications.progress' && !this.closing) {
+      const verbs = { checking: 'Checking for updates', downloading: 'Downloading', extracting: 'Unpacking', starting: 'Starting', loading: 'Loading' };
+      const transfer = message.transfer;
+      this.process.message = `${verbs[message.phase]}${message.phase !== 'checking' && message.component ? ` ${message.component}` : ''}${transfer ? ` · ${formatBytes(transfer.receivedBytes)}${transfer.totalBytes ? ` of ${formatBytes(transfer.totalBytes)}` : ''}` : ''}`;
+    } else if (message.type === 'applications.consent' && !this.closing) this.process.message = 'Awaiting Approval';
+    else if (message.type === 'applications.ready') this.process.message = undefined;
+    if (message.type === 'applications.ready' && !this.closing) {
       const tab = this.browser.info.tabs[0];
       if (tab) {
         tab.error = undefined; tab.url = '';
-        void this.browser.action('navigate', tab.id, message.view.url).catch(() => this.fail('Could not open application'));
+        void this.browser.action('navigate', tab.id, message.view.url).catch(() => { if (!this.closing) this.fail('Could not open application'); });
       }
     }
-    if (message.type === 'applications.ended') this.release();
+    if (message.type === 'applications.ended') {
+      this.process.pid = undefined;
+      if (message.reason === 'failed' && !this.closing) {
+        this.process.status = 'failed'; this.process.message = message.error?.message ?? `Exit code ${message.exitCode ?? 'unknown'}`;
+        this.connection.processes.report(this.process);
+      } else this.connection.processes.report({ id: this.id, status: 'stopped' });
+      this.release();
+    } else this.connection.processes.report(this.process);
     this.browserChanged();
     this.connection.changed();
+  }
+  receiveSpawned(message: ApplicationSpawned) {
+    this.process.pid = message.pid;
+    this.process.status = this.closing ? 'stopping' : 'running';
+    this.connection.processes.report(this.process);
   }
   private release() { this.connection.applications.delete(this.id); this.connection.updateApplications(); }
   fail(message: string) {
     const state = this.browser.info.application;
     if (!state || state.event.type === 'applications.ended') return;
     state.event = { type: 'applications.ended', launchId: this.id, reason: 'failed', error: { code: 'connection_failed', message } };
+    this.process.pid = undefined; this.process.status = 'failed'; this.process.message = message;
+    this.connection.processes.report(this.closing ? { id: this.id, status: 'stopped' } : this.process);
     this.release(); this.connection.changed();
   }
   retry() {
     if (this.browser.closed || this.browser.info.application?.event.type !== 'applications.ended') throw new Error('Application is not stopped');
+    this.connection.processes.report({ id: this.id, status: 'stopped' });
     this.id = randomUUID(); this.start();
   }
   async respond(consentId: string, accepted: boolean) {
@@ -54,6 +80,7 @@ export class ApplicationSession {
     await this.connection.sendHelperMessage({ type: 'applications.respond', launchId: this.id, consentId, accepted });
     if (accepted && state.event.type === 'applications.consent') {
       state.event = { type: 'applications.progress', launchId: this.id, phase: 'starting' };
+      this.process.message = undefined; this.connection.processes.report(this.process);
       this.connection.changed();
     }
   }
@@ -68,7 +95,14 @@ export class ApplicationSession {
     }
   }
   close() {
-    void this.connection.sendHelperMessage({ type: 'applications.stop', launchId: this.id }).catch(() => {});
-    this.release();
+    if (this.closing) return;
+    this.closing = true;
+    if (this.browser.info.application?.event.type === 'applications.ended') {
+      this.connection.processes.report({ id: this.id, status: 'stopped' });
+      this.release(); return;
+    }
+    this.process.status = 'stopping'; this.process.message = undefined;
+    this.connection.processes.report(this.process);
+    void this.connection.sendHelperMessage({ type: 'applications.stop', launchId: this.id }).catch(error => this.fail(error instanceof Error ? error.message : 'Application stop failed'));
   }
 }

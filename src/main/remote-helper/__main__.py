@@ -1,3 +1,4 @@
+import os
 import signal
 
 from helper.applications import Applications
@@ -7,6 +8,7 @@ from helper.vscode import VSCode
 
 applications = Applications(emit, {"vscode": VSCode})
 try:
+    emit(dict(type="helper.ready", pid=os.getpid()))
     monitor(applications)
 except (BrokenPipeError, KeyboardInterrupt):
     pass

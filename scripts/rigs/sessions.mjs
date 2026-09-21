@@ -57,6 +57,10 @@ await withDirectory('sessions', async (directory, cleanup) => {
   await chooseConnection(id);
   const tab = () => page.locator('.nav-item[data-kind="remote"]');
   for (const theme of ['tabs', 'console', 'rail']) { await api('settings', { theme }); await tab().click(); await expect(page.locator('.remote-sessions')).toBeVisible(); }
+  await expect(page.locator('.remote-entry + .details-entry')).toBeVisible();
+  await page.locator('.nav-item[data-kind="details"]').click();
+  await expect(page.locator('.process-row').filter({ hasText: 'Bartizan Helper' }).locator('.process-status')).toHaveText('Running');
+  await tab().click();
   const rows = page.locator('.remote-row');
   const row = name => rows.filter({ has: page.getByText(name, { exact: true }) });
   const item = name => row(name).locator('.remote-item');

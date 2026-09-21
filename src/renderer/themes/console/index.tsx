@@ -48,8 +48,9 @@ function Strip({ name, children }: { name: string; children: ReactNode }) {
   useLayoutEffect(() => {
     const list = scroller();
     const current = list.querySelector<HTMLElement>('[aria-current="page"]') ?? list.querySelector<HTMLElement>('[aria-current="true"]');
-    if (current?.dataset.id !== revealed.current) {
-      revealed.current = current?.dataset.id;
+    const id = current ? `${current.dataset.kind}:${current.dataset.id}` : undefined;
+    if (id !== revealed.current) {
+      revealed.current = id;
       current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
     measure();

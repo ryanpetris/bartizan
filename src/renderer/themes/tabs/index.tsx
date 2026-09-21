@@ -61,7 +61,6 @@ function Chrome() {
             <IconButton
               icon="info"
               label="Connection Details"
-              aria-haspopup="dialog"
               onClick={() => void openDetails(current.connection.id)}
             />
           </div>

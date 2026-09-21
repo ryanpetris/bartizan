@@ -1,3 +1,4 @@
+import { Processes } from './processes';
 import { userInfo } from 'node:os';
 import { remoteCommand, loginCommand } from './remote-sessions';
 import type { HelperMessage, HelperRequest, RemoteSession } from '../helper-messages';
@@ -17,6 +18,7 @@ export class ConnectionController {
   readonly remoteSessions = new Map<string, RemoteSession>();
   private readonly remoteTerminals = new Map<string, TerminalController>();
   readonly info: Connection;
+  readonly processes = new Processes(snapshot => { this.info.processes = snapshot; this.changed(); });
   spec: Spec;
   private transport?: SshConnection;
   get port() { return this.transport?.port ?? 0; }
@@ -32,7 +34,7 @@ export class ConnectionController {
     private data: (id: string, chunk: string) => void, private diagnostic: (message: string, connectionId: string, label: string) => void,
     private receive: (message: HelperMessage) => void, private terminalIndex: Map<string, TerminalController>) {
     this.spec = resolveSpec(configuration.catalog, profileId, overrides);
-    this.info = { id, profileId, label: this.spec.label ?? profileId ?? this.spec.host!, host: this.spec.host!, username: this.spec.username, status: 'closed', terminal: {} };
+    this.info = { id, profileId, label: this.spec.label ?? profileId ?? this.spec.host!, host: this.spec.host!, username: this.spec.username, status: 'closed', terminal: {}, processes: [] };
     this.configure(configuration.catalog);
     configuration.on('changed', this.configure);
   }
@@ -71,7 +73,7 @@ export class ConnectionController {
         if (this.helper !== helper) return;
         this.receiveHelperMessage(message);
         this.receive(message);
-      }, () => [{ type: 'sessions.configure', enabled: this.discovery }]);
+      }, () => [{ type: 'sessions.configure', enabled: this.discovery }], record => this.processes.report(record));
       this.helper = helper;
     }
   }
@@ -122,6 +124,7 @@ export class ConnectionController {
   }
   receiveHelperMessage(message: HelperMessage) {
     if (message.type === 'helper.error') { for (const application of this.applications.values()) application.fail(message.message); }
+    else if (message.type === 'applications.spawned') this.applications.get(message.launchId)?.receiveSpawned(message);
     else if ('launchId' in message) this.applications.get(message.launchId)?.receive(message);
     const state = this.info.remoteSessions;
     if (!state || message.type.startsWith('applications.')) return;
@@ -184,7 +187,7 @@ export class ConnectionController {
     return terminal.info.id;
   }
   details(): Promise<ConnectionInfo> {
-    return this.transport?.details() ?? Promise.resolve({ status: 'closed', username: this.info.username || userInfo().username });
+    return this.transport?.details() ?? Promise.resolve({ status: this.info.status, username: this.info.username || userInfo().username });
   }
   private disconnected() {
     for (const application of this.applications.values()) application.fail('Connection disconnected');

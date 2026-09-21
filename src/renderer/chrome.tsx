@@ -7,7 +7,7 @@ import { openDetails } from './details';
 import { faviconOf, dropFavicon } from './tab-state';
 
 /** What each page that belongs to no connection's items is called, in the bar over the view and on the page itself. */
-export const pageName = { connect: 'Connect', remote: 'Remote Sessions' } as const;
+export const pageName = { connect: 'Connect', remote: 'Remote Sessions', details: 'Connection Details' } as const;
 /** What is in view: the selected terminal or browser session, the connection that owns it, and the item whose status describes it. */
 export function viewContext() {
   const selection = store.selection;
@@ -16,14 +16,14 @@ export function viewContext() {
   const workspace =
     selection?.kind === 'browser' ? store.state.workspaces.find((w) => w.id === selection.id) : undefined;
   const owner = connectionOf(
-    terminal?.connectionId ?? workspace?.connectionId ?? (selection?.kind === 'connection' || selection?.kind === 'remote' ? selection.id : ''),
+    terminal?.connectionId ?? workspace?.connectionId ?? (selection?.kind === 'connection' || selection?.kind === 'remote' || selection?.kind === 'details' ? selection.id : ''),
   );
   const name = terminal
     ? terminalName(terminal)
     : workspace
       ? activeTab(workspace)?.title || browserSessionName(workspace)
-      : selection?.kind === 'remote'
-        ? pageName.remote
+      : selection?.kind === 'remote' || selection?.kind === 'details'
+        ? pageName[selection.kind]
         : selection?.kind === 'connect'
           ? pageName.connect
           : '';
@@ -120,7 +120,6 @@ export function ContextActions() {
       <IconButton
         icon="info"
         label="Connection Details"
-        aria-haspopup="dialog"
         onClick={() => owner && void openDetails(owner.id)}
       />
     </div>

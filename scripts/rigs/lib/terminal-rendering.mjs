@@ -112,11 +112,10 @@ export async function testTerminalRendering(app, first, second) {
   await expect(page.locator('.rail-panel .connection-disconnect')).toBeVisible();
   const detailsButton = titlebar.getByRole('button', { name: 'Connection Details', exact: true });
   await detailsButton.click();
-  const details = (await app.modal()).locator('#details-dialog');
+  const details = page.locator('.connection-details');
   await expect(details).toBeVisible();
-  await expect(details.locator('.details-row', { hasText: 'Status' }).locator('dd')).toHaveText('Connected');
-  await details.getByRole('button', { name: 'Close', exact: true }).click();
-  await expect(detailsButton).toBeFocused();
+  await expect(details.locator('.details-status')).toHaveText('Connected');
+  await select(first);
   assert.equal(await chromeFits(), true);
   await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1.25));
   await page.waitForTimeout(200);

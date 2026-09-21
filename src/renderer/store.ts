@@ -12,7 +12,7 @@ import { themes } from '../themes';
 
 import { createWebAPI } from './web-api';
 export const api = (window.bartizan ??= createWebAPI());
-export type Selection = { kind: 'connect' } | { kind: 'terminal' | 'browser' | 'connection' | 'remote'; id: string } | undefined;
+export type Selection = { kind: 'connect' } | { kind: 'terminal' | 'browser' | 'connection' | 'remote' | 'details'; id: string } | undefined;
 /** A terminal or a browser session, keyed as in the navigation order. */
 type Entry = { key: string; terminal?: TerminalSession; workspace?: Workspace };
 export type Group = { connection: Connection; entries: Entry[] };
@@ -92,14 +92,14 @@ export const exists = (state: State, selection: NonNullable<Selection>) =>
     ? true
     : selection.kind === 'terminal'
       ? state.terminals.some((t) => t.id === selection.id)
-      : selection.kind === 'connection' || selection.kind === 'remote'
+      : selection.kind === 'connection' || selection.kind === 'remote' || selection.kind === 'details'
         ? state.connections.some((c) => c.id === selection.id && (selection.kind !== 'remote' || remoteVisible(c)))
         : state.workspaces.some((w) => w.id === selection.id && w.tabs.length > 0);
 /** The connection a selection belongs to. */
 const selectionConnection = (selection: Selection) =>
   !selection || selection.kind === 'connect'
     ? undefined
-    : (selection.kind === 'connection' || selection.kind === 'remote')
+    : (selection.kind === 'connection' || selection.kind === 'remote' || selection.kind === 'details')
       ? selection.id
       : selection.kind === 'terminal'
         ? store.state.terminals.find((t) => t.id === selection.id)?.connectionId
@@ -339,7 +339,7 @@ export const activeConnection = (profileId?: string) =>
   profileId ? store.state.connections.find((c) => c.profileId === profileId && c.status !== 'closed') : undefined;
 
 /** A visible navigation row: a connection, a terminal, or a browser tab. */
-export type Row = { kind: 'connection' | 'terminal' | 'browser' | 'remote'; id: string; tab?: string; connectionId: string };
+export type Row = { kind: 'connection' | 'terminal' | 'browser' | 'remote' | 'details'; id: string; tab?: string; connectionId: string };
 export const sameRow = (a: Row, b: Row) => a.kind === b.kind && a.id === b.id && a.tab === b.tab;
 /** Visible rows in navigation order, each connection first; a browser session contributes its tabs in session order. */
 export function rows(state = store.state): Row[] {
@@ -356,6 +356,7 @@ export function rows(state = store.state): Row[] {
           })),
     ),
     ...(remoteVisible(connection) ? [{ kind: 'remote' as const, id: connection.id, connectionId: connection.id }] : []),
+    { kind: 'details' as const, id: connection.id, connectionId: connection.id },
   ]);
 }
 /** The row a selection shows; a browser session shows its active tab. */

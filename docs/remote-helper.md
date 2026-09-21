@@ -2,11 +2,11 @@
 
 # Remote helper
 
-Each connected SSH master with remote session integration enabled runs a Python 3.9+ helper on a separate channel. It queries local tmux and Herdr sockets and checks Screen sockets every two seconds. Discovery does not execute those programs. Full snapshots are sent on startup, every minute and when requested. Closing the channel ends the helper; an interrupted helper channel restarts automatically while the SSH connection remains connected.
+Each connected SSH master that needs remote session discovery or application launches runs a Python 3.9+ helper on a separate channel. It queries local tmux and Herdr sockets and checks Screen sockets every two seconds. Discovery does not execute those programs. Full snapshots are sent after configuration, every minute and when requested. Closing the channel ends the helper; an interrupted helper channel restarts automatically while the SSH connection remains connected.
 
 A small [Python loader](../src/main/remote-helper/loader.py), bundled as text with the app, reads a compressed Python zipapp from stdin using a byte count supplied on the command line. It writes `helper.pyz` inside a private temporary directory and runs it in the same process. Python selects the temporary location from `TMPDIR`, `TEMP`, `TMP`, or platform defaults. Modules load directly from the archive without extraction. After the archive, stdin carries newline-delimited JSON requests and stdout carries newline-delimited JSON responses. The file remains available for imports until the helper exits. Normal shutdown, startup errors, and handled `SIGTERM`, `SIGHUP`, or `SIGINT` signals delete the temporary directory and its archive after application cleanup. Forced termination with `SIGKILL` or a machine crash can leave the directory behind.
 
-Discovery starts disabled; after the initial empty snapshot signals readiness, the connection controller sends its current `sessions.configure` command. Each helper restart repeats this initialization without replaying application commands. A request is:
+The helper waits for configuration before scanning or sending session snapshots; after `helper.ready` reports readiness and the remote helper PID, the connection controller sends its current `sessions.configure` command. Each helper restart repeats this initialization without replaying application commands. A request is:
 
 ```json
 {"type":"sessions.refresh"}
@@ -55,7 +55,12 @@ Every application event includes `launchId`:
 - `applications.progress`: `phase` is `checking`, `downloading`, `extracting`, `starting`, or `loading`. Optional `release`, `usingCachedRelease`, and `transfer` describe the selected release and download. A launch that falls back to a cached release carries `usingCachedRelease` for the rest of its progress events. Transfers contain `receivedBytes` and optional `totalBytes`.
 - `applications.consent`: `consentId` and `content` containing remote-supplied `text` and optional `prompt`. The client sends `applications.respond` with the launch and consent IDs and an `accepted` boolean. Responses only apply to the outstanding consent request.
 - `applications.ready`: optional `release` and `view` containing `kind: "browser"` and a loopback HTTP or HTTPS `url`. The URL can contain credentials and must not be logged.
+- `applications.spawned`: the launcher `pid`, reported immediately after spawning it.
 - `applications.ended`: `reason` is `cancelled`, `stopped`, `exited`, or `failed`, with optional `exitCode` and `error` containing `code` and `message`.
+
+Each connection owns an in-memory process tracker keyed by UUID. Lifecycle managers report complete records before starting remote work, then report status, remote PID and activity messages as they change. A `stopped` report removes a record. Connection state includes the current process snapshot; the details page renders it without subscribing to helper events.
+
+A helper keeps its UUID across retries and clears its PID while retrying. Each application launch has its own record with a name assigned by Bartizan. Closing an application tab keeps its lifecycle manager and stopping records until `applications.ended` confirms cleanup. Lost helper channels mark open launches failed; closed launches are retired.
 
 Retry creates a new launch ID. Closing the helper cancels launches and stops their child processes. Disconnecting leaves the application tab available for retry after reconnection.
 

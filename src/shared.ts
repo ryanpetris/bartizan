@@ -78,8 +78,13 @@ export function parseDestination(input: string): { host: string; username?: stri
   const username = value.slice(0, at);
   if (username && usernamePattern.test(username)) return { ...destination, username };
 }
+export type RemoteProcess = {
+  id: string; name: string; status: 'starting' | 'running' | 'retrying' | 'stopping' | 'failed';
+  pid?: number; message?: string;
+};
+export type ProcessReport = RemoteProcess | { id: string; status: 'stopped' };
 export type RemoteSessions = { sessions: RemoteSession[]; loading: boolean; errors: SessionFailure[] };
-export type Connection = { id: string; profileId?: string; label: string; host: string; username?: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number; terminal: NonNullable<Spec['terminal']>; remoteSessions?: RemoteSessions };
+export type Connection = { id: string; profileId?: string; label: string; host: string; username?: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number; terminal: NonNullable<Spec['terminal']>; processes: RemoteProcess[]; remoteSessions?: RemoteSessions };
 export type TerminalSession = { remoteSession?: RemoteSession; id: string; connectionId: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number };
 export type CertificateChallenge = { id: string; url: string; origin: string; error: string; fingerprint: string; subject: string; issuer: string; validFrom: string; validTo: string };
 /** A browser tab; `zoom` is in percent, and `devtools` is whether its developer tools are open. */

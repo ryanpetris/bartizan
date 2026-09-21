@@ -4,6 +4,7 @@ import { z } from 'zod';
 import program from './remote-helper.pyz';
 import helperLoader from './remote-helper/loader.py';
 export { helperLoader };
+import type { ProcessReport } from '../shared';
 import type { Spec } from '../core/config';
 import type { HelperMessage, HelperRequest } from '../helper-messages';
 import { channelArgs, loginCommand, quoteShell, sessionError } from './remote-sessions';
@@ -24,7 +25,10 @@ export const applicationRequest = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('applications.respond'), launchId, consentId: key, accepted: z.boolean() }),
   z.strictObject({ type: z.literal('applications.stop'), launchId }),
 ]);
+const pid = z.number().int().positive().max(2147483647);
 const schema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('helper.ready'), pid }),
+  z.object({ type: z.literal('applications.spawned'), launchId, pid }),
   z.object({ type: z.literal('applications.progress'), launchId, phase: z.enum(['checking', 'downloading', 'extracting', 'starting', 'loading']), component: z.string().min(1).pipe(printable(128)).optional(), release: key.optional(), usingCachedRelease: z.boolean().optional(), transfer: z.object({ receivedBytes: z.number().int().nonnegative(), totalBytes: z.number().int().nonnegative().optional() }).optional() }),
   z.object({ type: z.literal('applications.consent'), launchId, consentId: key, content: z.object({ text: z.string().min(1).max(32768), prompt: z.string().max(4096).optional() }) }),
   z.object({ type: z.literal('applications.ready'), launchId, release: key.optional(), view: z.object({ kind: z.literal('browser'), url: z.string().max(8192).refine(value => { try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && ['127.0.0.1', '[::1]', 'localhost'].includes(url.hostname) && !url.username && !url.password; } catch { return false; } }) }) }),
@@ -55,10 +59,15 @@ export class RemoteHelper {
   private stopped = false;
   private initialized = false;
   private delay = 1000;
+  private readonly id = randomUUID();
+  private pid?: number;
   private ready?: Promise<void>;
   private resolveReady?: () => void;
   private rejectReady?: (error: Error) => void;
-  constructor(private socket: string, private spec: Spec, private receive: (message: HelperMessage) => void, private initialize: () => HelperRequest[]) { this.start(); }
+  constructor(private socket: string, private spec: Spec, private receive: (message: HelperMessage) => void, private initialize: () => HelperRequest[], private report: (record: ProcessReport) => void) {
+    this.report({ id: this.id, name: 'Bartizan Helper', status: 'starting' });
+    this.start();
+  }
   async send(message: HelperRequest): Promise<void> {
     if (message.type.startsWith('applications.')) message = applicationRequest.parse(message);
     const child = this.child;
@@ -101,15 +110,13 @@ export class RemoteHelper {
         if (!framed) { framed = line === marker; continue; }
         try {
           const message = parseHelperMessage(line);
-          if (message.type === 'sessions.snapshot') {
-            this.delay = 1000; arm(90000);
-            if (!this.initialized) {
-              this.initialized = true;
-              this.reconfigure();
-              this.resolveReady?.();
-              continue;
-            }
+          if (message.type === 'helper.ready') {
+            this.initialized = true; this.delay = 1000; this.pid = message.pid; arm(90000);
+            this.report({ id: this.id, name: 'Bartizan Helper', status: 'running', pid: message.pid });
+            this.reconfigure(); this.resolveReady?.();
+            continue;
           }
+          if (message.type === 'sessions.snapshot') arm(90000);
           this.receive(message);
         } catch (error) { fail(error instanceof Error ? error.message : 'Invalid helper message'); return; }
       }
@@ -118,24 +125,28 @@ export class RemoteHelper {
     child.on('close', () => {
       if (!active()) return;
       this.rejectReady?.(new Error(failure || 'Remote helper disconnected'));
-      this.child = undefined; this.initialized = false;
+      this.child = undefined; this.initialized = false; this.pid = undefined;
       clearTimeout(this.watchdog);
       this.retry = setTimeout(() => this.start(), this.delay);
       this.delay = Math.min(this.delay * 2, 30000);
-      this.receive({ type: 'helper.error', message: failure || sessionError(diagnostic) || 'Remote helper disconnected' });
+      const message = failure || sessionError(diagnostic) || 'Remote helper disconnected';
+      this.report({ id: this.id, name: 'Bartizan Helper', status: 'retrying', message });
+      this.receive({ type: 'helper.error', message });
     });
   }
   stop() {
+    if (this.stopped) return;
     this.stopped = true;
     this.rejectReady?.(new Error('Remote helper stopped'));
     clearTimeout(this.retry); clearTimeout(this.watchdog);
     const child = this.child;
     this.child = undefined;
     if (child) {
+      this.report({ id: this.id, name: 'Bartizan Helper', status: 'stopping', pid: this.pid });
       child.stdin.end();
       const deadline = setTimeout(() => child.kill(), 25000);
       deadline.unref();
-      child.once('close', () => clearTimeout(deadline));
-    }
+      child.once('close', () => { clearTimeout(deadline); this.report({ id: this.id, status: 'stopped' }); });
+    } else this.report({ id: this.id, status: 'stopped' });
   }
 }

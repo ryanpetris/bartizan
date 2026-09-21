@@ -223,11 +223,12 @@ def candidates():
 def monitor(applications):
     global session_discovery
     known, previous = {}, {}
+    configured = False
     next_scan = next_snapshot = 0.0
     pending = bytearray()
     while True:
         now = time.monotonic()
-        if now >= next_scan:
+        if configured and now >= next_scan:
             paths, errors = candidates() if session_discovery else ({}, [])
             if not session_discovery:
                 known.clear()
@@ -275,7 +276,7 @@ def monitor(applications):
                         del known[path]
                         previous.pop(source, None)
             next_scan = time.monotonic() + INTERVAL
-        if select.select([sys.stdin], [], [], max(0, next_scan - time.monotonic()))[0]:
+        if select.select([sys.stdin], [], [], max(0, next_scan - time.monotonic()) if configured else None)[0]:
             chunk = os.read(sys.stdin.fileno(), 4096)
             if not chunk:
                 return
@@ -290,6 +291,7 @@ def monitor(applications):
                     applications.request(message)
                 elif message.get("type") == "sessions.configure":
                     session_discovery = message["enabled"]
+                    configured = True
                     next_scan = next_snapshot = 0.0
                 elif message.get("type") == "sessions.refresh":
                     next_scan = next_snapshot = 0.0

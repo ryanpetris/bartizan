@@ -20,7 +20,7 @@ export function Strip({ className, label, fit = false, children }: { className: 
     const style = getComputedStyle(element),
       length = (name: string) => parseFloat(style.getPropertyValue(name)),
       current = length('--tab-current-min'),
-      inView = list.querySelector('.row.current:not(.session-row)');
+      inView = Array.from(items).some(item => item.classList.contains('current'));
     // What the strip holds besides its tabs: its padding, the sessions' names and buttons, and the gaps.
     let rest = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + list.getBoundingClientRect().width;
     for (const item of items) rest -= item.getBoundingClientRect().width;

@@ -17,6 +17,7 @@ const rigs = {
   themes: ['sshd', 'openbox', 'xprop'],
   config: [],
   connect: ['sshd'],
+  details: ['sshd'],
   errors: [],
   fonts: ['sshd'],
   graphics: ['sshd'],
