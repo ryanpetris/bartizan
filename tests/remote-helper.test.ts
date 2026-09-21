@@ -192,7 +192,7 @@ test('EOF cleanup finishes despite a later termination signal', { timeout: 15000
   assert.deepEqual(readdirSync(temporary), []);
 });
 
-test('helper restarts initialize current settings without replaying application commands', { timeout: 10000 }, async t => {
+test('helper demand controls recovery while live helpers remain available', { timeout: 15000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), 'bartizan-helper-transport-'));
   writeFileSync(join(directory, 'ssh'), '#!/bin/sh\nexport SHELL=/bin/sh\nfor command; do :; done\nexec /bin/sh -c "$command"\n', { mode: 0o700 });
   const path = process.env.PATH;
@@ -201,8 +201,11 @@ test('helper restarts initialize current settings without replaying application 
   process.env.PATH = directory + ':' + path;
   const reports: ProcessReport[] = [];
   const messages: HelperMessage[] = [], initialized: boolean[] = [];
-  let enabled = true;
-  const helper = new RemoteHelper('/unused', { host: 'example.invalid' }, message => messages.push(message), () => {
+  let enabled = true, releaseOnFailure = false;
+  const helper = new RemoteHelper('/unused', { host: 'example.invalid' }, message => {
+    messages.push(message);
+    if (message.type === 'helper.error' && releaseOnFailure) helper.setNeeded(false);
+  }, () => {
     initialized.push(enabled);
     return [{ type: 'sessions.configure', enabled }];
   }, report => reports.push(report));
@@ -230,7 +233,34 @@ test('helper restarts initialize current settings without replaying application 
   assert.equal(reports.at(-1)!.status, 'running');
   assert.ok('pid' in reports.at(-1)!);
   assert.deepEqual(initialized, [false, false]);
+  assert.equal(reports.filter(record => record.status === 'starting').length, 1, 'Retries retain their failure status until ready');
   assert.equal(messages.filter(message => message.type === 'applications.ended').length, 1);
+  helper.setNeeded(false);
+  const idle = (helper as unknown as { child: ReturnType<typeof spawn> }).child;
+  await helper.send({ type: 'sessions.refresh' });
+  assert.equal(reports.at(-1)!.status, 'running');
+  idle.kill('SIGKILL');
+  await waitFor(() => reports.at(-1)!.status === 'stopped');
+  await setTimeout(1200);
+  assert.equal(initialized.length, 2, 'Idle crashes wait for demand');
+  helper.setNeeded(true);
+  await waitFor(() => initialized.length === 3);
+  const demanded = (helper as unknown as { child: ReturnType<typeof spawn> }).child;
+  demanded.kill('SIGKILL');
+  await waitFor(() => reports.at(-1)!.status === 'retrying');
+  helper.setNeeded(false);
+  await setTimeout(1200);
+  assert.equal(initialized.length, 3, 'Releasing demand cancels backoff');
+  assert.equal(reports.at(-1)!.status, 'stopped');
+  helper.setNeeded(true);
+  await waitFor(() => initialized.length === 4);
+  releaseOnFailure = true;
+  (helper as unknown as { child: ReturnType<typeof spawn> }).child.kill('SIGKILL');
+  await waitFor(() => reports.at(-1)!.status === 'stopped');
+  await setTimeout(1200);
+  assert.equal(initialized.length, 4, 'Failure consumers release demand before retry is decided');
+  helper.setNeeded(true);
+  await waitFor(() => initialized.length === 5);
   const current = (helper as unknown as { child: ReturnType<typeof spawn> }).child;
   const closed = once(current, 'close');
   helper.stop();

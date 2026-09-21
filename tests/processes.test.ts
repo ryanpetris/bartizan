@@ -27,7 +27,7 @@ test('application records precede commands and survive tab closure until remote 
   const applications = new Map<string, ApplicationSession>();
   const sent: HelperRequest[] = [];
   const connection = {
-    processes, applications, info: { status: 'connected' }, changed() {}, updateApplications() {},
+    processes, applications, info: { status: 'connected' }, changed() {}, setHelperNeeded() {},
     async sendHelperMessage(message: HelperRequest) {
       assert.ok(processes.snapshot().some(record => record.id === ('launchId' in message ? message.launchId : undefined)), 'record is published before command');
       sent.push(message);

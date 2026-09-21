@@ -3,6 +3,7 @@ import { userInfo } from 'node:os';
 import { remoteCommand, loginCommand } from './remote-sessions';
 import type { HelperMessage, HelperRequest, RemoteSession } from '../helper-messages';
 import { RemoteHelper } from './remote-helper';
+import { RemoteIntegration } from './remote-integration';
 import { resolveSpec, merge, builtins, type Spec, type Catalog } from '../core/config';
 import type { Configuration } from '../core/configuration';
 import type { Browsers } from './browser';
@@ -27,7 +28,8 @@ export class ConnectionController {
   helper?: RemoteHelper;
   browsers?: Browsers;
   readonly applications = new Map<string, ApplicationSession>();
-  private discovery = false;
+  private readonly integration = new RemoteIntegration(this);
+  private readonly helperUsers = new Set<object>();
   private disposed = false;
   constructor(id: string, private overrides: Spec, profileId: string | undefined, private configuration: Configuration,
     private directory: string, private askpass: Askpass, private askpassHelper: string, private publish: () => void,
@@ -48,13 +50,13 @@ export class ConnectionController {
       ligatures: catalog.settings.terminalLigatures, webgl: catalog.settings.terminalWebgl,
       ...this.spec.terminal,
     };
-    const discovery = this.spec.remote_sessions ?? catalog.settings.remoteSessionIntegration;
-    const changed = discovery !== this.discovery;
-    this.discovery = discovery;
-    this.syncHelper();
-    if (changed) this.helper?.reconfigure();
+    this.integration.sync(this.spec.remote_sessions ?? catalog.settings.remoteSessionIntegration);
   };
-  updateApplications() { this.syncHelper(); }
+  setHelperNeeded(consumer: object, needed: boolean) {
+    if (needed) this.helperUsers.add(consumer);
+    else this.helperUsers.delete(consumer);
+    this.syncHelper();
+  }
   async openApplication(application: keyof typeof applications) {
     if (!this.browsers) throw new Error('Embedded browsers are unavailable');
     const id = await this.browsers.open(undefined, 'new', false, { name: applications[application], application: ApplicationSession.initial(application) });
@@ -64,16 +66,16 @@ export class ConnectionController {
     return id;
   }
   private syncHelper() {
-    if (!this.discovery || this.info.status !== 'connected') { this.info.remoteSessions = undefined; this.remoteSessions.clear(); }
-    else this.info.remoteSessions ??= { sessions: [], loading: true, errors: [] };
-    if (this.info.status !== 'connected' || !this.discovery && !this.applications.size) {
+    const needed = this.helperUsers.size > 0;
+    if (this.info.status !== 'connected') {
       this.helper?.stop(); this.helper = undefined;
-    } else if (!this.helper) {
+    } else if (this.helper) this.helper.setNeeded(needed);
+    else if (needed) {
       const helper = new RemoteHelper(this.socket, this.transport!.spec, message => {
         if (this.helper !== helper) return;
         this.receiveHelperMessage(message);
         this.receive(message);
-      }, () => [{ type: 'sessions.configure', enabled: this.discovery }], record => this.processes.report(record));
+      }, () => [this.integration.configuration()], record => this.processes.report(record));
       this.helper = helper;
     }
   }
@@ -92,7 +94,7 @@ export class ConnectionController {
     let diagnosticTerminal = initial;
     const transport = this.transport = new SshConnection(spec, this.info.id, this.directory, this.askpass, this.askpassHelper,
       () => {
-        this.info.status = 'connected'; this.syncHelper(); this.browsers?.sync();
+        this.info.status = 'connected'; this.integration.sync(this.spec.remote_sessions ?? this.configuration.catalog.settings.remoteSessionIntegration); this.browsers?.sync();
         if (initial && this.terminals.has(initial.info.id) && initial.info.status !== 'closed') initial.start(transport);
         this.changed();
       },
@@ -151,7 +153,7 @@ export class ConnectionController {
     if (this.info.remoteSessions) this.info.remoteSessions.sessions = [...this.remoteSessions.values()];
   }
   resumeRemoteSessions(keys: string[], takeover: boolean): string[] {
-    if (this.info.status !== 'connected' || !this.discovery) throw new Error('Session integration is unavailable');
+    if (this.info.status !== 'connected' || !this.integration.active) throw new Error('Session integration is unavailable');
     const opened: string[] = [];
     for (const key of new Set(keys)) {
       const session = this.remoteSessions.get(key);
@@ -174,7 +176,7 @@ export class ConnectionController {
   }
   /** Ends a session on the host; the terminals showing it close as it goes. */
   async killRemoteSession(key: string): Promise<void> {
-    if (this.info.status !== 'connected' || !this.discovery) throw new Error('Session integration is unavailable');
+    if (this.info.status !== 'connected' || !this.integration.active) throw new Error('Session integration is unavailable');
     const session = this.remoteSessions.get(key);
     if (!session?.commands.stop) throw new Error('Session cannot be stopped');
     await remoteCommand(this.socket, this.transport!.spec, session.commands.stop);
@@ -190,6 +192,7 @@ export class ConnectionController {
     return this.transport?.details() ?? Promise.resolve({ status: this.info.status, username: this.info.username || userInfo().username });
   }
   private disconnected() {
+    this.integration.sync(false);
     for (const application of this.applications.values()) application.fail('Connection disconnected');
     this.syncHelper();
     for (const terminal of this.terminals.values()) terminal.stop();

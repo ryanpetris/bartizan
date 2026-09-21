@@ -57,6 +57,7 @@ export class RemoteHelper {
   private retry?: ReturnType<typeof setTimeout>;
   private watchdog?: ReturnType<typeof setTimeout>;
   private stopped = false;
+  private needed = true;
   private initialized = false;
   private delay = 1000;
   private readonly id = randomUUID();
@@ -67,6 +68,16 @@ export class RemoteHelper {
   constructor(private socket: string, private spec: Spec, private receive: (message: HelperMessage) => void, private initialize: () => HelperRequest[], private report: (record: ProcessReport) => void) {
     this.report({ id: this.id, name: 'Bartizan Helper', status: 'starting' });
     this.start();
+  }
+  setNeeded(needed: boolean) {
+    this.needed = needed;
+    if (!needed) {
+      clearTimeout(this.retry); this.retry = undefined;
+      if (!this.child) this.report({ id: this.id, status: 'stopped' });
+    } else if (!this.child && !this.retry) {
+      this.report({ id: this.id, name: 'Bartizan Helper', status: 'starting' });
+      this.start();
+    }
   }
   async send(message: HelperRequest): Promise<void> {
     if (message.type.startsWith('applications.')) message = applicationRequest.parse(message);
@@ -80,7 +91,7 @@ export class RemoteHelper {
     for (const request of this.initialize()) this.child.stdin.write(JSON.stringify(request) + '\n');
   }
   private start() {
-    if (this.stopped) return;
+    if (this.stopped || !this.needed) return;
     this.initialized = false;
     this.ready = new Promise<void>((resolve, reject) => { this.resolveReady = resolve; this.rejectReady = reject; });
     void this.ready.catch(() => {});
@@ -125,13 +136,16 @@ export class RemoteHelper {
     child.on('close', () => {
       if (!active()) return;
       this.rejectReady?.(new Error(failure || 'Remote helper disconnected'));
-      this.child = undefined; this.initialized = false; this.pid = undefined;
+      this.initialized = false; this.pid = undefined;
       clearTimeout(this.watchdog);
-      this.retry = setTimeout(() => this.start(), this.delay);
-      this.delay = Math.min(this.delay * 2, 30000);
       const message = failure || sessionError(diagnostic) || 'Remote helper disconnected';
-      this.report({ id: this.id, name: 'Bartizan Helper', status: 'retrying', message });
       this.receive({ type: 'helper.error', message });
+      this.child = undefined;
+      if (this.needed) {
+        this.retry = setTimeout(() => { this.retry = undefined; this.start(); }, this.delay);
+        this.delay = Math.min(this.delay * 2, 30000);
+        this.report({ id: this.id, name: 'Bartizan Helper', status: 'retrying', message });
+      } else this.report({ id: this.id, status: 'stopped' });
     });
   }
   stop() {

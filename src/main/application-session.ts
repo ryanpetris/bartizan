@@ -21,7 +21,7 @@ export class ApplicationSession {
     this.browser.info.application = ApplicationSession.initial(this.application, this.id);
     this.connection.applications.set(this.id, this);
     if (this.connection.info.status !== 'connected') { this.fail('Connection disconnected'); return; }
-    this.connection.updateApplications();
+    this.connection.setHelperNeeded(this, true);
     this.connection.changed();
     const id = this.id;
     void this.connection.sendHelperMessage({ type: 'applications.launch', launchId: id, application: this.application }).catch(error => {
@@ -60,7 +60,7 @@ export class ApplicationSession {
     this.process.status = this.closing ? 'stopping' : 'running';
     this.connection.processes.report(this.process);
   }
-  private release() { this.connection.applications.delete(this.id); this.connection.updateApplications(); }
+  private release() { this.connection.applications.delete(this.id); this.connection.setHelperNeeded(this, false); }
   fail(message: string) {
     const state = this.browser.info.application;
     if (!state || state.event.type === 'applications.ended') return;

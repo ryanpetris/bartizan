@@ -25,7 +25,7 @@ test('configuration broadcasts resolve overrides per connection and unsubscribe 
   const commands: boolean[] = [];
   let stopped = 0;
   inherited.info.status = overridden.info.status = 'connected';
-  inherited.helper = { reconfigure: () => commands.push(Boolean(inherited.info.remoteSessions)), stop: () => { stopped++; } } as unknown as RemoteHelper;
+  inherited.helper = { setNeeded: () => {}, reconfigure: () => commands.push(Boolean(inherited.info.remoteSessions)), stop: () => { stopped++; } } as unknown as RemoteHelper;
   try {
     config.publish({ ...catalog(), settings: { ...defaultSettings, remoteSessionIntegration: true, terminalFontSize: 22 } });
     assert.ok(inherited.info.remoteSessions);
@@ -38,8 +38,10 @@ test('configuration broadcasts resolve overrides per connection and unsubscribe 
     assert.deepEqual(commands, [true]);
     config.publish({ ...config.catalog, settings: { ...config.catalog.settings, remoteSessionIntegration: false } });
     assert.equal(inherited.info.remoteSessions, undefined);
-    assert.equal(stopped, 1);
+    assert.deepEqual(commands, [true, false]);
+    assert.equal(stopped, 0);
     await inherited.disconnect();
+    assert.equal(stopped, 1);
     assert.equal(config.listenerCount('changed'), 2);
     config.publish({ ...config.catalog, profiles: [{ id: 'inherit', tags: [], spec: { terminal: { font_size: 24 } } }, ...config.catalog.profiles.slice(1)] });
     assert.equal(inherited.info.terminal.font_size, 24);

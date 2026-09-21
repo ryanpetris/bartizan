@@ -39,8 +39,9 @@ def run():
             invalid = root / "herdr" / "herdr.sock"
             invalid.parent.mkdir()
             invalid.write_text("not a socket")
-            program = "import sys; sys.path.insert(0, " + repr(sys.path[0]) + "); from helper import sessions as m; m.INTERVAL=.1; m.SNAPSHOT_INTERVAL=.4; m.session_discovery=True; m.monitor(None)"
+            program = "import sys; sys.path.insert(0, " + repr(sys.path[0]) + "); from helper import sessions as m; m.INTERVAL=.1; m.SNAPSHOT_INTERVAL=.4; m.monitor(None)"
             child = subprocess.Popen([sys.executable, "-B", "-u", "-c", program], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+            child.stdin.write(b'{"type":"sessions.configure","enabled":true}\n'); child.stdin.flush()
             pending = bytearray()
             def message(kind, predicate=lambda m: True):
                 deadline = time.monotonic() + 5
