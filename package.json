@@ -119,7 +119,7 @@
       "identity": "-",
       "hardenedRuntime": false,
       "notarize": false,
-      "extraFiles": [
+      "extraResources": [
         "LICENSE"
       ]
     }
