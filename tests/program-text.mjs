@@ -1,4 +1,5 @@
-import { register } from 'node:module';
+import { registerHooks } from 'node:module';
+import * as hooks from './program-text-hooks.mjs';
 
-// The build bundles helper programs as text; tests load them the same way.
-register('./program-text-hooks.mjs', import.meta.url);
+// Tests use the same Python source and archive formats as the build.
+registerHooks(hooks);

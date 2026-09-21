@@ -11,6 +11,8 @@ await withDirectory('dev', async (directory, cleanup) => {
   await mkdir(checkout);
   for (const name of ['package.json', 'electron.vite.config.mjs', 'tsconfig.json', 'src', 'assets'])
     await cp(name, join(checkout, name), { recursive: true });
+  await mkdir(join(checkout, 'scripts'));
+  await cp('scripts/python-archive.mjs', join(checkout, 'scripts/python-archive.mjs'));
   await symlink(resolve('node_modules'), join(checkout, 'node_modules'), 'dir');
   const sshd = await startSshd(directory);
   cleanup(sshd.stop);
@@ -59,6 +61,13 @@ await withDirectory('dev', async (directory, cleanup) => {
     await expect(page.locator('.connection-chip')).toHaveCount(1);
     const connected = () => page.evaluate(async id => (await import('/store.ts')).store.state.connections.find(item => item.id === id)?.status, connection);
     await expect.poll(connected).toBe('connected');
+    const helperDirectory = join(checkout, 'src/main/remote-helper/helper');
+    await writeFile(join(helperDirectory, '.sessions.py.swp'), 'editor swap');
+    await mkdir(join(helperDirectory, '__pycache__'));
+    await writeFile(join(helperDirectory, '__pycache__/sessions.pyc'), 'bytecode');
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    assert.ok(browser.isConnected(), 'Non-source helper files must not restart Electron');
+    await expect.poll(connected).toBe('connected');
     await page.evaluate(() => { window.rigDocument = true; });
     await page.getByRole('button', { name: 'New Connection', exact: true }).click();
     let modal = await modalOf(page);
@@ -94,8 +103,12 @@ await withDirectory('dev', async (directory, cleanup) => {
     page = await attach();
     await expect(page.locator('.connection-chip')).toHaveCount(0);
     await api('capabilities');
+    await edit('main/remote-helper/helper/messages.py', source => source.replace('MAX_BYTES = 1024 * 1024', 'MAX_BYTES = 1024 * 1024 + 1'));
+    await waitFor(() => !browser.isConnected(), 'Python archive rebuild restarts Electron');
+    page = await attach();
+    await api('capabilities');
     assert.deepEqual(errors, []);
-    console.log('Development launch, React state, overlay CSS, fonts, preload and overlay reloads, SSH survival, and main restart passed.');
+    console.log('Development launch, React state, overlay CSS, fonts, preload and overlay reloads, SSH survival, main restart, and Python archive rebuild passed.');
   } catch (error) {
     console.error(log);
     throw error;

@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import queue
 import stat
+import sys
 import tarfile
 import tempfile
 import threading
@@ -14,9 +15,9 @@ import zipfile
 from unittest.mock import patch
 
 root = Path(__file__).resolve().parents[1]
-namespace = {'__name__': 'application_test'}
-exec((root / 'src/main/remote-helper.py').read_text(), namespace)
-Applications, VSCode, Launch = (namespace[name] for name in ('Applications', 'VSCode', 'Launch'))
+sys.path.insert(0, str(root / 'src/main/remote-helper'))
+from helper.applications import Applications, Launch, Cancelled, xdg
+from helper.vscode import VSCode
 
 class ApplicationsTest(unittest.TestCase):
     def setUp(self):
@@ -26,7 +27,7 @@ class ApplicationsTest(unittest.TestCase):
         self.environment.start()
         self.events = queue.Queue()
         self.seen = []
-        self.manager = Applications(self.events.put)
+        self.manager = Applications(self.events.put, {"vscode": VSCode})
         self.offline = patch.object(VSCode, 'release', side_effect=OSError('offline'))
         self.offline.start()
 
@@ -197,7 +198,7 @@ class ApplicationsTest(unittest.TestCase):
             output.addfile(member, io.BytesIO(b'x'))
         with self.assertRaisesRegex(ValueError, 'Unsafe archive'): launch.extract(archive, self.directory / 'out')
         with patch.dict(os.environ, XDG_CACHE_HOME='relative'):
-            self.assertEqual(namespace['xdg']('XDG_CACHE_HOME', '.cache'), Path.home() / '.cache')
+            self.assertEqual(xdg('XDG_CACHE_HOME', '.cache'), Path.home() / '.cache')
 
     def test_zip_entries(self):
         launch = Launch(self.manager, dict(launchId='zip', application='vscode'))
@@ -227,7 +228,7 @@ class ApplicationsTest(unittest.TestCase):
             launch.cancel.set()
             return entries
         with patch.object(zipfile.ZipFile, 'infolist', cancel_entries):
-            with self.assertRaises(namespace['Cancelled']):
+            with self.assertRaises(Cancelled):
                 launch.extract(archive, destination)
 
     def test_tar_with_zip_trailer(self):

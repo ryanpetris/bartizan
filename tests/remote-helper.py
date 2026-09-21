@@ -1,5 +1,4 @@
 """Socket integration checks; run by the sessions Docker rig."""
-import importlib.util
 import json
 import os
 import pwd
@@ -12,9 +11,8 @@ import tempfile
 import threading
 import time
 
-spec = importlib.util.spec_from_file_location("helper", Path(__file__).parents[1] / "src/main/remote-helper.py")
-helper = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(helper)
+sys.path.insert(0, str(Path(__file__).parents[1] / "src/main/remote-helper"))
+from helper import sessions as helper
 
 
 def run():
@@ -41,8 +39,8 @@ def run():
             invalid = root / "herdr" / "herdr.sock"
             invalid.parent.mkdir()
             invalid.write_text("not a socket")
-            program = "import runpy; m=runpy.run_path(" + repr(spec.origin) + "); m['monitor'].__globals__.update(INTERVAL=.1,SNAPSHOT_INTERVAL=.4,session_discovery=True); m['monitor']()"
-            child = subprocess.Popen([sys.executable, "-u", "-c", program], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+            program = "import sys; sys.path.insert(0, " + repr(sys.path[0]) + "); from helper import sessions as m; m.INTERVAL=.1; m.SNAPSHOT_INTERVAL=.4; m.session_discovery=True; m.monitor(None)"
+            child = subprocess.Popen([sys.executable, "-B", "-u", "-c", program], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
             pending = bytearray()
             def message(kind, predicate=lambda m: True):
                 deadline = time.monotonic() + 5

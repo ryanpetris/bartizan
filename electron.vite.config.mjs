@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { archiveSources, pythonArchive } from './scripts/python-archive.mjs';
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 
@@ -17,10 +18,19 @@ export default defineConfig({
       rollupOptions: { output: { entryFileNames: '[name].cjs', chunkFileNames: 'chunks/[name]-[hash].cjs' } },
     },
     plugins: [{
-      // Helper programs are bundled as text, as the esbuild build loads them.
       name: 'bartizan-program-text',
       enforce: 'pre',
-      load: id => (id.endsWith('.py') ? `export default ${JSON.stringify(readFileSync(id, 'utf8'))};` : undefined),
+      resolveId(id, importer) {
+        if (id.endsWith('.pyz')) return resolve(dirname(importer), id);
+      },
+      load(id) {
+        if (id.endsWith('.pyz')) {
+          const directory = id.slice(0, -4);
+          for (const file of archiveSources(directory)) this.addWatchFile(file);
+          return `export default ${JSON.stringify(pythonArchive(directory).toString('base64'))};`;
+        }
+        if (id.endsWith('.py')) return `export default ${JSON.stringify(readFileSync(id, 'utf8'))};`;
+      },
     }],
   },
   preload: {

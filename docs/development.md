@@ -103,3 +103,7 @@ The workflow generates `SHA256SUMS`, uploads the artifacts, then creates and pub
 See [Architecture](architecture.md) for the source layout and state flow.
 
 See [Remote helper](remote-helper.md) for the session stream, message subscriptions and socket discovery checks.
+
+## Python helper
+
+Building and developing Bartizan requires Python 3.9 or later on `PATH` as `python3`. The build packages `src/main/remote-helper/__main__.py` and the `helper/` package into a compressed zipapp embedded in the application bundle. `loader.py` is bundled separately as bootstrap source. Development builds watch the Python modules and rebuild the archive when they change.

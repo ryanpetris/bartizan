@@ -1,15 +1,15 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import program from './remote-helper.py';
-import helperLoader from './remote-loader.py';
+import program from './remote-helper.pyz';
+import helperLoader from './remote-helper/loader.py';
 export { helperLoader };
 import type { Spec } from '../core/config';
 import type { HelperMessage, HelperRequest } from '../helper-messages';
 import { channelArgs, loginCommand, quoteShell, sessionError } from './remote-sessions';
 
 
-const source = Buffer.from(program, 'utf8');
+const source = Buffer.from(program, 'base64');
 
 const key = z.string().min(1).max(4096);
 const printable = (max: number) => z.string().max(max).transform(s => s.replace(/[\x00-\x1f\x7f-\x9f\u2028-\u202e\u2066-\u2069]/g, ' '));
