@@ -25,6 +25,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+import zipfile
 from pathlib import Path
 
 session_discovery = False
@@ -430,23 +431,33 @@ class Launch:
     def extract(self, archive, destination):
         self.progress("extracting")
         total = 0
-        with tarfile.open(archive) as source:
-            for member in source:
+        with archive.open("rb") as header:
+            zipped = header.read(4) == b"PK\x03\x04"
+        with (zipfile.ZipFile(archive) if zipped else tarfile.open(archive)) as source:
+            for member in source.infolist() if zipped else source:
                 self.check()
-                path = Path(member.name)
-                if path.is_absolute() or ".." in path.parts or not (member.isfile() or member.isdir()):
+                if zipped:
+                    path = Path(member.filename)
+                    mode = member.external_attr >> 16
+                    directory = member.is_dir()
+                    regular = stat.S_IFMT(mode) in (0, stat.S_IFREG, stat.S_IFDIR) and (not stat.S_ISDIR(mode) or directory)
+                    size = member.file_size
+                else:
+                    path, mode, size = Path(member.name), member.mode, member.size
+                    directory, regular = member.isdir(), member.isfile() or member.isdir()
+                if path.is_absolute() or ".." in path.parts or not regular:
                     raise ValueError("Unsafe archive entry")
-                total += member.size
+                total += size
                 if total > 1024 * 1024 * 1024:
                     raise ValueError("Archive is too large")
                 target = destination / path
-                if member.isdir():
+                if directory:
                     target.mkdir(parents=True, exist_ok=True)
                 else:
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    with source.extractfile(member) as incoming, target.open("wb") as output:
+                    with (source.open(member) if zipped else source.extractfile(member)) as incoming, target.open("wb") as output:
                         shutil.copyfileobj(incoming, output)
-                    target.chmod(0o700 if member.mode & 0o111 else 0o600)
+                    target.chmod(0o700 if mode & 0o111 else 0o600)
 
     def install(self, cache, fetch_release, executable, release_order=version_key, valid_release=lambda record: True):
         launch = self
@@ -587,10 +598,15 @@ class VSCode:
         self.data = xdg("XDG_DATA_HOME", ".local/share") / "bartizan/tools/vscode"
 
     def release(self):
-        machine = {"x86_64": "x64", "aarch64": "arm64", "armv7l": "armhf"}.get(platform.machine())
-        if platform.system() != "Linux" or not machine:
-            raise ValueError("Visual Studio Code requires a supported Linux architecture")
-        target = "cli-linux-" + machine
+        target = {
+            ("Linux", "x86_64"): "cli-linux-x64",
+            ("Linux", "aarch64"): "cli-linux-arm64",
+            ("Linux", "armv7l"): "cli-linux-armhf",
+            ("Darwin", "x86_64"): "cli-darwin-x64",
+            ("Darwin", "arm64"): "cli-darwin-arm64",
+        }.get((platform.system(), platform.machine()))
+        if not target:
+            raise ValueError("Visual Studio Code requires a supported Linux or macOS architecture")
         with urllib.request.urlopen("https://update.code.visualstudio.com/api/update/" + target + "/stable/latest", timeout=10) as response:
             release = json.loads(response.read(65536))
         version_key(release["name"])

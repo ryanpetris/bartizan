@@ -4,11 +4,13 @@ import json
 import os
 from pathlib import Path
 import queue
+import stat
 import tarfile
 import tempfile
 import threading
 import time
 import unittest
+import zipfile
 from unittest.mock import patch
 
 root = Path(__file__).resolve().parents[1]
@@ -127,57 +129,65 @@ class ApplicationsTest(unittest.TestCase):
         self.assertTrue(self.manager.launches['second'].process.poll() is None)
 
     def test_verified_download_and_atomic_cache(self):
-        import hashlib
-        launch = Launch(self.manager, dict(launchId='download', application='vscode'))
-        payload = b'#!/bin/sh\necho fixture\n'
-        archive = io.BytesIO()
-        with tarfile.open(fileobj=archive, mode='w:gz') as output:
-            member = tarfile.TarInfo('code'); member.size = len(payload); member.mode = 0o700
-            output.addfile(member, io.BytesIO(payload))
-        content = archive.getvalue()
-        release = dict(name='1.2.3', version='a' * 40, url='https://example.com/archive', sha256hash=hashlib.sha256(content).hexdigest())
-        def response(*args, **kwargs):
-            result = io.BytesIO(content); result.url = release['url']; result.headers = {'Content-Length': str(len(content))}
-            return result
-        cache = self.directory / 'install'
-        with patch('urllib.request.urlopen', side_effect=response) as download:
-            directory, installed = launch.install(cache, lambda: release, 'code')
-            self.assertEqual((directory / 'code').read_bytes(), payload)
-            self.assertEqual(installed, release)
-            launch.resources.close()
-            launch.install(cache, lambda: {**release, 'notes': 'changed'}, 'code')
-            launch.resources.close()
-            self.assertEqual(download.call_count, 1)
-            self.assertFalse((directory / 'complete').exists())
-            bad = {**release, 'name': '1.2.4', 'sha256hash': '0' * 64}
-            with self.assertRaisesRegex(ValueError, 'checksum'):
-                launch.install(cache, lambda: bad, 'code')
-            self.assertFalse((cache / '1.2.4').exists())
-            self.assertFalse(list(cache.glob('.download-*')))
-            launch.install(cache, lambda: release, 'code')
-            (directory / 'code').chmod(0o600)
-            before = download.call_count
-            repair = Launch(self.manager, dict(launchId='repair', application='vscode'))
-            result = queue.Queue()
-            def repair_cache():
-                try:
-                    result.put(repair.install(cache, lambda: release, 'code'))
-                except Exception as error:
-                    result.put(error)
-                finally:
-                    repair.resources.close()
-            worker = threading.Thread(target=repair_cache)
-            worker.start()
-            try:
-                with self.assertRaises(queue.Empty): result.get(timeout=.2)
-                self.assertEqual(download.call_count, before)
-            finally:
-                launch.resources.close()
-            self.assertIsInstance(result.get(timeout=3), tuple)
-            worker.join(timeout=3)
-            self.assertFalse(worker.is_alive())
-            self.assertEqual(download.call_count, before + 1)
-            self.assertTrue(os.access(directory / 'code', os.X_OK))
+        for archive_format in ('tar', 'zip'):
+            with self.subTest(archive_format=archive_format):
+                import hashlib
+                launch = Launch(self.manager, dict(launchId='download', application='vscode'))
+                payload = b'#!/bin/sh\necho fixture\n'
+                archive = io.BytesIO()
+                if archive_format == 'zip':
+                    with zipfile.ZipFile(archive, 'w') as output:
+                        member = zipfile.ZipInfo('code'); member.external_attr = (stat.S_IFREG | 0o755) << 16
+                        output.writestr(member, payload)
+                else:
+                    with tarfile.open(fileobj=archive, mode='w:gz') as output:
+                        member = tarfile.TarInfo('code'); member.size = len(payload); member.mode = 0o700
+                        output.addfile(member, io.BytesIO(payload))
+                content = archive.getvalue()
+                release = dict(name='1.2.3', version='a' * 40, url='https://example.com/archive', sha256hash=hashlib.sha256(content).hexdigest())
+                def response(*args, **kwargs):
+                    result = io.BytesIO(content); result.url = release['url']; result.headers = {'Content-Length': str(len(content))}
+                    return result
+                cache = self.directory / archive_format
+                with patch('urllib.request.urlopen', side_effect=response) as download:
+                    directory, installed = launch.install(cache, lambda: release, 'code')
+                    self.assertEqual((directory / 'code').read_bytes(), payload)
+                    self.assertEqual((directory / 'code').stat().st_mode & 0o777, 0o700)
+                    self.assertEqual(installed, release)
+                    launch.resources.close()
+                    launch.install(cache, lambda: {**release, 'notes': 'changed'}, 'code')
+                    launch.resources.close()
+                    self.assertEqual(download.call_count, 1)
+                    self.assertFalse((directory / 'complete').exists())
+                    bad = {**release, 'name': '1.2.4', 'sha256hash': '0' * 64}
+                    with self.assertRaisesRegex(ValueError, 'checksum'):
+                        launch.install(cache, lambda: bad, 'code')
+                    self.assertFalse((cache / '1.2.4').exists())
+                    self.assertFalse(list(cache.glob('.download-*')))
+                    launch.install(cache, lambda: release, 'code')
+                    (directory / 'code').chmod(0o600)
+                    before = download.call_count
+                    repair = Launch(self.manager, dict(launchId='repair', application='vscode'))
+                    result = queue.Queue()
+                    def repair_cache():
+                        try:
+                            result.put(repair.install(cache, lambda: release, 'code'))
+                        except Exception as error:
+                            result.put(error)
+                        finally:
+                            repair.resources.close()
+                    worker = threading.Thread(target=repair_cache)
+                    worker.start()
+                    try:
+                        with self.assertRaises(queue.Empty): result.get(timeout=.2)
+                        self.assertEqual(download.call_count, before)
+                    finally:
+                        launch.resources.close()
+                    self.assertIsInstance(result.get(timeout=3), tuple)
+                    worker.join(timeout=3)
+                    self.assertFalse(worker.is_alive())
+                    self.assertEqual(download.call_count, before + 1)
+                    self.assertTrue(os.access(directory / 'code', os.X_OK))
 
     def test_unsafe_archive_and_cache_path(self):
         launch = Launch(self.manager, dict(launchId='test', application='vscode'))
@@ -188,6 +198,69 @@ class ApplicationsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unsafe archive'): launch.extract(archive, self.directory / 'out')
         with patch.dict(os.environ, XDG_CACHE_HOME='relative'):
             self.assertEqual(namespace['xdg']('XDG_CACHE_HOME', '.cache'), Path.home() / '.cache')
+
+    def test_zip_entries(self):
+        launch = Launch(self.manager, dict(launchId='zip', application='vscode'))
+        archive, destination = self.directory / 'archive.zip', self.directory / 'out'
+        for name, mode in [('../escape', stat.S_IFREG), ('/escape', stat.S_IFREG),
+                           ('link', stat.S_IFLNK), ('fifo', stat.S_IFIFO)]:
+            with self.subTest(name=name):
+                with zipfile.ZipFile(archive, 'w') as output:
+                    member = zipfile.ZipInfo(name); member.external_attr = (mode | 0o755) << 16
+                    output.writestr(member, b'target')
+                with self.assertRaisesRegex(ValueError, 'Unsafe archive'):
+                    launch.extract(archive, destination)
+                self.assertFalse(destination.exists())
+        with zipfile.ZipFile(archive, 'w') as output:
+            output.writestr('nested/', b'')
+            output.writestr('nested/notice', b'terms')
+        launch.extract(archive, destination)
+        self.assertEqual((destination / 'nested/notice').read_bytes(), b'terms')
+        self.assertEqual((destination / 'nested/notice').stat().st_mode & 0o777, 0o600)
+        with zipfile.ZipFile(archive) as source:
+            entries = source.infolist()
+        entries[-1].file_size = 1024 * 1024 * 1024 + 1
+        with patch.object(zipfile.ZipFile, 'infolist', return_value=entries):
+            with self.assertRaisesRegex(ValueError, 'Archive is too large'):
+                launch.extract(archive, destination)
+        def cancel_entries(source):
+            launch.cancel.set()
+            return entries
+        with patch.object(zipfile.ZipFile, 'infolist', cancel_entries):
+            with self.assertRaises(namespace['Cancelled']):
+                launch.extract(archive, destination)
+
+    def test_tar_with_zip_trailer(self):
+        launch = Launch(self.manager, dict(launchId='tar', application='vscode'))
+        archive, destination = self.directory / 'archive', self.directory / 'out'
+        payload = b'code PK\x05\x06' + bytes(18)
+        with tarfile.open(archive, 'w:gz', compresslevel=0) as output:
+            member = tarfile.TarInfo('code'); member.size = len(payload); member.mode = 0o755
+            output.addfile(member, io.BytesIO(payload))
+        launch.extract(archive, destination)
+        self.assertEqual((destination / 'code').read_bytes(), payload)
+        self.assertEqual((destination / 'code').stat().st_mode & 0o777, 0o700)
+
+    def test_release_platforms(self):
+        self.offline.stop()
+        launch = Launch(self.manager, dict(launchId='platform', application='vscode'))
+        release = dict(name='1.2.3', version='a' * 40, sha256hash='b' * 64)
+        for system, machine, target in [('Linux', 'x86_64', 'cli-linux-x64'),
+                                        ('Linux', 'aarch64', 'cli-linux-arm64'),
+                                        ('Linux', 'armv7l', 'cli-linux-armhf'),
+                                        ('Darwin', 'x86_64', 'cli-darwin-x64'),
+                                        ('Darwin', 'arm64', 'cli-darwin-arm64')]:
+            with self.subTest(system=system, machine=machine), patch('platform.system', return_value=system), \
+                    patch('platform.machine', return_value=machine), \
+                    patch('urllib.request.urlopen', return_value=io.BytesIO(json.dumps(release).encode())) as request:
+                self.assertEqual(VSCode(launch).release(), release)
+                request.assert_called_once_with('https://update.code.visualstudio.com/api/update/' + target + '/stable/latest', timeout=10)
+        for system, machine in [('Windows', 'x86_64'), ('Darwin', 'armv7l'), ('Linux', 'unknown')]:
+            with self.subTest(system=system, machine=machine), patch('platform.system', return_value=system), \
+                    patch('platform.machine', return_value=machine), patch('urllib.request.urlopen') as request:
+                with self.assertRaisesRegex(ValueError, 'supported Linux or macOS architecture'):
+                    VSCode(launch).release()
+                request.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()
