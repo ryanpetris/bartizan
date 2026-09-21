@@ -4,6 +4,7 @@ import { Icon, IconButton, colorStyle } from './ui';
 import { store, select, showConnect, connectionOf, terminalName, activeTab, sessionColor, statusText, openTerminal, openBrowserTab, openApplication, reconnect } from './store';
 import { openSettings } from './settings';
 import { openDetails } from './details';
+import { faviconOf, dropFavicon } from './tab-state';
 
 /** What each page that belongs to no connection's items is called, in the bar over the view and on the page itself. */
 export const pageName = { connect: 'Connect', remote: 'Remote Sessions' } as const;
@@ -20,8 +21,7 @@ export function viewContext() {
   const name = terminal
     ? terminalName(terminal)
     : workspace
-      // An application fills its session with one tab and shows no session row, so its tab names the session.
-      ? (workspace.application && activeTab(workspace)?.title) || browserSessionName(workspace)
+      ? activeTab(workspace)?.title || browserSessionName(workspace)
       : selection?.kind === 'remote'
         ? pageName.remote
         : selection?.kind === 'connect'
@@ -68,10 +68,12 @@ export function windowTitle() {
  */
 export function ContextTitle() {
   const { workspace, owner, name, source } = viewContext();
+  const tab = workspace && activeTab(workspace);
+  const favicon = tab && !tab.loading && !tab.error && !tab.certificate ? faviconOf(tab.id) : undefined;
   return (
     <>
       <span className="titlebar-marker" role="img" aria-label={source && statusText(source)} hidden={!owner} style={colorStyle(workspace && sessionColor(workspace))}>
-        {workspace ? <Icon name="window" /> : <span className="status-dot" data-status={source?.status} />}
+        {tab && favicon ? <img className="favicon" src={favicon} alt="" draggable={false} onError={() => dropFavicon(tab.id)} /> : workspace ? <Icon name="window" /> : <span className="status-dot" data-status={source?.status} />}
       </span>
       <div className="titlebar-titles" hidden={!owner && !name}>
         <h1 className="titlebar-heading" id="view-title">

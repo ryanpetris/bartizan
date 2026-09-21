@@ -296,8 +296,8 @@
 :root[data-theme="tabs"] .tabs-context:has(> .titlebar-titles[hidden]) { border-color: transparent; }
 :root[data-theme="tabs"] .tabs-context .titlebar-marker { width: 14px; height: 14px; }
 /* A browser session's view shows its connection's status where a terminal's shows its own; a session's marker adds nothing to the session's tabs. */
-:root[data-theme="tabs"] .tabs-context .titlebar-marker:has(> .icon), :root[data-theme="tabs"] .tabs-context > .tabs-status { display: none; }
-:root[data-theme="tabs"] .tabs-context:has(> .titlebar-marker:not([hidden]) > .icon) > .tabs-status { display: block; margin: 0 3px; }
+:root[data-theme="tabs"] .tabs-context .titlebar-marker:has(> :is(.icon, .favicon)), :root[data-theme="tabs"] .tabs-context > .tabs-status { display: none; }
+:root[data-theme="tabs"] .tabs-context:has(> .titlebar-marker:not([hidden]) > :is(.icon, .favicon)) > .tabs-status { display: block; margin: 0 3px; }
 /* The heading names the view for assistive technology and the window; the tabs already show it. */
 :root[data-theme="tabs"] .tabs-context .titlebar-titles { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 

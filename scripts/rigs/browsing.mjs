@@ -105,16 +105,22 @@ await withDirectory('browsing', async (directory, cleanup) => {
   await row.click();
   await expect.poll(async () => (await views()).length).toBe(1);
 
-  // Icons
+  // Page titles and icons
+  await expect(page.locator('#view-title .titlebar-item')).toHaveText('Fixture /');
+  await expect(page).toHaveTitle('Fixture · Fixture / — Bartizan');
   await expect(row.locator('img.favicon')).toHaveAttribute('src', `data:image/png;base64,${png.toString('base64')}`);
+  await expect(page.locator('.titlebar-marker img.favicon')).toHaveAttribute('src', `data:image/png;base64,${png.toString('base64')}`);
   assert.equal(requests.find(request => request.url === '/icon.png' && request.cookie.includes('fixture=1')) !== undefined, true, 'the icon request carries the session cookie');
   await api('browser', session, 'navigate', tab, `${origin}/large`);
   await waitState(s => tabOf(s).title === 'Fixture /large' && !tabOf(s).loading, 'large icon page');
   await waitFor(() => requests.some(request => request.url === '/large.png'), 'large icon request');
   await expect(row.locator('img.favicon')).toHaveCount(0);
+  await expect(page.locator('#view-title .titlebar-item')).toHaveText('Fixture /large');
+  await expect(page.locator('.titlebar-marker img.favicon')).toHaveCount(0);
   await api('browser', session, 'navigate', tab, `${origin}/`);
   await waitState(s => tabOf(s).title === 'Fixture /' && !tabOf(s).loading, 'page again');
   await expect(row.locator('img.favicon')).toHaveCount(1);
+  await expect(page.locator('.titlebar-marker img.favicon')).toHaveCount(1);
   console.log('A tab shows its page icon, fetched through its session, and ignores an icon over the size limit.');
 
   // Sound
@@ -266,6 +272,11 @@ await withDirectory('browsing', async (directory, cleanup) => {
   // The status and downloads overlays are open, and the modal overlay, which opens at launch.
   assert.deepEqual(await application.evaluate(({ webContents }) => webContents.getAllWebContents().map(contents => contents.getURL()).filter(url => !/^(file|http):/.test(url))), ['about:blank', 'about:blank', 'about:blank']);
   assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
+  await api('settings', { theme: 'tabs' });
+  await expect(page.locator('.tabs-status')).toBeVisible();
+  await api('settings', { theme: 'console' });
+  await expect(page.locator('.titlebar-marker img.favicon')).toBeVisible();
+  await api('settings', { theme: 'rail' });
   assert.deepEqual(errors, []);
   console.log('Every overlay and tool stays inside the one application window.');
 });
