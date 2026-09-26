@@ -155,6 +155,10 @@ export async function createBackend(options: BackendOptions) {
   handle('resume-remote-sessions', (id: unknown, keys: unknown, takeover: unknown) => sessions.get(z.string().parse(id)).resumeRemoteSessions(z.array(z.string().max(8192)).max(1000).parse(keys), z.boolean().parse(takeover)));
   handle('kill-remote-session', (id: unknown, key: unknown) => sessions.get(z.string().parse(id)).killRemoteSession(z.string().max(8192).parse(key)));
   handle('new-terminal', (id: unknown) => serialize(async () => sessions.get(z.string().parse(id)).newTerminal()));
+  handle('reconnect-terminal', (id: unknown) => serialize(async () => {
+    const terminal = sessions.terminals.get(z.string().parse(id));
+    if (terminal) await terminal.connection.reconnectTerminal(terminal.info.id);
+  }));
   handle('close-terminal', (id: unknown) => serialize(async () => sessions.terminals.get(z.string().parse(id))?.close()));
   handle('answer', (id: unknown, value: unknown) => {
     const challengeId = z.string().parse(id);

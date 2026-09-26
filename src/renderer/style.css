@@ -364,9 +364,11 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 .browser-body { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
 .browser-body[data-dock="right"] { flex-direction: row; }
 .browser-slot { position: relative; flex: 1; min-width: 0; min-height: 0; background: var(--bg-page); }
-.tools-slot { flex: none; background: var(--bg-page); }
-.browser-body[data-dock="bottom"] > .tools-slot { min-height: 120px; max-height: calc(100% - 125px); }
-.browser-body[data-dock="right"] > .tools-slot { min-width: 120px; max-width: calc(100% - 125px); }
+.tools-dock { flex: none; display: flex; flex-direction: column; background: var(--bg-page); }
+.tools-toolbar { display: flex; justify-content: flex-end; flex: none; background: var(--bg-toolbar); border-bottom: 1px solid var(--border); }
+.tools-slot { flex: 1; min-height: 0; min-width: 0; }
+.browser-body[data-dock="bottom"] > .tools-dock { min-height: 120px; max-height: calc(100% - 125px); }
+.browser-body[data-dock="right"] > .tools-dock { min-width: 120px; max-width: calc(100% - 125px); }
 .tools-splitter { flex: none; background: var(--bg-toolbar); touch-action: none; }
 .browser-body[data-dock="bottom"] > .tools-splitter { height: 5px; border-block: 1px solid var(--border); cursor: row-resize; }
 .browser-body[data-dock="right"] > .tools-splitter { width: 5px; border-inline: 1px solid var(--border); cursor: col-resize; }
@@ -630,3 +632,11 @@ dialog:focus-visible { outline: none; }
 .application-ended { margin: 0; color: var(--text-muted); }
 .application-link { display: inline; padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; text-decoration: underline; cursor: pointer; overflow-wrap: anywhere; }
 .application-link .icon { display: inline-block; width: 11px; height: 11px; margin-left: 3px; vertical-align: -1px; }
+
+:root[data-fullscreen="content"] #app > :is(header, nav, footer, .tabs-tier) { display: none !important; }
+:root[data-fullscreen="content"] #app > .main { position: fixed; inset: 0; }
+html:root[data-fullscreen="content"] { --chrome-top: 0px; }
+.fullscreen-button { align-self: center; }
+
+.fullscreen-hint-position { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 10; pointer-events: none; }
+.fullscreen-hint { padding: 10px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-header); color: var(--text); white-space: nowrap; pointer-events: none; }

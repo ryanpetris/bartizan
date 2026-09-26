@@ -1,5 +1,5 @@
 import { createClient } from '../client';
-import type { API, Event } from '../shared';
+import type { API, Event, FullscreenMode } from '../shared';
 import type { Message, Response } from '../transport';
 
 export function createWebAPI(): API {
@@ -33,6 +33,12 @@ export function createWebAPI(): API {
       return () => { listeners.delete(callback); };
     },
   });
+  let fullscreen: FullscreenMode = false;
+  const fullscreenChanged = () => emit({ type: 'fullscreen', mode: fullscreen });
+  document.addEventListener('fullscreenchange', () => {
+    fullscreen = document.fullscreenElement ? fullscreen || 'window' : false;
+    fullscreenChanged();
+  });
   let activatedAt = -Infinity;
   addEventListener('focus', () => { activatedAt = performance.now(); });
   const openLink = (value: string) => {
@@ -40,7 +46,23 @@ export function createWebAPI(): API {
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || value.length > 8192) throw new Error('Unsupported link');
     window.open(url.href, '_blank', 'noopener,noreferrer');
   };
+  const setFullscreen = async (mode: FullscreenMode) => {
+    const previous = fullscreen;
+    fullscreen = mode;
+    try {
+      if (!mode && document.fullscreenElement) await document.exitFullscreen();
+      else if (mode && !document.fullscreenElement) await document.documentElement.requestFullscreen();
+    } catch (error) { fullscreen = previous; fullscreenChanged(); throw error; }
+    fullscreen = document.fullscreenElement ? mode : false;
+    fullscreenChanged();
+  };
+  addEventListener('keydown', event => {
+    if (event.key !== 'F11' || event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+    event.preventDefault();
+    if (!event.repeat) void setFullscreen(document.fullscreenElement ? false : 'content').catch(() => {});
+  }, true);
   return { ...api,
+    setFullscreen,
     copy: async text => {
       if (navigator.clipboard) { await navigator.clipboard.writeText(text); return; }
       const previous = document.activeElement as HTMLElement | null;

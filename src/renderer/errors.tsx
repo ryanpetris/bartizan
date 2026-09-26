@@ -22,7 +22,7 @@ type Shown = { key: string; entry: ErrorEntry };
 let shown: Shown[] = [];
 const pending = new Map<number, ErrorEntry>();
 const toastPlacement = () => {
-  const placement = activeTheme().toasts?.() ?? activeManifest().toasts;
+  const placement = store.fullscreen === 'content' ? { overlay: true as const } : activeTheme().toasts?.() ?? activeManifest().toasts;
   return placement.overlay && !store.state.capabilities.embeddedBrowser
     ? { overlay: false as const, position: 'top-right' as const, offset: { top: 64, right: 16 }, width: '356px' }
     : placement;
@@ -229,7 +229,7 @@ export function Toasts() {
       <Overlay
         name="toasts"
         place={(size) => {
-          // Below a browser session's toolbar, whose controls stay in reach, and otherwise at the top of the view.
+          // Keep notifications below browser controls.
           const area = document.querySelector('.browser-view:not([hidden]) .browser-body') ?? document.querySelector('.main');
           const view = area?.getBoundingClientRect();
           return view ? { x: view.right - size.width - toastInset, y: view.top, ...size } : undefined;

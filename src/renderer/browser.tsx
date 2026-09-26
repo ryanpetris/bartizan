@@ -2,7 +2,7 @@ import { ApplicationStatus } from './application-status';
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
 import { applicationShowsPage, type BrowserAction, type BrowserShortcut, type Bounds } from '../shared';
 import { Icon, IconButton, Button, colorStyle } from './ui';
-import { api, render, describeError, dialogOpen, onFocusRequest, sessionColor, activeManifest } from './store';
+import { api, store, run, render, describeError, dialogOpen, onFocusRequest, sessionColor, activeManifest } from './store';
 import { currentTab as current, findText, setFindText, targetOf } from './tab-state';
 import { openMenu } from './menu';
 import { FindBar, focusFind } from './browser-find';
@@ -35,8 +35,9 @@ function actOnTab(action: BrowserAction) {
 export function focusAddress() {
   if (!view?.hidden && !dialogOpen()) {
     if (current().workspace?.application) return;
-    address?.focus();
-    address?.select();
+    const focus = () => { address?.focus(); address?.select(); };
+    if (store.fullscreen === 'content' && current().tab?.url) void run('window', api.setFullscreen('window')).then(() => requestAnimationFrame(focus));
+    else focus();
   }
 }
 function openFind() {
@@ -185,7 +186,7 @@ export function Browser() {
       style={colorStyle(workspace && sessionColor(workspace))}
     >
       <form
-        hidden={!!workspace?.application}
+        hidden={!!workspace?.application || store.fullscreen === 'content' && !!tab?.url}
         className="browser-toolbar"
         onSubmit={(event) => {
           event.preventDefault();
@@ -403,17 +404,15 @@ export function Browser() {
             setDock({ size: dock.size + step });
           }}
         />
-        <div
-          ref={(node) => {
-            toolsSlot = node;
-          }}
-          className="tools-slot"
-          hidden={!tools}
-          style={horizontal ? { width: dock.size } : { height: dock.size }}
-        />
+        <div className="tools-dock" hidden={!tools} style={horizontal ? { width: dock.size } : { height: dock.size }}>
+          <div className="tools-toolbar">
+            <IconButton icon="close" label="Close Developer Tools" onClick={() => actOnTab('devtools')} />
+          </div>
+          <div ref={(node) => { toolsSlot = node; }} className="tools-slot" />
+        </div>
       </div>
       {workspace && <DownloadsPopover workspace={workspace} />}
-      {tab && activeManifest().linkStatus !== 'inline' && (
+      {tab && (activeManifest().linkStatus !== 'inline' || store.fullscreen === 'content') && (
         <LinkStatus tab={tab} visible={pageVisible()} area={() => slot?.getBoundingClientRect()} />
       )}
     </section>

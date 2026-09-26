@@ -1,7 +1,7 @@
 import type { Theme } from '..';
 import { IconButton } from '../../ui';
 import { groups, currentConnection, statusText } from '../../store';
-import { HomeButton, ContextTitle, AppActions, NewConnectionButton, viewContext } from '../../chrome';
+import { HomeButton, ContextTitle, AppActions, FullscreenButton, NewConnectionButton, viewContext } from '../../chrome';
 import { NavGroup, ConnectionChips, ConnectionItems, ConnectionTools } from '../../nav';
 import { ErrorsButton } from '../../errors';
 import { openDetails } from '../../details';
@@ -37,6 +37,7 @@ function Chrome() {
         <span className="tabs-gap" />
         <ErrorsButton />
         <AppActions />
+        {!current && <FullscreenButton />}
       </header>
       {!current && name && (
         <div className="tabs-tier">
@@ -57,12 +58,13 @@ function Chrome() {
               <span className="status-dot tabs-status" role="img" aria-label={statusText(current.connection)} data-status={current.connection.status} />
               <ContextTitle />
             </div>
-            <ConnectionTools connection={current.connection} />
             <IconButton
               icon="info"
               label="Connection Details"
               onClick={() => void openDetails(current.connection.id)}
             />
+            <FullscreenButton />
+            <ConnectionTools connection={current.connection} />
           </div>
         </div>
       )}

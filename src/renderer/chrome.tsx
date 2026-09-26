@@ -1,9 +1,11 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { browserSessionName } from '../shared';
 import { Icon, IconButton, colorStyle } from './ui';
-import { store, select, showConnect, connectionOf, terminalName, activeTab, sessionColor, statusText, openTerminal, openBrowserTab, openApplication, reconnect } from './store';
+import { api, run, store, select, showConnect, connectionOf, terminalName, activeTab, sessionColor, statusText, openTerminal, openBrowserTab, openApplication, reconnect } from './store';
 import { openSettings } from './settings';
 import { openDetails } from './details';
+import { openMenu } from './menu';
+import { Overlay } from './overlay';
 import { faviconOf, dropFavicon } from './tab-state';
 
 /** What each page that belongs to no connection's items is called, in the bar over the view and on the page itself. */
@@ -90,9 +92,16 @@ export function ContextTitle() {
 }
 /** What the connection in view can open, and its details. */
 export function ContextActions() {
-  const { workspace, owner } = viewContext();
+  const { terminal, workspace, owner } = viewContext();
   return (
-    <div className="titlebar-actions" hidden={!owner}>
+    <div className="titlebar-actions">
+      <IconButton
+        hidden={!owner}
+        icon="info"
+        label="Connection Details"
+        onClick={() => owner && void openDetails(owner.id)}
+      />
+      <FullscreenButton />
       <IconButton
         icon="terminal"
         label="New Terminal"
@@ -118,15 +127,41 @@ export function ContextActions() {
         onClick={() => owner && void reconnect(owner.id)}
       />
       <IconButton
-        icon="info"
-        label="Connection Details"
-        onClick={() => owner && void openDetails(owner.id)}
+        icon="reload"
+        label="Reconnect Terminal"
+        hidden={terminal?.status !== 'closed' || owner?.status !== 'connected'}
+        onClick={() => terminal && void run('session', api.reconnectTerminal(terminal.id), terminal.connectionId)}
       />
     </div>
   );
 }
+export function FullscreenButton() {
+  return <IconButton icon="fullscreen" label="Toggle Fullscreen" className="fullscreen-button"
+    onClick={() => void run('window', api.setFullscreen(store.fullscreen ? false : 'content'))}
+    onContextMenu={event => {
+      event.preventDefault();
+      openMenu(event.currentTarget, [
+        { label: 'Fullscreen Content', disabled: store.fullscreen === 'content', action: () => void run('window', api.setFullscreen('content')) },
+        { label: 'Fullscreen Window', disabled: store.fullscreen === 'window', action: () => void run('window', api.setFullscreen('window')) },
+      ]);
+    }} />;
+}
+export function FullscreenHint() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    setVisible(store.fullscreen === 'content');
+    const timer = setTimeout(() => setVisible(false), 4000);
+    return () => clearTimeout(timer);
+  }, [store.fullscreen]);
+  const hint = visible && store.fullscreen === 'content' ? <div className="fullscreen-hint" role="status">Press F11 to exit fullscreen</div> : null;
+  return store.state.capabilities.embeddedBrowser
+    ? <Overlay name="fullscreen" place={({ width, height }) => hint ? { x: (innerWidth - width) / 2, y: 16, width, height } : undefined}>{hint}</Overlay>
+    : hint && <div className="fullscreen-hint-position">{hint}</div>;
+}
 export function AppActions() {
-  return <IconButton icon="settings" label="Settings" aria-haspopup="dialog" onClick={openSettings} />;
+  return <>
+    <IconButton icon="settings" label="Settings" aria-haspopup="dialog" onClick={openSettings} />
+  </>;
 }
 /** The way to the Connect page, which is current while that page is in view. */
 export function NewConnectionButton() {

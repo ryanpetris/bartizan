@@ -44,3 +44,33 @@ test('closing a terminal cancels a pending repaint', t => {
   t.mock.timers.tick(100);
   assert.deepEqual(sizes, [[80, 23]]);
 });
+
+test('only interrupted live terminals qualify for restoration', t => {
+  const { terminal } = fixture(t);
+  terminal.info.status = 'connecting';
+  terminal.stop(true);
+  assert.equal(terminal.reconnectOnConnect, false);
+  terminal.info.status = 'connected';
+  terminal.stop(true);
+  assert.equal(terminal.reconnectOnConnect, true);
+  terminal.stop(true);
+  assert.equal(terminal.reconnectOnConnect, true);
+  terminal.failure('Session is gone');
+  terminal.stop(true);
+  assert.equal(terminal.reconnectOnConnect, false);
+  terminal.info.status = 'connected';
+  terminal.stop(true);
+  assert.equal(terminal.reconnectOnConnect, true);
+});
+
+test('reconnect errors append red terminal output without clearing history', () => {
+  const { connection } = connectionFixture('');
+  const chunks: string[] = [];
+  const terminal = new TerminalController(connection, (_id, chunk) => chunks.push(chunk));
+  terminal.reconnectOnConnect = true;
+  terminal.failure('Session not found');
+  assert.equal(terminal.info.status, 'closed');
+  assert.equal(terminal.reconnectOnConnect, false);
+  assert.match(chunks.join(''), /\x1b\[31mSession not found\x1b\[0m\r\n$/);
+  assert.doesNotMatch(chunks.join(''), /\x1b\[(?:2|3)J|\x1bc/);
+});

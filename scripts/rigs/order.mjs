@@ -138,9 +138,12 @@ await withDirectory('order', async (directory, cleanup) => {
   await page.mouse.up();
   await expect(page.locator('.drop-before, .drop-after')).toHaveCount(0);
   await expect.poll(() => itemOrder(one)).toEqual([t1, t2, session]);
+  // The marked move remains accepted even when the platform would otherwise prefer a copy.
+  await page.keyboard.down('Control');
   await dragPast(item(t1), item(t2), page.locator('.rail-topbar'), { x: 100, y: 20 });
   await page.mouse.up();
   await expect(page.locator('.drop-before, .drop-after')).toHaveCount(0);
+  await page.keyboard.up('Control');
   await expect.poll(() => itemOrder(one)).toEqual([t2, t1, session]);
   assert.deepEqual(errors, []);
   console.log('Dropping past the rows, in the empty panel or elsewhere in the window, uses the marked place.');

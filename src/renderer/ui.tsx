@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react';
 const paths: Record<string, string> = {
+  fullscreen: '<path d="M5.5 2H2v3.5M10.5 2H14v3.5M14 10.5V14h-3.5M5.5 14H2v-3.5"/>',
   external: '<path d="M9 2h5v5M14 2 7 9M7 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9"/>',
   link: '<path d="m6 10 4-4M6.5 4.5l1-1a3.2 3.2 0 0 1 4.5 4.5l-1 1M9.5 11.5l-1 1A3.2 3.2 0 0 1 4 8l1-1"/>',
   plus: '<path d="M8 3.25v9.5M3.25 8h9.5"/>',

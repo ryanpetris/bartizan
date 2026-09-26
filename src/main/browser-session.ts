@@ -75,8 +75,18 @@ export class BrowserSession {
     try {
       await ses.setProxy({ mode: 'fixed_servers', proxyRules: `socks5://127.0.0.1:${port}`, proxyBypassRules: '<-loopback>' });
       await ses.closeAllConnections();
-      ses.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-      ses.setPermissionCheckHandler(() => false);
+      const allowCapture = (contents: Electron.WebContents | null, permission: string) => {
+        const tab = contents && this.contents.get(contents.id);
+        return Boolean(tab && this.display.visible === this.info.id && this.info.activeTab === tab.info.id
+          && this.window.isFocused() && tab.view.getVisible()
+          && ['fullscreen', 'pointerLock', 'keyboardLock'].includes(permission));
+      };
+      ses.setPermissionRequestHandler((contents, permission, callback) => {
+        const allowed = allowCapture(contents, permission);
+        if (allowed && permission === 'fullscreen') this.contents.get(contents.id)!.prepareFullscreen();
+        callback(allowed);
+      });
+      ses.setPermissionCheckHandler((contents, permission) => allowCapture(contents, permission));
       let download: DownloadItem | undefined;
       const downloads = new Set<DownloadItem>();
       // Progress reaches the application at most four times a second.

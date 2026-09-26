@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import {
   defaultSettings,
   type State,
+  type FullscreenMode,
   type Connection,
   type Workspace,
   type TerminalSession,
@@ -30,6 +31,7 @@ export const store = {
     challenges: [],
   } as State,
   selection: undefined as Selection,
+  fullscreen: false as FullscreenMode,
 };
 
 /** What both processes know of the chosen theme. */
@@ -112,7 +114,7 @@ onRender(() => {
   if (connectionId && store.selection && store.selection.kind !== 'connection') lastShown.set(connectionId, store.selection);
 });
 /** Shows what a connection last showed, or else its first terminal or browser session with tabs, or the connection itself; it opens nothing. */
-export function revisit(connectionId: string) {
+export function revisit(connectionId: string, focus = true) {
   const last = lastShown.get(connectionId);
   const first = groups()
     .find((group) => group.connection.id === connectionId)
@@ -125,6 +127,7 @@ export function revisit(connectionId: string) {
         : first?.workspace
           ? { kind: 'browser', id: first.workspace.id }
           : { kind: 'connection', id: connectionId },
+    focus,
   );
 }
 /** The connection in view: the one the selection belongs to. */

@@ -221,7 +221,7 @@ await withDirectory('browsing', async (directory, cleanup) => {
   await page.getByRole('button', { name: 'Page Menu', exact: true }).click();
   await choose('Dock Developer Tools at Right');
   await expect.poll(async () => { const view = await toolsView(), slot = await slotBounds('.tools-slot'); return view.x === slot.x && view.width === slot.width && view.y === slot.y; }).toBe(true);
-  await page.getByRole('button', { name: 'Developer Tools', exact: true }).click();
+  await page.getByRole('button', { name: 'Close Developer Tools', exact: true }).click();
   await waitState(s => !tabOf(s).devtools, 'closed developer tools');
   await expect.poll(toolsView).toBe(undefined);
   console.log('Inspect Element opens developer tools docked inside the window in the tab\'s session; they resize, dock at the right and close.');

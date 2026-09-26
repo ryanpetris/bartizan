@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, dialog, nativeTheme, clipboard, type IpcMainInvokeEvent, type IpcMainEvent, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, WebContentsView, Menu, ipcMain, dialog, nativeTheme, clipboard, type IpcMainInvokeEvent, type IpcMainEvent, type MenuItemConstructorOptions } from 'electron';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
@@ -12,7 +12,7 @@ import { BrowserWindowController } from './browser-window';
 import { LinkMenus } from './link-menu';
 import { Overlays } from './overlays';
 import { themes } from '../themes';
-import { defaultSettings, browserActions, overlayNames, pageShortcuts, type PageShortcut, type Event } from '../shared';
+import { defaultSettings, browserActions, overlayNames, pageShortcuts, type PageShortcut, type FullscreenMode, type Event } from '../shared';
 
 const args = process.argv.slice(app.isPackaged ? 1 : 2);
 if (args[0] === 'serve') {
@@ -50,6 +50,10 @@ else void app.whenReady().then(async () => {
   window.webContents.session.setPermissionCheckHandler((contents, permission, _origin, details) => contents === window.webContents && permission === 'local-fonts' && details.isMainFrame && details.requestingUrl === origin);
   window.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) => callback(contents === window.webContents && permission === 'local-fonts' && details.isMainFrame && details.requestingUrl === origin));
   const send = (event: Event) => { if (!window.isDestroyed()) window.webContents.send('event', event); };
+  let fullscreen: FullscreenMode = false;
+  const fullscreenChanged = () => send({ type: 'fullscreen', mode: fullscreen });
+  window.on('enter-full-screen', () => { fullscreen ||= 'window'; fullscreenChanged(); });
+  window.on('leave-full-screen', () => { fullscreen = false; fullscreenChanged(); });
   const reveal = () => { if (window.isMinimized()) window.restore(); window.focus(); };
   let activatedAt = -Infinity;
   window.on('focus', () => { activatedAt = performance.now(); });
@@ -60,6 +64,11 @@ else void app.whenReady().then(async () => {
     appearance(value) { settings = value; nativeTheme.themeSource = settings.appearance; updateTitleBar(); },
     extend({ sessions, changed, send, handle, serialize, terminalConnection, reportError }) {
   const browsers = new BrowserWindowController();
+  window.on('resize', () => browsers.entries.get(browsers.display.visible ?? '')?.render());
+  window.on('leave-full-screen', () => {
+    for (const tab of browsers.tabs.values()) tab.leaveFullscreen();
+    browsers.entries.get(browsers.display.visible ?? '')?.render();
+  });
   const applicationOwner = (id: string) => {
     const application = browsers.owner(id).application;
     if (!application) throw new Error('Application is closed');
@@ -82,14 +91,47 @@ else void app.whenReady().then(async () => {
     const target = browsers.target();
     if (target) browsers.pageShortcut(name, target).catch(error => reportError('browser', String(error), target.connectionId));
   };
+  const setFullscreen = (mode: FullscreenMode) => {
+    fullscreen = mode;
+    if (fullscreen === 'window') for (const tab of browsers.tabs.values()) tab.leaveFullscreen();
+    window.setFullScreen(fullscreen !== false);
+    fullscreenChanged();
+    if (fullscreen === 'content') {
+      const target = browsers.target(), tab = target && browsers.tabs.get(target.tabId);
+      if (tab?.view.getVisible()) tab.view.webContents.focus();
+    }
+  };
+  const toggleFullscreen = () => setFullscreen(window.isFullScreen() ? false : 'content');
+  const observeFullscreenKey = (contents: Electron.WebContents) => {
+    const owns = () => contents === window.webContents || window.contentView.children.some(view => view instanceof WebContentsView && view.webContents === contents);
+    const matches = (input: Electron.Input) => input.key === 'F11' && !input.control && !input.alt && !input.meta && !input.shift;
+    contents.on('before-input-event', (event, input) => {
+      if (!owns() || !matches(input)) return;
+      event.preventDefault();
+      if (input.type === 'keyDown' && !input.isAutoRepeat) toggleFullscreen();
+    });
+    // Keyboard capture can bypass before-input-event and deliver keys directly to the page.
+    contents.on('input-event', (_event, event) => {
+      if (event.type !== 'rawKeyDown' && event.type !== 'keyDown') return;
+      // Electron supplies keyboard fields here, but types this event as InputEvent.
+      const input = event as Electron.InputEvent & Omit<Electron.Input, 'type'>;
+      if (owns() && matches(input) && !input.isAutoRepeat) toggleFullscreen();
+    });
+  };
+  const created = (_event: Electron.Event, contents: Electron.WebContents) => observeFullscreenKey(contents);
+  observeFullscreenKey(window.webContents);
+  app.on('web-contents-created', created);
+  window.once('closed', () => app.off('web-contents-created', created));
   const menu: MenuItemConstructorOptions[] = process.platform === 'darwin' ? [{ role: 'appMenu' }, { role: 'editMenu' }] : [];
   menu.push({ label: 'Page', submenu: (Object.keys(pageShortcuts) as PageShortcut[]).flatMap(name => pageShortcuts[name].map(accelerator => ({ label: name, accelerator, click: () => pageShortcut(name) }))) });
+  menu.push({ label: 'View', submenu: [{ label: 'Toggle Fullscreen', accelerator: 'F11', click: toggleFullscreen }] });
   if (process.platform === 'darwin') menu.push({ role: 'windowMenu' });
   Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
   const linkMenus = new LinkMenus(window, sessions, browsers, serialize, id => send({ type: 'select-browser', id }), (message, id, label) => reportError('link', message, id, label));
   handle('link-menu', (id: unknown, url: unknown, session: unknown) => linkMenus.show(terminalConnection(id), z.union([z.string().max(8192), z.array(z.string().max(8192)).max(64)]).parse(url), { first: z.string().optional().parse(session) }));
   handle('open-link', (id: unknown, url: unknown, session: unknown) => linkMenus.open(terminalConnection(id), z.string().max(8192).parse(url), z.string().optional().parse(session), true));
   handle('certificate-answer', (id: unknown, allow: unknown) => browsers.answerCertificate(z.string().uuid().parse(id), z.boolean().parse(allow)));
+  handle('set-fullscreen', (mode: unknown) => setFullscreen(z.union([z.literal(false), z.enum(['window', 'content'])]).parse(mode)));
   handle('choose-file', async () => { const result = await dialog.showOpenDialog(window, { properties: ['openFile'] }); return result.filePaths[0]; });
   handle('copy', (text: unknown) => clipboard.writeText(z.string().parse(text)));
   // A click that brings the window to the front also reaches the page, which learns of it from here. A window that is not
@@ -195,7 +237,7 @@ else void app.whenReady().then(async () => {
       return backend.request(method, args);
     });
   });
-  window.webContents.on('did-finish-load', () => { for (const event of backend.snapshot()) send(event); backend.replay(); });
+  window.webContents.on('did-finish-load', () => { for (const event of backend.snapshot()) send(event); fullscreenChanged(); backend.replay(); });
   onInstance = () => {
     if (!window.isDestroyed()) reveal();
   };

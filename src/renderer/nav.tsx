@@ -50,7 +50,7 @@ function mark(element?: HTMLElement, after = false, before?: string) {
 }
 // A drop anywhere in the window moves the dragged unit to the marked place.
 document.addEventListener('dragover', (event) => {
-  if (marked && event.dataTransfer?.types.includes(dragType)) event.preventDefault();
+  if (marked && event.dataTransfer?.types.includes(dragType)) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }
 });
 document.addEventListener('drop', (event) => {
   if (!event.dataTransfer?.types.includes(dragType)) return;
@@ -100,6 +100,7 @@ export function orderable(scope: string, key: string, actions: MenuItem[] = []) 
       if (!ours(event)) return;
       event.preventDefault();
       event.stopPropagation();
+      event.dataTransfer.dropEffect = 'move';
       const { after, before, unchanged } = place(event);
       mark(unchanged ? undefined : event.currentTarget, after, before);
     },
@@ -199,6 +200,12 @@ function TerminalRow({ terminal }: { terminal: TerminalSession }) {
       icon={<Icon name="terminal" />}
       onSelect={() => select({ kind: 'terminal', id: terminal.id })}
       actions={[
+        terminal.status === 'closed' && connectionOf(terminal.connectionId)?.status === 'connected' && <IconButton
+          key="reconnect"
+          icon="reload"
+          label={`Reconnect ${name}`}
+          onClick={() => void run('session', api.reconnectTerminal(terminal.id), terminal.connectionId)}
+        />,
         <IconButton
           key="close"
           icon="close"

@@ -6,6 +6,9 @@ import { flushSync } from 'react-dom';
 import { browserShortcut, type State } from '../shared';
 import {
   api,
+  groups,
+  currentConnection,
+  revisit,
   store,
   render,
   useStore,
@@ -28,7 +31,7 @@ import * as browser from './browser';
 import * as tabState from './tab-state';
 import * as errors from './errors';
 import { activeTheme } from './themes';
-import { windowTitle } from './chrome';
+import { windowTitle, FullscreenHint } from './chrome';
 import { Challenges } from './challenges';
 import { Settings } from './settings';
 import { ModalLayer, Modal } from './overlay';
@@ -56,6 +59,8 @@ function applyState(state: State) {
   const earlier = store.state;
   const selection = store.selection;
   const shown = selection && selectedRow(earlier, selection);
+  const connection = currentConnection();
+  const connectionOrder = groups().map(group => group.connection.id);
   store.state = state;
   renumber();
   tabState.prune(state);
@@ -64,7 +69,13 @@ function applyState(state: State) {
     if (!workspace?.tabs.some((t) => t.id === tabId) || workspace.activeTab === tabId) tabIntents.delete(workspaceId);
   }
   const after = rows(state);
-  if (shown && !after.some((row) => sameRow(row, shown))) {
+  if (connection && !state.connections.some(item => item.id === connection)) {
+    const index = connectionOrder.indexOf(connection);
+    const next = [...connectionOrder.slice(index + 1), ...connectionOrder.slice(0, index).reverse()]
+      .find(id => state.connections.some(item => item.id === id));
+    if (next) revisit(next, false);
+    else store.selection = undefined;
+  } else if (shown && !after.some((row) => sameRow(row, shown))) {
     // The shown row, or a browser session's active tab, went away: show the row that took its place in navigation order, or
     // the one before it, within the same connection. Connection pages are selected explicitly.
     const before = rows(earlier);
@@ -146,12 +157,21 @@ function App() {
   useLayoutEffect(() => {
     if (loaded) terminals.applyTheme();
   }, [theme, loaded, store.state.settings.appearance]);
+  useInsertionEffect(() => {
+    document.documentElement.dataset.fullscreen = store.fullscreen || '';
+  }, [store.fullscreen]);
   useLayoutEffect(() => {
     document.title = windowTitle();
   });
   useLayoutEffect(() => {
     const unsubscribe = api.onEvent((event) => {
       switch (event.type) {
+        case 'fullscreen':
+          if (store.fullscreen === event.mode) break;
+          store.fullscreen = event.mode;
+          render();
+          if (event.mode === 'content') focusView();
+          break;
         case 'transport-error':
           if (!loaded) { startupError = event.message; render(); }
           else errors.transportError(event.message);
@@ -213,6 +233,7 @@ function App() {
     <ModalLayer>
       <FocusRecovery>
         <Chrome />
+        <FullscreenHint />
         <main className="main">
           <terminals.Terminals />
           <browser.Browser />

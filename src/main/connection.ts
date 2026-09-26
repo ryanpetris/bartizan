@@ -96,9 +96,11 @@ export class ConnectionController {
       () => {
         this.info.status = 'connected'; this.integration.sync(this.spec.remote_sessions ?? this.configuration.catalog.settings.remoteSessionIntegration); this.browsers?.sync();
         if (initial && this.terminals.has(initial.info.id) && initial.info.status !== 'closed') initial.start(transport);
+        for (const terminal of this.terminals.values()) if (terminal.reconnectOnConnect) this.startTerminal(terminal);
         this.changed();
       },
       code => {
+        if (this.info.status === 'connecting') this.failReconnects(`SSH connection exited with code ${code}`);
         this.info.status = 'closed'; this.info.exitCode = code;
         this.disconnected(); this.changed();
       },
@@ -108,7 +110,7 @@ export class ConnectionController {
       },
       text => { if (!diagnosticTerminal || !this.terminals.has(diagnosticTerminal.info.id)) this.diagnostic(text, this.info.id, this.info.label); });
     try { await transport.start(); }
-    catch (error) { this.info.status = 'closed'; initial?.close(); this.disconnected(); this.changed(); throw error; }
+    catch (error) { this.info.status = 'closed'; initial?.close(); this.failReconnects(String(error)); this.disconnected(); this.changed(); throw error; }
     this.changed();
   }
   private allocateTerminal(remoteSession?: TerminalSession['remoteSession']) {
@@ -182,10 +184,34 @@ export class ConnectionController {
     await remoteCommand(this.socket, this.transport!.spec, session.commands.stop);
     void this.sendHelperMessage({ type: 'sessions.refresh' }).catch(() => {});
   }
+  private startTerminal(terminal: TerminalController, command?: string) {
+    const key = terminal.info.remoteSession?.key;
+    if (key) {
+      const other = this.remoteTerminals.get(key);
+      if (other && other !== terminal) { terminal.failure('Session is already open in another terminal'); this.changed(); return; }
+      this.remoteTerminals.set(key, terminal);
+    }
+    terminal.start(this.transport!, command);
+  }
+  private failReconnects(message: string) {
+    for (const terminal of this.terminals.values()) if (terminal.reconnectOnConnect) terminal.failure(message);
+  }
+  async reconnectTerminal(id: string) {
+    const terminal = this.terminals.get(id);
+    if (!terminal || terminal.info.status !== 'closed') return;
+    if (this.info.status === 'connected') this.startTerminal(terminal);
+    else {
+      terminal.reconnectOnConnect = true;
+      if (this.info.status === 'closed') {
+        try { await this.connect(false); }
+        catch (error) { if (terminal.reconnectOnConnect) terminal.failure(String(error)); this.changed(); }
+      }
+    }
+  }
   newTerminal(command?: string, remoteSession?: TerminalSession['remoteSession']): string {
     if (this.info.status !== 'connected') throw new Error('Connection is not connected');
     const terminal = this.allocateTerminal(remoteSession);
-    terminal.start(this.transport!, command ? loginCommand(command) : undefined);
+    this.startTerminal(terminal, command ? loginCommand(command) : undefined);
     return terminal.info.id;
   }
   details(): Promise<ConnectionInfo> {
@@ -195,7 +221,7 @@ export class ConnectionController {
     this.integration.sync(false);
     for (const application of this.applications.values()) application.fail('Connection disconnected');
     this.syncHelper();
-    for (const terminal of this.terminals.values()) terminal.stop();
+    for (const terminal of this.terminals.values()) terminal.stop(true);
     this.browsers?.sync();
   }
   async disconnect() {

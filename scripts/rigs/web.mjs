@@ -101,6 +101,29 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   for (const theme of ['rail', 'tabs', 'console']) {
     await api('settings', { theme });
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+    const fullscreen = page.getByRole('button', { name: 'Toggle Fullscreen' });
+    await fullscreen.click();
+    await expect(page.locator('html')).toHaveAttribute('data-fullscreen', 'content');
+    assert.equal(await page.evaluate(() => !!document.fullscreenElement), true);
+    await expect(page.getByRole('status')).toHaveText('Press F11 to exit fullscreen');
+    await page.waitForTimeout(4200);
+    await expect(page.locator('.fullscreen-hint')).toHaveCount(0);
+    await expect(fullscreen).toBeHidden();
+    await page.keyboard.press('F11');
+    await expect(page.locator('html')).toHaveAttribute('data-fullscreen', '');
+    assert.equal(await page.evaluate(() => !!document.fullscreenElement), false);
+    await fullscreen.click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Fullscreen Window', exact: true }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-fullscreen', 'window');
+    await fullscreen.click();
+    await expect(page.locator('html')).toHaveAttribute('data-fullscreen', '');
+    await page.evaluate(() => document.documentElement.requestFullscreen());
+    await expect(page.locator('html')).toHaveAttribute('data-fullscreen', 'window');
+    await fullscreen.click();
+    await expect(page.locator('html')).toHaveAttribute('data-fullscreen', '');
+    assert.equal(await page.evaluate(() => !!document.fullscreenElement), false);
+
+
     await expect(page.getByRole('button', { name: 'New Browser Tab', exact: true })).toBeHidden();
     await expect(page.getByRole('button', { name: 'Visual Studio Code', exact: true })).toBeHidden();
     const count = await page.evaluate(() => window.rigState.terminals.length);

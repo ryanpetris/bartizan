@@ -18,6 +18,8 @@ export class BrowserTabController {
   private faviconRequest = 0;
   private closingTools = false;
   private printing = false;
+  private fullscreen = false;
+  private fullscreenWindow?: boolean;
   private inspecting?: () => void;
   private closing?: Promise<void>;
   private toolsClosing?: Promise<void>;
@@ -30,6 +32,8 @@ export class BrowserTabController {
     this.contentsId = view.webContents.id;
     view.setVisible(false);
     this.owner.window.contentView.addChildView(view); this.owner.added?.();
+    view.webContents.on('enter-html-full-screen', () => { this.fullscreen = true; this.renderOwner(); });
+    view.webContents.on('leave-html-full-screen', () => { this.leaveFullscreen(); this.fullscreenWindow = undefined; this.renderOwner(); });
     view.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
     entry.certificates.attach(tab, view.webContents);
     const clearAuthentication = () => entry.finishLogins(entry.challenges.filter(challenge => challenge.tabId === tab.id).map(challenge => challenge.id));
@@ -265,12 +269,31 @@ export class BrowserTabController {
       view.setVisible(false);
       this.owner.send({ type: 'target-url', tabId: this.info.id, url: '' });
     };
-    place(this.view, bounds);
-    if (this.tools) place(this.tools, toolsBounds);
+    if (this.fullscreen && !bounds) this.leaveFullscreen();
+    if (this.fullscreen && bounds) {
+      const [width, height] = window.getContentSize();
+      this.view.setBounds({ x: 0, y: 0, width, height });
+      this.view.setVisible(true);
+      if (this.tools) place(this.tools);
+    } else {
+      place(this.view, bounds);
+      if (this.tools) place(this.tools, toolsBounds);
+    }
+  }
+  prepareFullscreen() {
+    if (!this.fullscreen) this.fullscreenWindow = this.owner.window.isFullScreen();
+  }
+  leaveFullscreen() {
+    if (!this.fullscreen) return;
+    this.fullscreen = false;
+    if (!this.view.webContents.isDestroyed()) void this.view.webContents.executeJavaScript('document.exitPointerLock(); navigator.keyboard?.unlock(); if (document.fullscreenElement) document.exitFullscreen();').catch(() => {});
   }
   private forget() {
     if (this.closed) return;
     this.closed = true;
+    this.leaveFullscreen();
+    // A destroyed page cannot finish its asynchronous fullscreen exit.
+    if (this.fullscreenWindow !== undefined && !this.owner.window.isDestroyed()) this.owner.window.setFullScreen(this.fullscreenWindow);
     this.faviconRequest++;
     this.closeTools();
     this.owner.muted.delete(this.info.id);

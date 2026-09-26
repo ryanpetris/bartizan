@@ -87,7 +87,7 @@ function Chrome() {
   const selected = all.find((group) => group.connection.id === current);
   // What the lines below the view take of the window's height, which a dialog stays clear of. Dialogs draw in a document
   // of their own, which takes the root's attributes.
-  const lines = selected ? 2 : 1;
+  const lines = store.fullscreen === 'content' ? 0 : selected ? 2 : 1;
   useInsertionEffect(() => {
     const root = document.documentElement;
     root.style.setProperty('--console-bottom', `calc(${lines} * var(--console-line))`);

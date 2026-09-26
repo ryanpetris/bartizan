@@ -110,7 +110,8 @@ export type AuthAnswer = string | null | { username: string; password: string };
 export type Capabilities = { embeddedBrowser: boolean; nativeFilePicker: boolean };
 export type State = {
   capabilities: Capabilities; settings: Settings; configError?: string; profiles: PublicProfile[]; defaults: PublicSpec; file: string; connections: Connection[]; terminals: TerminalSession[]; workspaces: Workspace[]; challenges: AuthChallenge[] };
-export type Event = { type: 'helper'; connectionId: string; message: HelperMessage } | { type: 'transport-error'; message: string } | { type: 'menu'; index: number } | { type: 'select-browser'; id: string } | { type: 'state'; state: State } | { type: 'data'; id: string; data: string } | { type: 'errors'; log: ErrorLog; initial?: boolean } | { type: 'browser-shortcut'; id: string; action: 'focus-address' | 'new-connection' | 'find' }
+export type FullscreenMode = false | 'window' | 'content';
+export type Event = { type: 'fullscreen'; mode: FullscreenMode } | { type: 'helper'; connectionId: string; message: HelperMessage } | { type: 'transport-error'; message: string } | { type: 'menu'; index: number } | { type: 'select-browser'; id: string } | { type: 'state'; state: State } | { type: 'data'; id: string; data: string } | { type: 'errors'; log: ErrorLog; initial?: boolean } | { type: 'browser-shortcut'; id: string; action: 'focus-address' | 'new-connection' | 'find' }
   /** Closing the window waits for the user to confirm quitting while a connection is live. */
   | { type: 'confirm-quit' }
   /** A tab's icon as a data URL, its find-in-page result, and the address of the link under the pointer. */
@@ -126,7 +127,7 @@ export type ProfileDraft = { token: string; id?: string; file: string; spec: Pub
 export type ProfileChanges = { token: string; values: Spec; reset: string[]; tags?: string[] };
 export type ProfileSaveResult = { profileId: string; connectionId?: string; connectionError?: string };
 export type Bounds = { x: number; y: number; width: number; height: number };
-export const overlayNames = ['status', 'popover', 'toasts', 'modal'] as const;
+export const overlayNames = ['status', 'popover', 'toasts', 'fullscreen', 'modal'] as const;
 export type OverlayName = (typeof overlayNames)[number];
 export const browserActions = ['new', 'close', 'select', 'navigate', 'back', 'forward', 'reload', 'hard-reload', 'stop', 'close-workspace', 'devtools', 'mute', 'zoom-in', 'zoom-out', 'zoom-reset', 'print', 'pdf'] as const;
 export type BrowserAction = (typeof browserActions)[number];
@@ -148,6 +149,7 @@ export interface API {
   askingToQuit(): void;
   /** Closes the application window after the user has confirmed quitting. */
   quit(): void;
+  setFullscreen(mode: FullscreenMode): Promise<void>;
   settings(patch: Partial<Settings>): Promise<void>;
   details(id: string): Promise<ConnectionInfo>;
   connect(target: ConnectTarget): Promise<string>;
@@ -159,6 +161,7 @@ export interface API {
   resumeRemoteSessions(connectionId: string, keys: string[], takeover: boolean): Promise<string[]>;
   killRemoteSession(connectionId: string, key: string): Promise<void>;
   newTerminal(connectionId: string): Promise<string>;
+  reconnectTerminal(id: string): Promise<void>;
   closeTerminal(id: string): Promise<void>;
   newApplication(connectionId: string, application: string): Promise<string>;
   retryApplication(workspaceId: string): Promise<void>;
