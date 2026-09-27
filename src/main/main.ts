@@ -151,8 +151,8 @@ else void app.whenReady().then(async () => {
   handle('browser', async (id: unknown, action: unknown, tab: unknown, url: unknown) => {
     const workspaceId = z.string().parse(id);
     const operation = z.enum(browserActions).parse(action);
-    // Developer tools, sound, zoom and printing leave connections and sessions as they are, so they do not wait their turn.
-    if (['devtools', 'mute', 'zoom-in', 'zoom-out', 'zoom-reset', 'print', 'pdf'].includes(operation)) return browsers.action(workspaceId, operation, z.string().optional().parse(tab));
+    // Focus, developer tools, sound, zoom and printing leave connections and sessions as they are, so they do not wait their turn.
+    if (['focus', 'devtools', 'mute', 'zoom-in', 'zoom-out', 'zoom-reset', 'print', 'pdf'].includes(operation)) return browsers.action(workspaceId, operation, z.string().optional().parse(tab));
     return serialize(async () => {
       const entry = browsers.entries.get(workspaceId);
       if (!entry && (operation === 'close' || operation === 'close-workspace')) return;

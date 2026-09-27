@@ -28,7 +28,7 @@ export class BrowserTabController {
   constructor(readonly owner: BrowserSession, url?: string, title?: string) {
     const entry = owner, id = entry.info.id;
     const tab: BrowserTab = this.info = { id: randomUUID(), title: title ?? 'New Tab', url: url ?? '', loading: false, canBack: false, canForward: false, audible: false, muted: false, zoom: 100, devtools: false };
-    const view = this.view = new WebContentsView({ webPreferences: { session: entry.session, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: false } });
+    const view = this.view = new WebContentsView({ webPreferences: { session: entry.session, sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: false, focusOnNavigation: false } });
     this.contentsId = view.webContents.id;
     view.setVisible(false);
     this.owner.window.contentView.addChildView(view); this.owner.added?.();
@@ -131,6 +131,9 @@ export class BrowserTabController {
     if (['navigate', 'reload', 'hard-reload', 'back', 'forward', 'stop', 'close'].includes(action)) entry.certificates.cancel(tab);
     if (userInitiated && ['navigate', 'reload', 'hard-reload', 'back', 'forward'].includes(action)) entry.muted.delete(key);
     switch (action) {
+      case 'focus':
+        if (view.getVisible() && this.owner.display.visible === entry.info.id && entry.info.activeTab === key) view.webContents.focus();
+        return;
       case 'devtools':
         if (this.tools) this.closeTools(); else this.openTools();
         return;

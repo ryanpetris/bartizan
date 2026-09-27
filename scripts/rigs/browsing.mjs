@@ -10,9 +10,13 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 
 await withDirectory('browsing', async (directory, cleanup) => {
   const requests = [];
-  let release;
+  let release, finishNavigation;
   const http = createServer((request, response) => {
     requests.push({ url: request.url, cookie: request.headers.cookie ?? '' });
+    if (request.url === '/slow') {
+      finishNavigation = () => { response.setHeader('Content-Type', 'text/html'); response.end('<title>Slow page</title>'); };
+      return;
+    }
     if (request.url === '/icon.png') { response.setHeader('Content-Type', 'image/png'); response.end(png); return; }
     if (request.url === '/large.png') { response.setHeader('Content-Type', 'image/png'); response.end(Buffer.concat([png, Buffer.alloc(70 * 1024)])); return; }
     if (request.url === '/file') {
@@ -98,12 +102,16 @@ await withDirectory('browsing', async (directory, cleanup) => {
   const session = await api('newBrowser', connection);
   const tabOf = s => s.workspaces.find(w => w.id === session)?.tabs[0];
   const tab = tabOf(await waitState(s => tabOf(s), 'tab')).id;
-  await api('browser', session, 'navigate', tab, `${origin}/`);
-  await waitState(s => tabOf(s).title === 'Fixture /' && !tabOf(s).loading, 'page');
   await app.chooseConnection(connection);
   const row = page.locator(`.nav-item[data-kind="tab"][data-id="${tab}"]`);
   await row.click();
+  const address = page.getByRole('textbox', { name: 'Address', exact: true });
+  await address.fill(`${origin}/`);
+  press('Return');
+  await waitState(s => tabOf(s).title === 'Fixture /' && !tabOf(s).loading, 'page');
   await expect.poll(async () => (await views()).length).toBe(1);
+  await expect.poll(() => inPage(contents => contents.isFocused()), 'Address submission focuses a new page').toBe(true);
+
 
   // Page titles and icons
   await expect(page.locator('#view-title .titlebar-item')).toHaveText('Fixture /');
@@ -122,6 +130,47 @@ await withDirectory('browsing', async (directory, cleanup) => {
   await expect(row.locator('img.favicon')).toHaveCount(1);
   await expect(page.locator('.titlebar-marker img.favicon')).toHaveCount(1);
   console.log('A tab shows its page icon, fetched through its session, and ignores an icon over the size limit.');
+
+  await clickAddress();
+  await address.fill('http://');
+  press('Return');
+  await expect(page.locator('.browser-error')).toContainText('Invalid URL');
+  await expect(address).toBeFocused();
+  assert.equal(await inPage(contents => contents.isFocused()), false, 'An invalid address keeps focus in the address field');
+  await address.fill(`${origin}/`);
+  press('Return');
+  await expect.poll(() => inPage(contents => contents.isFocused())).toBe(true);
+  await expect(page.locator('.browser-error')).toBeHidden();
+
+  await clickAddress();
+  await address.fill(`${origin}/slow`);
+  press('Return');
+  await waitFor(() => finishNavigation, 'pending navigation');
+  await expect.poll(() => inPage(contents => contents.isFocused()), 'Address submission focuses an existing page').toBe(true);
+  const terminal = (await app.state()).terminals[0].id;
+  await page.locator(`.nav-item[data-kind="terminal"][data-id="${terminal}"]`).click();
+  const terminalInput = page.locator('.terminal-surface:not([hidden]) .xterm-helper-textarea');
+  await expect(terminalInput).toBeFocused();
+  const shellFocused = () => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.isFocused());
+  await expect.poll(shellFocused).toBe(true);
+  finishNavigation();
+  await waitState(s => tabOf(s).title === 'Slow page' && !tabOf(s).loading, 'background navigation');
+  assert.equal(await shellFocused(), true, 'Completing navigation preserves terminal focus');
+  await application.evaluate(async ({ webContents }, origin) => {
+    const contents = webContents.getAllWebContents().find(contents => contents.getURL() === `${origin}/slow`);
+    await contents.loadURL(`${origin}/`);
+    await new Promise(resolve => { contents.once('did-finish-load', resolve); contents.reload(); });
+  }, origin);
+  assert.equal(await shellFocused(), true, 'Background navigation and reload preserve terminal focus');
+  await expect(terminalInput).toBeFocused();
+  await app.recordOutput();
+  execFileSync('xdotool', ['type', 'printf FOCUS_OK']);
+  press('Return');
+  await expect.poll(() => app.output(terminal)).toContain('FOCUS_OK');
+  await row.click();
+  await expect.poll(async () => (await views()).length).toBe(1);
+  console.log('Address submission focuses the page; background navigation and reload leave typing in the terminal.');
+
 
   // Sound
   await expect(row.locator('..').locator('.row-mute')).toHaveCount(0);

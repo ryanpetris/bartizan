@@ -129,7 +129,7 @@ export type ProfileSaveResult = { profileId: string; connectionId?: string; conn
 export type Bounds = { x: number; y: number; width: number; height: number };
 export const overlayNames = ['status', 'popover', 'toasts', 'fullscreen', 'modal'] as const;
 export type OverlayName = (typeof overlayNames)[number];
-export const browserActions = ['new', 'close', 'select', 'navigate', 'back', 'forward', 'reload', 'hard-reload', 'stop', 'close-workspace', 'devtools', 'mute', 'zoom-in', 'zoom-out', 'zoom-reset', 'print', 'pdf'] as const;
+export const browserActions = ['new', 'close', 'select', 'focus', 'navigate', 'back', 'forward', 'reload', 'hard-reload', 'stop', 'close-workspace', 'devtools', 'mute', 'zoom-in', 'zoom-out', 'zoom-reset', 'print', 'pdf'] as const;
 export type BrowserAction = (typeof browserActions)[number];
 export interface API {
   capabilities(): Promise<Capabilities>;

@@ -15,10 +15,12 @@ function act(workspaceId: string, action: BrowserAction, tabId?: string, url?: s
     () => {
       actionErrors.delete(workspaceId);
       render();
+      return true;
     },
     (error) => {
       actionErrors.set(workspaceId, describeError(error).message);
       render();
+      return false;
     },
   );
 }
@@ -193,7 +195,12 @@ export function Browser() {
           if (!workspace || !address?.value.trim()) return;
           const value = address.value;
           setDraft(undefined);
-          void act(workspace.id, tab ? 'navigate' : 'new', tab?.id, value);
+          void act(workspace.id, tab ? 'navigate' : 'new', tab?.id, value).then((navigated) => navigated && requestAnimationFrame(() => {
+            const selected = current();
+            if (selected.workspace?.id !== workspace.id || tab && selected.tab?.id !== tab.id || !document.hasFocus() || document.activeElement !== address || dialogOpen()) return;
+            syncNativeView();
+            void act(workspace.id, 'focus', selected.tab?.id);
+          }));
         }}
       >
         <IconButton icon="back" label="Back" disabled={!tab?.canBack} onClick={() => actOnTab('back')} />
