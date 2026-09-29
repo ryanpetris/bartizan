@@ -5,10 +5,8 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { launch, waitFor, withDirectory } from './lib/harness.mjs';
 
-const repository = fileURLToPath(new URL('../..', import.meta.url));
 const password = 'bartizan-test-password';
 const sshFiles = [join(homedir(), '.ssh/config'), join(homedir(), '.ssh/known_hosts'), '/etc/ssh/ssh_config'];
 const digest = path => readFile(path).then(data => createHash('sha256').update(data).digest('hex'), error => { if (error.code === 'ENOENT') return null; throw error; });
@@ -17,7 +15,7 @@ const originalSshFiles = await Promise.all(sshFiles.map(digest));
 await withDirectory('network', async (directory, cleanup) => {
   for (const name of ['client', 'unauthorized']) execFileSync('ssh-keygen', ['-q', '-t', 'ed25519', '-N', '', '-f', join(directory, name)]);
   const container = execFileSync('docker', ['run', '--rm', '-d', '-p', '127.0.0.1::2222', '--add-host', 'bartizan.internal:127.0.0.1',
-    '-v', `${repository}:/work:ro`, '-v', `${directory}:/fixtures:ro`, 'bartizan-rig', 'sh', '/work/scripts/rigs/fixtures/remote.sh'], { encoding: 'utf8' }).trim();
+    '-v', `${directory}:/fixtures:ro`, 'bartizan-rig', 'sh', '/work/scripts/rigs/fixtures/remote.sh'], { encoding: 'utf8' }).trim();
   cleanup(() => execFileSync('docker', ['rm', '-f', container], { stdio: 'ignore' }));
   const inContainer = (...args) => execFileSync('docker', ['exec', container, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const port = Number(execFileSync('docker', ['port', container, '2222'], { encoding: 'utf8' }).trim().split(':').at(-1));

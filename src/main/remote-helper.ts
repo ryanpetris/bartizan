@@ -2,7 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import program from './remote-helper.pyz';
-import helperLoader from './remote-helper/loader.py';
+import helperLoader from './remote-helper/loader.py?raw';
 export { helperLoader };
 import type { ProcessReport } from '../shared';
 import type { Spec } from '../core/config';

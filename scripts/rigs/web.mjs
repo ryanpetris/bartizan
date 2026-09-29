@@ -12,7 +12,7 @@ import { checkFontLoading } from './lib/font-loading.mjs';
 
 for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`, async (directory, cleanup) => {
   const executable = runtime === 'node' ? process.execPath : process.env.BARTIZAN_EXECUTABLE ?? electron;
-  const prefix = runtime === 'node' ? ['dist/server.cjs'] : [...(process.env.BARTIZAN_EXECUTABLE ? [] : ['.']), 'serve'];
+  const prefix = runtime === 'node' ? ['out/main/server.cjs'] : [...(process.env.BARTIZAN_EXECUTABLE ? [] : ['.']), 'serve'];
   const sshd = await startSshd(directory);
   cleanup(sshd.stop);
   const config = join(directory, 'config.yaml');

@@ -31,17 +31,15 @@ export async function serve(args: string[], dataDirectory?: string) {
     try { const name = new URL(`http://${host}`).hostname.replace(/^\[|\]$/g, ''); return name === 'localhost' || isLoopback(name); }
     catch { return false; }
   };
-  const assets = new Set(['/', '/index.html', '/app.js', '/font-worker.js', '/app.css', '/style.css']);
-  const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf' };
+  const renderer = resolve(__dirname, '../renderer');
+  const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf', '.png': 'image/png', '.svg': 'image/svg+xml', '.txt': 'text/plain' };
   const server = createServer(async (request, response) => {
     try {
       if (!allowedHost(request.headers.host)) { response.writeHead(403).end(); return; }
       if (request.method !== 'GET' && request.method !== 'HEAD') { response.writeHead(405).end(); return; }
       const path = decodeURIComponent(new URL(request.url!, 'http://localhost').pathname);
-      const font = path.startsWith('/fonts/') && !!mime[extname(path)] && !path.includes('..') && !path.includes('\\');
-      if (!assets.has(path) && !font) { response.writeHead(404).end(); return; }
-      const file = resolve(__dirname, '.' + (path === '/' ? '/index.html' : path));
-      if (!file.startsWith(resolve(__dirname) + sep)) { response.writeHead(404).end(); return; }
+      const file = resolve(renderer, '.' + (path === '/' ? '/index.html' : path));
+      if (!file.startsWith(renderer + sep) || !mime[extname(file)]) { response.writeHead(404).end(); return; }
       let body = await readFile(file);
       if (extname(file) === '.html') body = Buffer.from(body.toString().replace("connect-src 'none'", "connect-src 'self' ws: wss:"));
       response.writeHead(200, { 'Content-Type': mime[extname(file)], 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-cache' });

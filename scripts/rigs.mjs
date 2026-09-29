@@ -2,7 +2,8 @@
 // Without names every rig runs. A rig whose commands are missing is skipped. `--docker` runs the rigs inside the rig
 // image, which has every command the rigs use apart from docker.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
 
 /** Each rig and the commands it needs besides node and xvfb-run. */
 const rigs = {
@@ -45,15 +46,20 @@ process.env.BARTIZAN_RIG_SOFTWARE_GL ??= '1';
 
 const available = command => spawnSync('sh', ['-c', `command -v "$1" || test -x "/usr/sbin/$1"`, 'sh', command], { stdio: 'ignore' }).status === 0;
 
-if (!flags.has('--no-build') && !process.env.BARTIZAN_EXECUTABLE) execFileSync('node', ['scripts/build.mjs'], { stdio: 'inherit' });
+if (!flags.has('--docker') && !flags.has('--no-build') && !process.env.BARTIZAN_EXECUTABLE) execFileSync('npm', ['run', 'build'], { stdio: 'inherit' });
 if (flags.has('--docker') || selected.includes('network') && available('docker')) {
-  execFileSync('docker', ['build', '-t', image, '-'], { input: readFileSync('packaging/rig.Dockerfile'), stdio: ['pipe', 'inherit', 'inherit'] });
+  execFileSync('docker', ['build', '-f', 'packaging/rig.Dockerfile', '-t', image, '.'], { stdio: 'inherit' });
 }
 if (flags.has('--docker')) {
   const inside = selected.filter(name => !rigs[name].includes('docker'));
   if (inside.length) {
-    const environment = ['RELEASE_TAG', 'BARTIZAN_EXECUTABLE', 'BARTIZAN_RIG_SOFTWARE_GL'].filter(key => process.env[key]).flatMap(key => ['-e', key]);
-    const result = spawnSync('docker', ['run', '--rm', '--security-opt', 'seccomp=unconfined', '--cap-add', 'SYS_ADMIN', ...environment, '-v', `${process.cwd()}:/work:ro`, '-w', '/work', image,
+    const environment = ['BARTIZAN_VERSION', 'BARTIZAN_RIG_SOFTWARE_GL', 'APPIMAGE_EXTRACT_AND_RUN'].filter(key => process.env[key]).flatMap(key => ['-e', key]);
+    const packaged = [];
+    if (process.env.BARTIZAN_EXECUTABLE) {
+      const executable = realpathSync(process.env.BARTIZAN_EXECUTABLE);
+      packaged.push('-v', `${dirname(executable)}:/package:ro`, '-e', `BARTIZAN_EXECUTABLE=/package/${basename(executable)}`);
+    }
+    const result = spawnSync('docker', ['run', '--rm', '--shm-size=512m', '--security-opt', 'seccomp=unconfined', '--cap-add', 'SYS_ADMIN', ...environment, ...packaged, image,
       'runuser', '-u', 'node', '--', 'node', 'scripts/rigs.mjs', '--no-build', ...inside], { stdio: 'inherit' });
     if (result.status !== 0) process.exit(1);
   }

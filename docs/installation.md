@@ -15,11 +15,13 @@ Bartizan uses the system OpenSSH client. Closing the main window quits the app, 
 | Package | Install or run |
 | --- | --- |
 | AppImage | Make the file executable, then open it. |
-| Debian `.deb` | Install with `sudo apt install ./bartizan_*.deb`. |
+| Debian or Ubuntu `.deb` | Choose the package for your distribution, then install with `sudo apt install ./bartizan_*.deb`. |
 | Arch `.pkg.tar.zst` | Install with `sudo pacman -U ./bartizan-*.pkg.tar.zst`. |
 | `.tar.gz` | Extract the archive and run `AppRun` from the extracted directory. |
 
 OpenSSH must be installed. Chromium's sandbox needs working user namespaces, or the setuid `chrome-sandbox` helper that the Debian and Arch packages install. Bartizan refuses to start with the sandbox turned off.
+
+Debian packages support Debian 13, Ubuntu 24.04 and Ubuntu 26.04. Their filenames include `trixie`, `noble` or `resolute` respectively. Native packages install OpenSSH and the required system libraries through the package manager.
 
 ## First Connection
 
@@ -53,7 +55,7 @@ The server defaults to `127.0.0.1:3000`. To choose the listening address, port a
 bartizan serve --host localhost --port 8080 --config ./config.yaml
 ```
 
-For a standalone Node process, `npm run web` builds and starts the server. After building, `node dist/server.cjs` starts the server without rebuilding. Port `0` asks the operating system to choose a free port; startup prints the actual address. `--help` lists the options.
+For a standalone Node process, `npm run web` builds and starts the server. After building, `node out/main/server.cjs` starts the server without rebuilding. Port `0` asks the operating system to choose a free port; startup prints the actual address. `--help` lists the options.
 
 There is no application authentication. Binding to a non-loopback address prints a prominent warning and requires typing `yes`. `--allow-remote` bypasses confirmation but keeps the warning; without it, noninteractive remote startup exits. Protect remote access with an authenticated reverse proxy, VPN, or equivalent protection. All clients share the server's connections, terminals, settings and error history.
 

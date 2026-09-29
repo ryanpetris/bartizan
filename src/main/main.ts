@@ -39,12 +39,12 @@ else void app.whenReady().then(async () => {
   nativeTheme.themeSource = settings.appearance;
   // The native window controls follow the theme's title bar and the appearance.
   const titleBarOverlay = () => { const { height, dark, light } = themes[settings.theme].controls; return { height, ...(nativeTheme.shouldUseDarkColors ? dark : light) }; };
-  const window = new BrowserWindow({ width: 1250, height: 820, minWidth: 800, minHeight: 500, title: 'Bartizan', titleBarStyle: 'hidden', titleBarOverlay: process.platform === 'darwin' ? true : titleBarOverlay(), webPreferences: { preload: join(__dirname, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false } });
+  const window = new BrowserWindow({ width: 1250, height: 820, minWidth: 800, minHeight: 500, title: 'Bartizan', titleBarStyle: 'hidden', titleBarOverlay: process.platform === 'darwin' ? true : titleBarOverlay(), webPreferences: { preload: join(__dirname, '../preload/preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false } });
   const updateTitleBar = () => { if (process.platform !== 'darwin' && !window.isDestroyed()) window.setTitleBarOverlay(titleBarOverlay()); };
   nativeTheme.on('updated', updateTitleBar);
   window.once('closed', () => nativeTheme.off('updated', updateTitleBar));
   window.setMenuBarVisibility(false);
-  const html = join(__dirname, 'index.html');
+  const html = join(__dirname, '../renderer/index.html');
   const developmentURL = !app.isPackaged && process.env.ELECTRON_RENDERER_URL;
   const origin = developmentURL ? new URL(developmentURL).href : pathToFileURL(html).href;
   window.webContents.session.setPermissionCheckHandler((contents, permission, _origin, details) => contents === window.webContents && permission === 'local-fonts' && details.isMainFrame && details.requestingUrl === origin);

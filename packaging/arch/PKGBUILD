@@ -1,0 +1,25 @@
+pkgname=bartizan
+pkgver=${BARTIZAN_VERSION:-0.0.0}
+pkgrel=1
+pkgdesc='SSH terminals and remote browsing'
+arch=(x86_64)
+url=https://github.com/ryanpetris/bartizan
+license=(MIT)
+depends=(openssh alsa-lib at-spi2-core cairo dbus expat glib2 glibc gtk3 hicolor-icon-theme
+         libcups libgcc libstdc++ libx11 libxcb libxcomposite libxdamage
+         libxext libxfixes libxkbcommon libxrandr mesa nspr nss pango)
+options=(!strip !debug)
+source=("bartizan-$pkgver-linux-x64.tar.gz")
+noextract=("${source[@]}")
+sha256sums=("${BARTIZAN_ARCHIVE_SHA256:?Supply the release archive checksum}")
+
+package() {
+  local root="$pkgdir/opt/bartizan"
+  install -d "$root" "$pkgdir/usr/bin"
+  tar --no-same-owner --strip-components=1 -C "$root" -xzf "$srcdir/${source[0]}"
+  ln -s /opt/bartizan/bartizan "$pkgdir/usr/bin/bartizan"
+  install -Dm644 "$root/bartizan.desktop" "$pkgdir/usr/share/applications/bartizan.desktop"
+  install -Dm644 "$root/bartizan.png" "$pkgdir/usr/share/icons/hicolor/512x512/apps/bartizan.png"
+  install -Dm644 "$root/LICENSE" "$pkgdir/usr/share/licenses/bartizan/LICENSE"
+  chmod 4755 "$root/chrome-sandbox"
+}

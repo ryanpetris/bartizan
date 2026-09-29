@@ -1,13 +1,12 @@
-import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { archiveSources, pythonArchive } from './scripts/python-archive.mjs';
 import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   main: {
     build: {
-      outDir: 'dist', emptyOutDir: false, sourcemap: true,
+      sourcemap: mode === 'development',
       lib: {
         entry: {
           main: resolve('src/main/main.ts'), server: resolve('src/web/entry.ts'),
@@ -29,35 +28,34 @@ export default defineConfig({
           for (const file of archiveSources(directory)) this.addWatchFile(file);
           return `export default ${JSON.stringify(pythonArchive(directory).toString('base64'))};`;
         }
-        if (id.endsWith('.py')) return `export default ${JSON.stringify(readFileSync(id, 'utf8'))};`;
       },
     }],
   },
   preload: {
     build: {
-      outDir: 'dist', emptyOutDir: false, sourcemap: true,
+      sourcemap: mode === 'development',
       lib: { entry: resolve('src/main/preload.ts'), formats: ['cjs'] },
       rollupOptions: { output: { entryFileNames: 'preload.cjs', inlineDynamicImports: true } },
     },
   },
   renderer: {
-    cacheDir: resolve('dist/.vite'),
     publicDir: resolve('assets'),
+    base: './',
+    build: { sourcemap: mode === 'development' },
     server: { host: '127.0.0.1' },
     plugins: [
       // The entry mounts a root and overlays own native child windows; both need a page reload.
       react({ exclude: [/node_modules/, /\/(app|overlay)\.tsx$/] }),
       {
         name: 'bartizan-dev-html',
+        apply: 'serve',
         transformIndexHtml: {
           order: 'pre',
           handler: html => html
             .replace("script-src 'self'", "script-src 'self' 'unsafe-inline'")
-            .replace("connect-src 'none'", "connect-src 'self' ws://127.0.0.1:*")
-            .replace('<link rel="stylesheet" href="app.css">', '')
-            .replace('<script src="app.js"></script>', '<script type="module" src="/app.tsx"></script>'),
+            .replace("connect-src 'none'", "connect-src 'self' ws://127.0.0.1:*"),
         },
       },
     ],
   },
-});
+}));

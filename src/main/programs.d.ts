@@ -1,5 +1,5 @@
 /** Helper bootstraps are bundled as source text. */
-declare module '*.py' {
+declare module '*.py?raw' {
   const program: string;
   export default program;
 }

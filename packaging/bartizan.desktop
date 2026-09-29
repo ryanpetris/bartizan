@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Bartizan
+Exec=bartizan %U
+Terminal=false
+Type=Application
+Icon=bartizan
+StartupWMClass=Bartizan
+Categories=Network;RemoteAccess;

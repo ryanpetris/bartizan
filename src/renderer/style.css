@@ -1,8 +1,8 @@
 /* Bundled fonts use private family names so an installed copy never replaces them. */
-@font-face { font-family: "Bartizan JetBrains Mono"; src: url("fonts/jetbrains-mono.ttf") format("truetype"); font-style: normal; font-weight: 100 800; font-display: block; }
-@font-face { font-family: "Bartizan JetBrains Mono"; src: url("fonts/jetbrains-mono-italic.ttf") format("truetype"); font-style: italic; font-weight: 100 800; font-display: block; }
-@font-face { font-family: "Bartizan Inter"; src: url("fonts/inter.woff2") format("woff2"); font-style: normal; font-weight: 100 900; font-display: swap; }
-@font-face { font-family: "Bartizan Inter"; src: url("fonts/inter-italic.woff2") format("woff2"); font-style: italic; font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Bartizan JetBrains Mono"; src: url("/fonts/jetbrains-mono.ttf") format("truetype"); font-style: normal; font-weight: 100 800; font-display: block; }
+@font-face { font-family: "Bartizan JetBrains Mono"; src: url("/fonts/jetbrains-mono-italic.ttf") format("truetype"); font-style: italic; font-weight: 100 800; font-display: block; }
+@font-face { font-family: "Bartizan Inter"; src: url("/fonts/inter.woff2") format("woff2"); font-style: normal; font-weight: 100 900; font-display: swap; }
+@font-face { font-family: "Bartizan Inter"; src: url("/fonts/inter-italic.woff2") format("woff2"); font-style: italic; font-weight: 100 900; font-display: swap; }
 
 :root {
   color-scheme: light;

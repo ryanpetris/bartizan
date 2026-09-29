@@ -6,126 +6,22 @@
   "homepage": "https://github.com/ryanpetris/bartizan",
   "author": "Bartizan contributors",
   "license": "MIT",
-  "main": "dist/main.cjs",
+  "main": "out/main/main.cjs",
   "desktopName": "bartizan.desktop",
   "scripts": {
     "dev": "electron-vite dev --watch",
-    "build": "node scripts/build.mjs",
+    "build": "electron-vite build",
     "typecheck": "tsc --noEmit",
     "test": "tsx --import ./tests/program-text.mjs --test tests/*.test.ts",
     "rigs": "node scripts/rigs.mjs",
     "start": "npm run build && electron .",
-    "postinstall": "electron-builder install-app-deps",
-    "package": "npm run build && node scripts/native-linux.mjs && electron-builder --linux --publish never",
-    "package:mac": "npm run build && electron-builder --mac --arm64 -c.npmRebuild=true --publish never",
-    "web": "npm run build && node dist/server.cjs",
+    "postinstall": "install-electron",
+    "web": "npm run build && node out/main/server.cjs",
     "screenshots": "node scripts/screenshots.mjs"
   },
-  "build": {
-    "appId": "app.bartizan.desktop",
-    "productName": "Bartizan",
-    "directories": {
-      "output": "release"
-    },
-    "files": [
-      "dist/**",
-      "!dist/**/*.map",
-      "package.json"
-    ],
-    "asarUnpack": [
-      "node_modules/node-pty/**"
-    ],
-    "linux": {
-      "extraFiles": [
-        "LICENSE",
-        {
-          "from": "packaging/AppRun",
-          "to": "AppRun"
-        },
-        {
-          "from": "assets/icon.png",
-          "to": "bartizan.png"
-        }
-      ],
-      "target": [
-        "AppImage",
-        "deb",
-        "pacman",
-        "tar.gz"
-      ],
-      "category": "Network;RemoteAccess",
-      "executableName": "bartizan",
-      "icon": "assets/icon.png",
-      "artifactName": "${name}-${version}-linux-x64.${ext}",
-      "maintainer": "Ryan Petris <ryan@petris.net>",
-      "syncDesktopName": true
-    },
-    "npmRebuild": false,
-    "afterPack": "./scripts/after-pack.mjs",
-    "appImage": {
-      "executableArgs": [],
-      "artifactName": "${productName}-${version}.${ext}"
-    },
-    "deb": {
-      "afterInstall": "packaging/after-install.sh",
-      "afterRemove": "packaging/after-remove.sh",
-      "artifactName": "${name}_${version}_amd64.${ext}",
-      "depends": [
-        "openssh-client",
-        "libgtk-3-0",
-        "libnss3",
-        "libasound2",
-        "libxss1",
-        "libgbm1",
-        "libxkbcommon0",
-        "libxcomposite1",
-        "libxdamage1",
-        "libxrandr2"
-      ],
-      "fpm": [
-        "--description",
-        "SSH terminals and remote browsing"
-      ]
-    },
-    "pacman": {
-      "afterInstall": "packaging/after-install.sh",
-      "afterRemove": "packaging/after-remove.sh",
-      "artifactName": "${name}-${version}-1-x86_64.pkg.tar.zst",
-      "compression": "zstd",
-      "depends": [
-        "openssh",
-        "gtk3",
-        "nss",
-        "alsa-lib",
-        "libxss",
-        "mesa",
-        "libxkbcommon",
-        "libxcomposite",
-        "libxdamage",
-        "libxrandr"
-      ],
-      "fpm": [
-        "--description",
-        "SSH terminals and remote browsing"
-      ]
-    },
-    "mac": {
-      "target": [
-        "dmg"
-      ],
-      "category": "public.app-category.developer-tools",
-      "icon": "assets/icon.png",
-      "artifactName": "${name}-${version}-mac-${arch}.${ext}",
-      "identity": "-",
-      "hardenedRuntime": false,
-      "notarize": false,
-      "extraResources": [
-        "LICENSE"
-      ]
-    }
-  },
   "dependencies": {
-    "node-pty": "1.1.0"
+    "node-pty": "1.1.0",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
@@ -148,7 +44,6 @@
     "tsx": "4.23.13",
     "typescript": "7.0.2",
     "vite": "7.3.6",
-    "ws": "^8.21.3",
     "yaml": "2.9.1",
     "zod": "4.6.5"
   },

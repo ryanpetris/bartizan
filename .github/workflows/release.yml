@@ -9,11 +9,12 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    env:
-      RELEASE_TAG: ${{ github.ref_name }}
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      epoch: ${{ steps.version.outputs.epoch }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -21,25 +22,45 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - name: Set release version
-        run: npm version "${RELEASE_TAG#v}" --no-git-tag-version --ignore-scripts --allow-same-version
-      - name: Install dependencies
-        run: npm ci
-      - name: Check source
+      - name: Validate release version
+        id: version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          npm run typecheck
-          npm test
-      - name: Install packaging dependencies
+          version=$(BARTIZAN_VERSION="${RELEASE_TAG#v}" python3 tools/version.py)
+          test "$RELEASE_TAG" = "v$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "epoch=$(git log -1 --format=%ct)" >> "$GITHUB_OUTPUT"
+      - name: Check source and native runtime
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libarchive-tools
-      - name: Build packages
-        run: npm run package
-      - name: Check packaged application
-        run: BARTIZAN_EXECUTABLE=release/linux-unpacked/bartizan node scripts/rigs.mjs --docker smoke
+          npm ci
+          make check
+          node scripts/check-pty.cjs
+          ELECTRON_RUN_AS_NODE=1 npx --no-install electron scripts/check-pty.cjs
+  linux:
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      BARTIZAN_VERSION: ${{ needs.validate.outputs.version }}
+      SOURCE_DATE_EPOCH: ${{ needs.validate.outputs.epoch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Build portable packages
+        run: make portable
+      - name: Check packaged runtime and AppImage launcher
+        run: |
+          BARTIZAN_EXECUTABLE=release/linux-unpacked/bartizan node scripts/rigs.mjs --docker smoke connect fonts web sandbox
+          APPIMAGE_EXTRACT_AND_RUN=1 BARTIZAN_EXECUTABLE="release/Bartizan-$BARTIZAN_VERSION.AppImage" node scripts/rigs.mjs --docker smoke
+          APPIMAGE_EXTRACT_AND_RUN=1 node scripts/check-serve.mjs "release/Bartizan-$BARTIZAN_VERSION.AppImage"
       - name: Record checksums
         working-directory: release
-        run: sha256sum *.AppImage *.pkg.tar.zst *.deb *.tar.gz > SHA256SUMS-linux
+        run: sha256sum *.AppImage *.tar.gz > SHA256SUMS-linux
       - uses: actions/upload-artifact@v7
         with:
           name: packages-linux
@@ -47,15 +68,123 @@ jobs:
           if-no-files-found: error
           path: |
             release/*.AppImage
-            release/*.pkg.tar.zst
-            release/*.deb
             release/*.tar.gz
             release/SHA256SUMS-linux
-  build-mac:
-    runs-on: macos-15
-    timeout-minutes: 30
+  arch:
+    needs: [validate, linux]
+    runs-on: ubuntu-24.04
+    container: archlinux:base-devel
+    timeout-minutes: 20
     env:
-      RELEASE_TAG: ${{ github.ref_name }}
+      BARTIZAN_VERSION: ${{ needs.validate.outputs.version }}
+      SOURCE_DATE_EPOCH: ${{ needs.validate.outputs.epoch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages-linux
+          path: release
+      - name: Build native package
+        shell: bash
+        run: |
+          pacman -Syu --noconfirm git namcap python
+          (cd release && sha256sum -c SHA256SUMS-linux)
+          BARTIZAN_ARCHIVE_SHA256=SKIP source packaging/arch/PKGBUILD
+          pacman -S --needed --noconfirm "${depends[@]}"
+          useradd -m builder
+          chown -R builder .
+          runuser -u builder -- make arch
+      - name: Check installation, reinstall and removal
+        shell: bash
+        run: |
+          pacman -U --noconfirm build/packages/arch/*.pkg.tar.zst
+          python tools/check_linux_package.py --version "$BARTIZAN_VERSION"
+          namcap -e elfpaths build/packages/arch/*.pkg.tar.zst > namcap.log
+          cat namcap.log
+          if grep -q ' E:' namcap.log; then exit 1; fi
+          pacman -U --noconfirm build/packages/arch/*.pkg.tar.zst
+          python tools/check_linux_package.py --version "$BARTIZAN_VERSION"
+          pacman -R --noconfirm bartizan
+          test ! -e /usr/bin/bartizan
+          test ! -e /opt/bartizan
+          cp build/packages/arch/*.pkg.tar.zst release/
+          cd release
+          sha256sum *.pkg.tar.zst > SHA256SUMS-arch
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-arch
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            release/*.pkg.tar.zst
+            release/SHA256SUMS-arch
+  debian:
+    needs: [validate, linux]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: debian:13
+            distribution: trixie
+          - image: ubuntu:24.04
+            distribution: noble
+          - image: ubuntu:26.04
+            distribution: resolute
+    container: ${{ matrix.image }}
+    timeout-minutes: 25
+    env:
+      BARTIZAN_VERSION: ${{ needs.validate.outputs.version }}
+      SOURCE_DATE_EPOCH: ${{ needs.validate.outputs.epoch }}
+      DEB_DISTRIBUTION: ${{ matrix.distribution }}
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages-linux
+          path: release
+      - name: Build native package
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential devscripts dh-apparmor equivs python3 lintian
+          mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' packaging/debian/control
+          (cd release && sha256sum -c SHA256SUMS-linux)
+          make deb
+      - name: Check installation, reinstall and removal
+        run: |
+          echo 'path-include=/usr/share/doc/bartizan/*' > /etc/dpkg/dpkg.cfg.d/zz-bartizan-check
+          apt-get install -y --no-install-recommends ./build/packages/deb/"$DEB_DISTRIBUTION"/*.deb
+          python3 tools/check_linux_package.py --debian --version "$BARTIZAN_VERSION"
+          lintian --suppress-tags dir-or-file-in-opt,embedded-library,shared-library-is-executable,unstripped-binary-or-object build/packages/deb/"$DEB_DISTRIBUTION"/*.deb
+          apt-get install -y --reinstall ./build/packages/deb/"$DEB_DISTRIBUTION"/*.deb
+          python3 tools/check_linux_package.py --debian --version "$BARTIZAN_VERSION"
+          apt-get purge -y bartizan
+          test ! -e /usr/bin/bartizan
+          test ! -e /opt/bartizan
+          test ! -e /etc/apparmor.d/bartizan
+          cp build/packages/deb/"$DEB_DISTRIBUTION"/*.deb release/
+          cd release
+          sha256sum *.deb > "SHA256SUMS-$DEB_DISTRIBUTION"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages-${{ matrix.distribution }}
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            release/*.deb
+            release/SHA256SUMS-${{ matrix.distribution }}
+  desktop-smoke:
+    needs: [validate, debian]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      BARTIZAN_VERSION: ${{ needs.validate.outputs.version }}
+      BARTIZAN_EXECUTABLE: /usr/bin/bartizan
     steps:
       - uses: actions/checkout@v7
         with:
@@ -63,12 +192,42 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - name: Set release version
-        run: npm version "${RELEASE_TAG#v}" --no-git-tag-version --ignore-scripts --allow-same-version
-      - name: Install dependencies
-        run: npm ci
-      - name: Build package
-        run: npm run package:mac
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages-noble
+          path: build/native
+      - name: Install desktop package and test dependencies
+        run: |
+          (cd build/native && sha256sum -c SHA256SUMS-noble)
+          sudo apt-get update
+          sudo apt-get install -y xvfb dbus-x11 openssh-server ./build/native/*.deb
+          npm ci
+      - name: Check installed desktop with sandbox enabled
+        run: dbus-run-session -- node scripts/rigs.mjs --no-build smoke connect fonts sandbox
+  mac:
+    needs: validate
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      BARTIZAN_VERSION: ${{ needs.validate.outputs.version }}
+      SOURCE_DATE_EPOCH: ${{ needs.validate.outputs.epoch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Build package and check native runtime
+        run: |
+          npm ci
+          node scripts/check-pty.cjs
+          ELECTRON_RUN_AS_NODE=1 npx --no-install electron scripts/check-pty.cjs
+          make mac
+          executable=release/mac-arm64/Bartizan.app/Contents/MacOS/Bartizan
+          root=release/mac-arm64/Bartizan.app/Contents/Resources/app.asar
+          ELECTRON_RUN_AS_NODE=1 "$executable" scripts/check-pty.cjs "$root" "$BARTIZAN_VERSION"
+          node scripts/check-serve.mjs "$executable"
       - name: Record checksums
         working-directory: release
         run: shasum -a 256 *.dmg > SHA256SUMS-mac
@@ -81,13 +240,14 @@ jobs:
             release/*.dmg
             release/SHA256SUMS-mac
   publish:
-    needs: [build, build-mac]
+    needs: [validate, linux, arch, debian, desktop-smoke, mac]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
     env:
       RELEASE_TAG: ${{ github.ref_name }}
+      BARTIZAN_VERSION: ${{ needs.validate.outputs.version }}
       GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/download-artifact@v8
@@ -95,10 +255,17 @@ jobs:
           pattern: packages-*
           merge-multiple: true
           path: release
-      - name: Verify checksums
+      - name: Verify complete release and checksums
         working-directory: release
         run: |
-          cat SHA256SUMS-linux SHA256SUMS-mac > SHA256SUMS
+          test -f "Bartizan-$BARTIZAN_VERSION.AppImage"
+          test -f "bartizan-$BARTIZAN_VERSION-linux-x64.tar.gz"
+          test -f "bartizan-$BARTIZAN_VERSION-1-x86_64.pkg.tar.zst"
+          for distribution in trixie noble resolute; do
+            test -f "bartizan_${BARTIZAN_VERSION}-1~${distribution}_amd64.deb"
+          done
+          test -f "bartizan-$BARTIZAN_VERSION-mac-arm64.dmg"
+          cat SHA256SUMS-linux SHA256SUMS-arch SHA256SUMS-trixie SHA256SUMS-noble SHA256SUMS-resolute SHA256SUMS-mac > SHA256SUMS
           sha256sum -c SHA256SUMS
       - name: Publish release
         env:
