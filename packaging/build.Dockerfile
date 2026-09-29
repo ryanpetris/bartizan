@@ -2,6 +2,7 @@ FROM node:24-bookworm@sha256:6dac556d980b7f0e5498d08f08cee0ca67798b4ad6c23964a92
 RUN apt-get update && apt-get install -y --no-install-recommends libarchive-tools && rm -rf /var/lib/apt/lists/*
 WORKDIR /work
 COPY package.json package-lock.json ./
+COPY scripts/postinstall.mjs scripts/postinstall.mjs
 RUN npm ci
 COPY . .
 ARG BARTIZAN_VERSION

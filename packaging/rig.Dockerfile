@@ -5,6 +5,7 @@ WORKDIR /work
 RUN chown node:node /work
 USER node
 COPY --chown=node:node package.json package-lock.json ./
+COPY --chown=node:node scripts/postinstall.mjs scripts/postinstall.mjs
 RUN npm ci
 COPY --chown=node:node . .
 RUN npm run build

@@ -15,7 +15,7 @@
     "test": "tsx --import ./tests/program-text.mjs --test tests/*.test.ts",
     "rigs": "node scripts/rigs.mjs",
     "start": "npm run build && electron .",
-    "postinstall": "install-electron",
+    "postinstall": "install-electron && node scripts/postinstall.mjs",
     "web": "npm run build && node out/main/server.cjs",
     "screenshots": "node scripts/screenshots.mjs"
   },

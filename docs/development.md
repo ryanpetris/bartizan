@@ -13,7 +13,7 @@ npm ci
 npm start
 ```
 
-`npm ci` installs the lockfile's dependency versions and downloads the development Electron runtime with `install-electron`. The `node-pty` installer uses its prebuilt binary on macOS and compiles it on Linux. Its Node-API binary runs in both Node and Electron. `npm start` builds the app and launches it. To use a separate configuration:
+`npm ci` installs the lockfile's dependency versions and downloads the development Electron runtime with `install-electron`. The `node-pty` installer uses its prebuilt binary on macOS and compiles it on Linux. On macOS, the project postinstall step makes its prebuilt spawn helpers executable. Its Node-API binary runs in both Node and Electron. `npm start` builds the app and launches it. To use a separate configuration:
 
 ```sh
 npm start -- --config ./demo.yaml
