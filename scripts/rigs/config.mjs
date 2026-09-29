@@ -58,7 +58,7 @@ await withDirectory('config', async (directory, cleanup) => {
   await leaveConnect(page);
   console.log('Reloading applies a changed configuration and keeps the last valid one when the file is malformed.');
 
-  const executable = await app.application.evaluate(({ app }) => ({ path: process.execPath, args: app.isPackaged ? [] : [app.getAppPath()] }));
+  const executable = await app.application.evaluate(({ app }) => ({ path: process.execPath, args: process.defaultApp ? [app.getAppPath()] : [] }));
   const other = join(directory, 'other.yaml');
   const child = spawn(executable.path, [...executable.args, '--config', other], { cwd: directory, env: { ...process.env, BARTIZAN_DATA_DIR: data }, stdio: ['ignore', 'ignore', 'pipe'] });
   let output = '';

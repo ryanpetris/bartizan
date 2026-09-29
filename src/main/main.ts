@@ -14,7 +14,7 @@ import { Overlays } from './overlays';
 import { themes } from '../themes';
 import { defaultSettings, browserActions, overlayNames, pageShortcuts, type PageShortcut, type FullscreenMode, type Event } from '../shared';
 
-const args = process.argv.slice(app.isPackaged ? 1 : 2);
+const args = process.argv.slice(process.defaultApp ? 2 : 1);
 if (args[0] === 'serve') {
   const environment = Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined));
   process.execve!(process.execPath, [process.execPath, join(__dirname, 'server.cjs'), ...args.slice(1)], { ...environment, ELECTRON_RUN_AS_NODE: '1', BARTIZAN_DATA_DIR: process.env.BARTIZAN_DATA_DIR ?? app.getPath('userData') });
@@ -45,7 +45,7 @@ else void app.whenReady().then(async () => {
   window.once('closed', () => nativeTheme.off('updated', updateTitleBar));
   window.setMenuBarVisibility(false);
   const html = join(__dirname, '../renderer/index.html');
-  const developmentURL = !app.isPackaged && process.env.ELECTRON_RENDERER_URL;
+  const developmentURL = import.meta.env.DEV && process.env.ELECTRON_RENDERER_URL;
   const origin = developmentURL ? new URL(developmentURL).href : pathToFileURL(html).href;
   window.webContents.session.setPermissionCheckHandler((contents, permission, _origin, details) => contents === window.webContents && permission === 'local-fonts' && details.isMainFrame && details.requestingUrl === origin);
   window.webContents.session.setPermissionRequestHandler((contents, permission, callback, details) => callback(contents === window.webContents && permission === 'local-fonts' && details.isMainFrame && details.requestingUrl === origin));
