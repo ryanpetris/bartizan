@@ -59,7 +59,7 @@ export async function testProfileLaunch(app, config, url) {
     // A destination follows the profiles that match it.
     await connect.fill('127.0.0.1');
     await expect(rows).toHaveCount(4);
-    await expect(view.locator('.profile-row').first()).toHaveAttribute('data-id', 'rig');
+    await expect(view.locator('.profile-row').first()).toHaveAttribute('data-id', 'other');
     await expect(rows.last()).toHaveClass(/destination-item/);
     await expect(chosen).toHaveCount(1);
     await expect(rows.first()).toHaveAttribute('data-chosen');

@@ -246,6 +246,7 @@ export const connectionOf = (id: string) => store.state.connections.find((c) => 
 export const endpoint = (connection: Connection) =>
   connection.username ? `${connection.username}@${connection.host}` : connection.host;
 export const profileName = (profile: Profile) => profile.spec.label ?? profile.id;
+const names = new Intl.Collator(undefined, { numeric: true });
 export function profileEndpoint(profile: Profile) {
   const spec = profile.spec,
     defaults = store.state.defaults;
@@ -254,12 +255,13 @@ export function profileEndpoint(profile: Profile) {
     port = spec.port ?? defaults.port;
   return host ? `${username ? `${username}@` : ''}${host}${port && port !== 22 ? `:${port}` : ''}` : '';
 }
-/** Profiles whose label, ID, endpoint, username or tags contain the query, in configuration order; an empty query matches every profile. */
+/** Profiles whose label, ID, endpoint, username or tags contain the query, by name; an empty query matches every profile. */
 export function matchProfiles(query: string, profiles = store.state.profiles) {
   const value = query.trim().toLowerCase();
-  if (!value) return profiles;
+  const sorted = [...profiles].sort((a, b) => names.compare(profileName(a), profileName(b)) || names.compare(a.id, b.id));
+  if (!value) return sorted;
   const username = (profile: Profile) => profile.spec.username ?? store.state.defaults.username ?? '';
-  return profiles.filter((profile) =>
+  return sorted.filter((profile) =>
     [profileName(profile), profile.id, profileEndpoint(profile), username(profile), ...profile.tags].some((field) =>
       field.toLowerCase().includes(value),
     ),

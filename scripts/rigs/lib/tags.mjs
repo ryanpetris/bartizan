@@ -25,7 +25,7 @@ export async function testProfileTags(app, config, connectionId) {
     await expect(profile.locator('b')).toHaveCount(0);
     await profile.locator('.profile-item').focus();
     await page.keyboard.press('ArrowDown');
-    await expect(view.locator('.profile-item').nth(1)).toBeFocused();
+    await expect(view.locator('.profile-row[data-id="rig"] + .profile-row .profile-item')).toBeFocused();
     await leaveConnect(page);
     assert.deepEqual((await state()).profiles.find(p => p.id === 'rig').tags, ['Operations', 'Team Blue', '<b>literal</b>']);
     // Connect finds profiles by tag, and hides no connection while it does.

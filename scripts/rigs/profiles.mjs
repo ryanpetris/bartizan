@@ -78,6 +78,9 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
 
   await openConnect();
   await expect(rows).toHaveCount(153);
+  // Profiles are listed by name, with numbers in names in numeric order.
+  const order = await connect.locator('.profile-row').evaluateAll(elements => elements.map(row => row.dataset.id));
+  assert.deepEqual(order, ['alpha', 'beta', ...Array.from({ length: 150 }, (_, index) => `item-${index}`), 'incomplete']);
   // Each search shows its results from the top, where the chosen one is.
   await connect.locator('.picker-body').evaluate(node => { node.scrollTop = node.scrollHeight; });
   await search.fill('item');
