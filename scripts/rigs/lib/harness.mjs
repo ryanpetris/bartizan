@@ -94,6 +94,10 @@ export function menuHelpers(popup) {
     },
     /** Clicks an item of the open menu. */
     choose: async (label, level = 0) => (await item(label, level)).click(),
+    /** Clicks the item of the open menu that takes browser session color `color`. */
+    chooseColor: async (color, level = 0) => (await popup()).locator('.menu').nth(level).locator(`:scope > [role^="menuitem"]:has(.menu-icon[data-color="${color}"])`).click(),
+    /** The browser session color each item of the open menu takes, or null. */
+    colors: async (level = 0) => (await popup()).evaluate(level => [...document.querySelectorAll('.menu')[level].querySelectorAll('[role^="menuitem"]')].map(item => item.querySelector('.menu-icon')?.dataset.color ?? null), level),
     /** The icon each item of the open menu shows, by label. */
     icons: async (level = 0) => (await popup()).evaluate(level => Object.fromEntries([...document.querySelectorAll('.menu')[level].querySelectorAll('[role^="menuitem"]')].map(item => [item.querySelector('.menu-label').textContent, item.querySelector('.menu-icon')?.dataset.icon ?? ''])), level),
   };

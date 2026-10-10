@@ -58,7 +58,7 @@ await withDirectory('order', async (directory, cleanup) => {
 
   await titles(one).click();
   const add = page.locator('.rail-panel .connection-add');
-  const addItems = ['Terminal', 'Browser Session', 'Visual Studio Code'];
+  const addItems = ['Terminal', 'Browser Session', '-', 'Visual Studio Code'];
   await menu(() => add.click(), addItems);
   assert.deepEqual(await app.menu.icons(), { Terminal: 'terminal', 'Browser Session': 'window', 'Visual Studio Code': 'code' });
   await expect(add).toHaveAttribute('aria-expanded', 'true');
@@ -74,7 +74,7 @@ await withDirectory('order', async (directory, cleanup) => {
   await add.focus();
   await page.keyboard.press('Enter');
   await expect.poll(focusedItem).toBe('menu');
-  for (const [key, expected] of [['ArrowDown', 'Terminal'], ['ArrowDown', 'Browser Session'], ['End', 'Visual Studio Code'], ['ArrowDown', 'Terminal'], ['ArrowUp', 'Visual Studio Code'], ['Home', 'Terminal'], ['v', 'Visual Studio Code'], ['t', 'Terminal']]) {
+  for (const [key, expected] of [['ArrowDown', 'Terminal'], ['ArrowDown', 'Browser Session'], ['ArrowDown', 'Visual Studio Code'], ['ArrowDown', 'Terminal'], ['ArrowUp', 'Visual Studio Code'], ['Home', 'Terminal'], ['v', 'Visual Studio Code'], ['b', 'Browser Session']]) {
     await popup.keyboard.press(key);
     assert.equal(await focusedItem(), expected, key);
   }
@@ -132,7 +132,7 @@ await withDirectory('order', async (directory, cleanup) => {
   await api('newBrowser', two);
   await waitState(s => s.workspaces.some(w => w.connectionId === two && w.tabs.length === 1), 'browser session on the first connection');
   await titles(two).click();
-  await page.locator('.rail-panel').getByRole('button', { name: /^Close Browser \d+$/ }).focus();
+  await page.locator('.rail-panel').getByRole('button', { name: 'Close Browser', exact: true }).focus();
   await page.keyboard.press('Enter');
   await waitState(s => !s.workspaces.some(w => w.connectionId === two), 'browser session closed');
   await expect(page.locator('.rail-panel .nav-item[data-kind="details"]')).toBeFocused();
@@ -187,6 +187,18 @@ await withDirectory('order', async (directory, cleanup) => {
   await expect(page.locator('.drop-before, .drop-after')).toHaveCount(0);
   await page.keyboard.up('Control');
   await expect.poll(() => itemOrder(one)).toEqual([t2, t1, session]);
+  // New terminals and tabs join the end of their lists.
+  const t3 = `terminal:${await api('newTerminal', one)}`;
+  await expect.poll(() => itemOrder(one)).toEqual([t2, t1, session, t3]);
+  await api('browser', sessionId, 'new');
+  const d = (await waitState(s => s.workspaces[0].tabs.length === 4, 'fourth tab')).workspaces[0].tabs[3].id;
+  await expect.poll(() => tabOrder(sessionId)).toEqual([a, c, b, d]);
+  // In a connection never reordered, a terminal opened after a browser session still joins the end.
+  await titles(two).click();
+  const [onTwo] = (await app.state()).terminals.filter(t => t.connectionId === two).map(t => `terminal:${t.id}`);
+  const twoSession = `session:${await api('newBrowserTab', two)}`;
+  const twoTerminal = `terminal:${await api('newTerminal', two)}`;
+  await expect.poll(() => itemOrder(two)).toEqual([onTwo, twoSession, twoTerminal]);
   assert.deepEqual(errors, []);
   console.log('Dropping past the rows, in the empty panel or elsewhere in the window, uses the marked place.');
 });

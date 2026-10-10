@@ -2,9 +2,12 @@ import { WebContentsView, type BrowserWindow, type WebContents } from 'electron'
 import type { Event, MenuEntry } from '../shared';
 import type { Overlays } from './overlays';
 
-/** An item of a menu the main process builds; `click` runs here once the item is chosen, and `icon` names an application icon. */
+/**
+ * An item of a menu the main process builds; `click` runs here once the item is chosen, `icon` names an application icon
+ * and `color` is the browser session color it takes.
+ */
 export type MenuItem =
-  | { label: string; enabled?: boolean; icon?: string; shortcut?: string; checked?: boolean; click?: () => unknown; submenu?: MenuItem[] }
+  | { label: string; enabled?: boolean; icon?: string; color?: number; shortcut?: string; checked?: boolean; click?: () => unknown; submenu?: MenuItem[] }
   | { type: 'separator' };
 
 /**
@@ -54,9 +57,9 @@ export class Menus {
     const entries = (list: MenuItem[]): MenuEntry[] => list.map(item => {
       if ('type' in item) return { separator: true };
       const id = ++count;
-      const { label, icon, shortcut, checked, submenu, click } = item, disabled = item.enabled === false;
+      const { label, icon, color, shortcut, checked, submenu, click } = item, disabled = item.enabled === false;
       if (click && !disabled && !submenu) actions.set(id, click);
-      return { id, label, ...icon && { icon }, ...shortcut && { shortcut }, ...disabled && { disabled: true }, ...checked !== undefined && { checked }, ...submenu && { submenu: entries(submenu) } };
+      return { id, label, ...icon && { icon }, ...color !== undefined && { color }, ...shortcut && { shortcut }, ...disabled && { disabled: true }, ...checked !== undefined && { checked }, ...submenu && { submenu: entries(submenu) } };
     });
     const built = entries(items);
     if (!built.length) return;

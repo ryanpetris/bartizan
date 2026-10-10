@@ -253,10 +253,12 @@ function TabRow({
   workspace,
   tab,
   outer = {},
+  tag,
 }: {
   workspace: Workspace;
   tab: BrowserTab;
   outer?: React.HTMLAttributes<HTMLElement>;
+  tag?: 'li' | 'div';
 }) {
   const title = tab.title,
     state = tab.certificate ? 'certificate' : tab.loading ? 'loading' : tab.error ? 'error' : 'idle';
@@ -264,6 +266,7 @@ function TabRow({
   const sound = tab.audible || tab.muted;
   return (
     <Row
+      tag={tag}
       outer={outer}
       kind="tab"
       id={tab.id}
@@ -356,7 +359,7 @@ function SessionName({ workspace }: { workspace: Workspace }) {
   );
 }
 function Session({ workspace }: { workspace: Workspace }) {
-  if (workspace.application) return <>{workspace.tabs.map(tab => <TabRow key={tab.id} workspace={workspace} tab={tab} />)}</>;
+  if (workspace.application) return <>{workspace.tabs.map(tab => <TabRow key={tab.id} tag="div" workspace={workspace} tab={tab} />)}</>;
   return (
     <>
       {renaming === workspace.id ? <SessionName workspace={workspace} /> : <Row
@@ -424,8 +427,9 @@ export function ConnectionTools({ connection }: { connection: Group['connection'
           openMenu(event.currentTarget, [
             { label: 'Terminal', icon: 'terminal', action: () => void openTerminal(id) },
             { label: 'Browser Session', icon: 'window', action: () => void openBrowser(id) },
-            { label: 'Visual Studio Code', icon: applicationIcon('vscode'), action: () => void openApplication(id, 'vscode') },
+            { separator: true },
             ...(connection.installed?.includes('t3') ? [{ label: 'T3 Code', icon: applicationIcon('t3'), action: () => void openApplication(id, 't3') }] : []),
+            { label: 'Visual Studio Code', icon: applicationIcon('vscode'), action: () => void openApplication(id, 'vscode') },
           ], { stale: connectionChanges(id) }) : void openTerminal(id)
         }
       />
@@ -463,7 +467,7 @@ export function ConnectionItems({ group: { connection, entries } }: { group: Gro
       {entries.map((entry) => (
         <li
           key={entry.key}
-          className={entry.terminal ? 'terminal-entry' : 'session'}
+          className={entry.workspace && !entry.workspace.application ? 'session' : 'row-entry'}
           {...orderable(
             `items:${connection.id}`,
             entry.key,

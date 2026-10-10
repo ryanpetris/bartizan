@@ -9,7 +9,7 @@ import { openMenu } from './menu';
 import { FindBar, focusFind } from './browser-find';
 import { DownloadsButton, DownloadsPopover } from './browser-downloads';
 import { LinkStatus } from './browser-status';
-import { AddressSuggestions, refreshPorts, remember, suggestionId, suggestionLimit, suggestions } from './browser-suggestions';
+import { AddressSuggestions, remember, suggestionId, suggestionLimit, suggestions } from './browser-suggestions';
 
 const shortcutHint = (name: PageShortcut) => shortcutLabel(name, /^Mac/.test(navigator.platform));
 const actionErrors = new Map<string, string>();
@@ -283,7 +283,7 @@ export function Browser() {
         className="browser-toolbar"
         onSubmit={(event) => {
           event.preventDefault();
-          navigate(listed[chosen]?.url ?? address?.value ?? '', false);
+          navigate(listed[chosen] ?? address?.value ?? '', false);
         }}
       >
         <IconButton icon="back" label="Back" disabled={!tab?.canBack} onClick={() => actOnTab('back')} />
@@ -330,7 +330,6 @@ export function Browser() {
             onFocus={() => {
               cancelSelection();
               if (workspace && !workspace.application && !settling.current) {
-                refreshPorts(workspace.connectionId);
                 setSuggesting(true);
                 setHighlighted(-1);
               }
@@ -567,7 +566,7 @@ export function Browser() {
       */}
       <ul className="visually-hidden" id="address-suggestions" role="listbox" aria-label="Suggestions" hidden={!listed.length}>
         {Array.from({ length: suggestionLimit }, (_, index) => (
-          <li key={index} id={suggestionId(index)} role="option" aria-selected={index === chosen} aria-label={listed[index]?.url} hidden={index >= listed.length} />
+          <li key={index} id={suggestionId(index)} role="option" aria-selected={index === chosen} aria-label={listed[index]} hidden={index >= listed.length} />
         ))}
       </ul>
       <AddressSuggestions

@@ -62,7 +62,7 @@ Each connection owns an in-memory process tracker keyed by UUID. Lifecycle manag
 
 A helper keeps its UUID across retries and clears its PID while retrying. Each application launch has its own record with a name assigned by Bartizan. Closing an application tab keeps its lifecycle manager and stopping records until `applications.ended` confirms cleanup. Lost helper channels mark open launches failed; closed launches are retired. These launches release their helper requirements before the supervisor decides whether to retry. Active session integration retains its requirement through helper failures; application commands are not replayed.
 
-Retry creates a new launch ID. Closing the helper cancels launches and stops their child processes. Disconnecting leaves the application tab available for retry after reconnection.
+Retry creates a new launch ID. Closing the helper cancels launches and stops their child processes. Disconnecting leaves the application tab in place, and reconnecting launches it again unless its launch was cancelled.
 
 Progress events may include a `component` label and a `transfer` with `receivedBytes` and optional `totalBytes`. The component names the part being installed, so Visual Studio Code Launcher and Server downloads report separately. The CLI runs with trace logging; its server-download byte counts and server-start message feed progress, while other diagnostic output is discarded.
 

@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Event, MenuEntry } from '../shared';
-import { api, render, store, useStore } from './store';
-import { Icon, isIcon, type IconName } from './ui';
+import { api, render, sessionColor, store, useStore } from './store';
+import { Icon, colorStyle, isIcon, type IconName } from './ui';
 import { Popup, closedByPress, windowRect, type Point } from './popup';
 
 export type MenuItem =
-  | { label: string; action?: () => void; icon?: IconName; shortcut?: string; disabled?: boolean; checked?: boolean; submenu?: MenuItem[] }
+  | { label: string; action?: () => void; icon?: IconName; color?: number; shortcut?: string; disabled?: boolean; checked?: boolean; submenu?: MenuItem[] }
   | { separator: true };
 type Item = Exclude<MenuItem, { separator: true }>;
 
@@ -66,6 +66,7 @@ export function showMenu({ id, items, x, y, connectionId }: Extract<Event, { typ
         : {
             label: entry.label,
             icon: isIcon(entry.icon) ? entry.icon : undefined,
+            color: entry.color,
             shortcut: entry.shortcut,
             disabled: entry.disabled,
             checked: entry.checked,
@@ -242,7 +243,12 @@ function Panel({
               onClick={() => activate(item, index, false)}
             >
               {icons && (
-                <span className="menu-icon" data-icon={item.checked ? 'check' : item.icon}>
+                <span
+                  className="menu-icon"
+                  data-icon={item.checked ? 'check' : item.icon}
+                  data-color={item.color}
+                  style={colorStyle(sessionColor(item))}
+                >
                   {item.checked ? <Icon name="check" /> : item.icon && <Icon name={item.icon} />}
                 </span>
               )}

@@ -1,10 +1,7 @@
 import type { State } from '../shared';
 import { Icon } from './ui';
-import { api, render } from './store';
 import { Overlay } from './overlay';
 
-/** An address the address field offers: one the connection's tabs have been to, or a port listening on its host. */
-export type Suggestion = { url: string; kind: 'history' | 'port' };
 const historyLimit = 100;
 /** How many suggestions show at most. */
 export const suggestionLimit = 10;
@@ -44,29 +41,10 @@ export function recordVisits(state: State) {
   for (const id of visited.keys()) if (!live.has(id)) visited.delete(id);
 }
 
-const ports = new Map<string, number[]>();
-/** Reads the connection's listening ports again; the main process reads them at most every few seconds. */
-export function refreshPorts(connectionId: string) {
-  void api.remotePorts(connectionId).then(
-    (found) => {
-      ports.set(connectionId, found);
-      render();
-    },
-    () => {},
-  );
-}
-/** The connection's addresses that contain the text, its history first, then its ports as local addresses. */
-export function suggestions(connectionId: string, text: string): Suggestion[] {
+/** The connection's addresses that contain the text, most recent first. */
+export function suggestions(connectionId: string, text: string): string[] {
   const query = text.trim().toLowerCase();
-  const matches = (url: string) => url.toLowerCase().includes(query);
-  const history = (histories[connectionId] ?? []).filter(matches);
-  const local = (ports.get(connectionId) ?? [])
-    .map((port) => `http://localhost:${port}/`)
-    .filter((url) => matches(url) && !history.includes(url));
-  return [
-    ...history.map((url) => ({ url, kind: 'history' as const })),
-    ...local.map((url) => ({ url, kind: 'port' as const })),
-  ].slice(0, suggestionLimit);
+  return (histories[connectionId] ?? []).filter((url) => url.toLowerCase().includes(query)).slice(0, suggestionLimit);
 }
 export const suggestionId = (index: number) => `address-suggestion-${index}`;
 
@@ -82,7 +60,7 @@ export function AddressSuggestions({
   onLeave,
 }: {
   field: () => HTMLElement | null;
-  items: Suggestion[];
+  items: string[];
   highlighted: number;
   onChoose(url: string): void;
   onLeave(): void;
@@ -99,17 +77,16 @@ export function AddressSuggestions({
     >
       {items.length > 0 && (
         <ul className="popover address-suggestions" aria-hidden="true" style={{ width: box?.width }}>
-          {items.map((item, index) => (
+          {items.map((url, index) => (
             <li
-              key={item.url}
+              key={url}
               className="address-suggestion"
               data-highlighted={index === highlighted || undefined}
-              data-kind={item.kind}
               onPointerDown={(event) => event.preventDefault()}
-              onClick={() => onChoose(item.url)}
+              onClick={() => onChoose(url)}
             >
-              <Icon name={item.kind === 'history' ? 'clock' : 'code'} />
-              <span className="address-suggestion-url mono">{item.url}</span>
+              <Icon name="clock" />
+              <span className="address-suggestion-url mono">{url}</span>
             </li>
           ))}
         </ul>

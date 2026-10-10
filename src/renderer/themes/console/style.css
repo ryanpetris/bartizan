@@ -237,10 +237,11 @@
   /* Windows line: the shown connection's terminals and browser sessions, numbered in order; the current one is in inverse video. */
   .console-windows .connection-items { display: flex; flex: none; gap: 0; counter-reset: console-window -1; }
   .console-windows .connection-items > li { position: relative; display: flex; flex: none; counter-increment: console-window; }
+  .console-windows .row-entry:has([data-kind="tab"]) { counter-increment: none; }
   .console-windows .row { display: flex; flex: none; }
   /* An entry always holds room for its buttons at its end, and a numbered one a cell for the flag of the current one: showing them moves nothing and covers nothing. The first entry starts at the lines' inset. */
   .console-windows .nav-item { gap: 6px; width: auto; min-width: 6ch; height: 100%; padding: 0 max(0.5ch, calc(var(--actions) * 3.5ch - 0.5ch)) 0 0.5ch; border-radius: 0; font-weight: 400; }
-  .console-windows .terminal-entry:first-child .nav-item { padding-left: var(--console-inset); }
+  .console-windows .row-entry:first-child .nav-item { padding-left: var(--console-inset); }
   .console-windows .row:hover > .nav-item:not([aria-current="page"]) { background: var(--console-hover); }
   .console-windows .nav-item[aria-current="page"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
   .console-windows .nav-item[aria-current="page"]::before { content: none; }

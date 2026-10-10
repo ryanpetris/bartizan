@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
-const tabs = '.terminal-entry > .row, .tab-items > .row';
+const tabs = '.row-entry > .row, .tab-items > .row';
 /** How far from an end of the strip what it brings into sight stays, which is the room the strip's fading ends take. */
 const margin = 28;
 /**

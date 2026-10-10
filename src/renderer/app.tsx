@@ -67,6 +67,8 @@ function applyState(state: State) {
   const earlier = store.state;
   const selection = store.selection;
   const shown = selection && selectedRow(earlier, selection);
+  // The earlier rows in navigation order, read before the new rows take closed items out of the order.
+  const before = shown ? rows(earlier) : [];
   const connection = currentConnection();
   const connectionOrder = groups().map(group => group.connection.id);
   // A session whose active tab closed shows the tab beside it in navigation order: the one after it, or else the one before.
@@ -102,7 +104,6 @@ function applyState(state: State) {
   } else if (shown && !shownSession && !after.some((row) => sameRow(row, shown))) {
     // The shown row went away, or the browser session it belongs to has no tabs left: show the row that took its place in
     // navigation order, or the one before it, within the same connection. Connection pages are selected explicitly.
-    const before = rows(earlier);
     const index = before.findIndex((row) => sameRow(row, shown));
     const candidates = [...before.slice(index + 1), ...before.slice(0, index).reverse()];
     const next = candidates.find(

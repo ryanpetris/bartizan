@@ -11,7 +11,7 @@ export async function testSessionUI(app, connectionId) {
   };
   const initial = await state();
   await connection.locator('.connection-add').click();
-  assert.deepEqual(await app.menu.shown(), ['Terminal', 'Browser Session', 'Visual Studio Code']);
+  assert.deepEqual(await app.menu.shown(), ['Terminal', 'Browser Session', '-', 'Visual Studio Code']);
   await app.menu.choose('Terminal');
   await expect.poll(async () => (await state()).terminals.length).toBe(initial.terminals.length + 1);
   const terminal = (await state()).terminals.find(t => !initial.terminals.some(old => old.id === t.id));
@@ -21,8 +21,6 @@ export async function testSessionUI(app, connectionId) {
   await expect.poll(() => page.evaluate(() => Boolean(document.activeElement?.closest('.rail-panel')))).toBe(true);
   assert.equal((await state()).connections.find(c => c.id === connectionId).status, 'connected');
 
-  const names = await connection.locator('.session-row .row-new').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label').replace('New Tab in ', '')));
-  const numbers = names.map(label => Number(/^Browser (\d+)$/.exec(label)?.[1] ?? 0));
   // Hold state events after the new session's first state, so its tab arrives after the selection can render.
   await application.evaluate(({ BrowserWindow }, known) => {
     const contents = BrowserWindow.getAllWindows()[0].webContents;
@@ -45,8 +43,7 @@ export async function testSessionUI(app, connectionId) {
   await expect(page.locator(`[data-kind="browser"][data-id="${workspace.id}"]`)).toHaveCount(1);
   assert.equal(await application.evaluate(() => globalThis.rigHeldTabState), true);
   await expect(page.getByRole('combobox', { name: 'Address', exact: true })).toBeFocused();
-  const ordinal = Math.max(0, ...numbers) + 1;
-  const name = `Browser ${ordinal}`;
+  const name = 'Browser';
   await page.locator(`[data-kind="browser"][data-id="${workspace.id}"]`).locator('..').getByRole('button', { name: `New Tab in ${name}`, exact: true }).click();
   const group = page.locator(`[data-kind="browser"][data-id="${workspace.id}"]`).locator('../..');
   await expect(group.locator('.nav-item').first()).toHaveAttribute('data-kind', 'browser');
@@ -114,5 +111,5 @@ export async function testSessionUI(app, connectionId) {
   await sessionItem.locator('..').getByRole('button', { name: `Close ${name}`, exact: true }).click();
   await expect.poll(async () => (await state()).workspaces.some(w => w.id === workspace.id)).toBe(false);
   await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1280, 800));
-  console.log('Navigation controls open and close terminals, browser sessions and tabs; tab selection, session numbering, session rows above their tabs, renaming, session rows opening their first tab or a new one when empty, and address focus after late tab state passed.');
+  console.log('Navigation controls open and close terminals, browser sessions and tabs; tab selection, session names, session rows above their tabs, renaming, session rows opening their first tab or a new one when empty, and address focus after late tab state passed.');
 }

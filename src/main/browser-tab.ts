@@ -180,7 +180,7 @@ export class BrowserTabController {
       if (background) this.gesture = -Infinity;
       else lastPopup = now;
       if (system) { this.handOff(url); return { action: 'deny' }; }
-      if (entry.info.application && web) { this.owner.openPopup?.(entry.info.connectionId, url); return { action: 'deny' }; }
+      if (entry.info.application && web) { this.owner.openPopup?.(entry.info.connectionId, url, entry.info.id); return { action: 'deny' }; }
       return {
         action: 'allow', outlivesOpener: true,
         overrideBrowserWindowOptions: { webPreferences: { spellcheck: false, focusOnNavigation: false } },

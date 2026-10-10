@@ -95,8 +95,9 @@ export function parseDestination(input: string): { host: string; username?: stri
   if (username && usernamePattern.test(username)) return { ...destination, username };
 }
 /**
- * Remote applications. `updates` launches begin by checking for a release. A `relaunches` application launches again
- * when the connection reconnects or the server it uses goes away, and signs in through a single-use address.
+ * Remote applications, which launch again when the connection reconnects unless their launch was cancelled. `updates`
+ * launches begin by checking for a release. A `relaunches` application also launches again when the server it uses goes
+ * away, and signs in through a single-use address.
  */
 export const applications: Record<'vscode' | 't3', { name: string; updates?: boolean; relaunches?: boolean }> = {
   vscode: { name: 'Visual Studio Code', updates: true },
@@ -121,7 +122,7 @@ export type BrowserTab = { id: string; title: string; url: string; loading: bool
 /** A download whose save location has been chosen; sizes are in bytes, and `total` is 0 when unknown. */
 export type Download = { id: string; name: string; state: 'progressing' | 'completed' | 'cancelled' | 'failed'; received: number; total: number };
 /** A browser session; `name` is the name the user gave it, and `closedTabs` how many closed tabs it can reopen. */
-export type Workspace = { application?: ApplicationState; id: string; connectionId: string; color: number; ordinal: number; name?: string; tabs: BrowserTab[]; activeTab?: string; downloads: Download[]; closedTabs: number };
+export type Workspace = { application?: ApplicationState; id: string; connectionId: string; color?: number; name?: string; tabs: BrowserTab[]; activeTab?: string; downloads: Download[]; closedTabs: number };
 /** An address as a page is named after it: without its scheme, without a trailing slash, and with its escapes read. */
 const bareAddress = (text: string) => {
   try { text = decodeURI(text); } catch { /* A malformed escape stands as it is. */ }
@@ -184,7 +185,7 @@ export function systemLink(input: string): string | undefined {
 /** Whether an application's session shows the application's own page rather than its launch. */
 export const applicationShowsPage = (application: ApplicationState, tab: BrowserTab | undefined) =>
   application.event.type === 'applications.ready' && application.page === 'open' && !!tab?.url && !tab.error;
-export const browserSessionName = (workspace: Workspace) => workspace.name || `Browser ${workspace.ordinal}`;
+export const browserSessionName = (workspace: Workspace) => workspace.name || 'Browser';
 export type BrowserChallenge = { id: string; workspaceId: string; tabId: string; origin: string; realm: string; scheme: string };
 export type AuthChallenge = Challenge | BrowserChallenge;
 export type AuthAnswer = string | null | { username: string; password: string };
@@ -214,7 +215,7 @@ export type Event = { type: 'fullscreen'; mode: FullscreenMode } | { type: 'help
   /** A tab's icon as a data URL, its find-in-page result, and the address of the link under the pointer. */
   | { type: 'favicon'; tabId: string; data?: string } | { type: 'found'; tabId: string; active: number; matches: number } | { type: 'target-url'; tabId: string; url: string };
 /** An item of a menu in a `menu` event; `id` names its action, and `icon` one of the application's icons. */
-export type MenuEntry = { id: number; label: string; icon?: string; shortcut?: string; disabled?: boolean; checked?: boolean; submenu?: MenuEntry[] } | { separator: true };
+export type MenuEntry = { id: number; label: string; icon?: string; color?: number; shortcut?: string; disabled?: boolean; checked?: boolean; submenu?: MenuEntry[] } | { separator: true };
 /**
  * Whether to leave a page that asks before it is left, named by `detail`, or to open the link in `detail` in another
  * application; `page` is whether the page had the keyboard when it asked.
@@ -274,16 +275,16 @@ export interface API {
   retryApplication(workspaceId: string): Promise<void>;
   respondApplication(workspaceId: string, consentId: string, accepted: boolean): Promise<void>;
   newBrowser(connectionId: string): Promise<string>;
-  /** Opens a tab in the session, or else in the connection's earliest session or a new one, and returns the session. */
+  /** Opens a tab in the session, or else in the connection's first session in navigation order or a new one, and returns the session. */
   newBrowserTab(connectionId: string, sessionId?: string): Promise<string>;
-  /** The ports that listen for TCP connections on the remote host's loopback or every address; none where they cannot be read. */
-  remotePorts(connectionId: string): Promise<number[]>;
   /** An empty name restores the default name. */
   renameBrowser(workspaceId: string, name: string): Promise<void>;
-  /** `sessionId` is the browser session that comes first in navigation order. */
-  openLink(terminalId: string, url: string, sessionId?: string): Promise<void>;
+  /** Opens a terminal's link in the browser session nearest after the terminal in navigation, or else before it. */
+  openLink(terminalId: string, url: string): Promise<void>;
   /** Shows the menu of a terminal's links at a point of the page. */
-  linkMenu(terminalId: string, url: string | string[], at: { x: number; y: number }, sessionId?: string): Promise<void>;
+  linkMenu(terminalId: string, url: string | string[], at: { x: number; y: number }): Promise<void>;
+  /** Gives the order navigation shows a connection's items in, by their `terminal:<id>` and `session:<id>` keys. */
+  orderItems(connectionId: string, keys: string[]): void;
   copy(text: string): Promise<void>;
   readClipboard(): Promise<string>;
   /** Reports the item chosen from the menu of a `menu` event, or `null` when it closes without one. */

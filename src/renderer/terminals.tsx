@@ -4,7 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import type { TerminalSession } from '../shared';
-import { api, store, run, connectionOf, dialogOpen, onFocusRequest, setTerminalTitle, terminalName, firstSession } from './store';
+import { api, store, run, connectionOf, dialogOpen, onFocusRequest, setTerminalTitle, terminalName } from './store';
 import { terminalFontFamily, loadFontStyles } from './fonts';
 import { operatorJoiner } from './ligatures';
 import { activeTheme } from './themes';
@@ -302,7 +302,7 @@ function create(session: TerminalSession): Entry {
   // A press and release on a link opens it, unless they selected text to copy.
   const openLink = (_event: MouseEvent, uri: string) => {
     if (webLink(uri) && !terminal.hasSelection())
-      void run('browser', api.openLink(session.id, uri, firstSession(session.connectionId)?.id), session.connectionId);
+      void run('browser', api.openLink(session.id, uri), session.connectionId);
   };
   const hover = (_event: MouseEvent, url: string) => {
     entry.link = webLink(url) ? url : undefined;
@@ -405,7 +405,7 @@ function create(session: TerminalSession): Entry {
       event.preventDefault();
       event.stopPropagation();
       if (url) {
-        void run('browser', api.linkMenu(session.id, url, { x: event.clientX, y: event.clientY }, firstSession(session.connectionId)?.id), session.connectionId);
+        void run('browser', api.linkMenu(session.id, url, { x: event.clientX, y: event.clientY }), session.connectionId);
         return;
       }
       terminal.focus();
@@ -462,7 +462,7 @@ function create(session: TerminalSession): Entry {
           const cursor = terminal.textarea?.getBoundingClientRect();
           void run(
             'browser',
-            api.linkMenu(session.id, links.length === 1 ? links[0] : links, { x: cursor?.left ?? 0, y: cursor?.bottom ?? 0 }, firstSession(session.connectionId)?.id),
+            api.linkMenu(session.id, links.length === 1 ? links[0] : links, { x: cursor?.left ?? 0, y: cursor?.bottom ?? 0 }),
             session.connectionId,
           );
         }

@@ -5,7 +5,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { quoteShell, channelArgs, sessionError, loginCommand } from '../src/main/remote-sessions';
-import { listeningPorts } from '../src/main/remote-ports';
 import { parseHelperMessage } from '../src/main/remote-helper';
 import { HelperMessages, type HelperMessage, type RemoteSession } from '../src/helper-messages';
 import { connectionFixture } from './connection-fixture';
@@ -97,23 +96,4 @@ test('shutdown stops helpers even without a state-change callback or a running S
     assert.equal(stopped, 1);
     assert.equal(entry.helper, undefined);
   } finally { rmSync(directory, { recursive: true, force: true }); }
-});
-
-test('listening ports come from loopback and wildcard addresses in LISTEN state', () => {
-  const tcp = `  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
-   0: 0100007F:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 1 1 0000000000000000 100 0 0 10 0
-   1: 00000000:0016 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 2 1 0000000000000000 100 0 0 10 0
-   2: 3500007F:0035 00000000:0000 0A 00000000:00000000 00:00000000 00000000   101        0 3 1 0000000000000000 100 0 0 10 0
-   3: 0A00000A:0BB8 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 4 1 0000000000000000 100 0 0 10 0
-   4: 0100007F:1F90 0100007F:D431 01 00000000:00000000 00:00000000 00000000  1000        0 5 1 0000000000000000 20 4 30 10 -1
-`;
-  const tcp6 = `  sl  local_address                         remote_address                        st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
-   0: 00000000000000000000000001000000:0BB9 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 6 1 0000000000000000 100 0 0 10 0
-   1: 00000000000000000000000000000000:1F90 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 7 1 0000000000000000 100 0 0 10 0
-   2: 0000000000000000FFFF00000100007F:13BA 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 8 1 0000000000000000 100 0 0 10 0
-   3: 20010DB8000000000000000000000001:13BB 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 9 1 0000000000000000 100 0 0 10 0
-`;
-  assert.deepEqual(listeningPorts(tcp + tcp6), [22, 53, 3001, 5050, 8080]);
-  assert.deepEqual(listeningPorts('cat: /proc/net/tcp: No such file or directory'), []);
-  assert.deepEqual(listeningPorts(''), []);
 });

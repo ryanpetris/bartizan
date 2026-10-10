@@ -286,8 +286,6 @@
 
 :root[data-theme="rail"] .nav-item, :root[data-theme="rail"] .icon-button, :root[data-theme="rail"] .button, :root[data-theme="rail"] .section-tab, :root[data-theme="rail"] .theme-option { transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease; }
 :root[data-theme="rail"] .connection-items { gap: 2px; }
-:root[data-theme="rail"] .connection-items > .session:not(:first-child) { margin-top: 6px; }
-:root[data-theme="rail"] .connection-items > .session + .terminal-entry { margin-top: 6px; }
 :root[data-theme="rail"] .nav-item { height: 32px; padding: 0 8px 0 10px; border-radius: var(--radius); color: var(--text-muted); font-weight: 500; }
 :root[data-theme="rail"] .row:hover > .nav-item:not([aria-current]) { color: var(--text); }
 :root[data-theme="rail"] .nav-item[aria-current="page"] { color: var(--text-strong); font-weight: 550; }

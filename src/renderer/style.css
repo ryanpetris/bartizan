@@ -603,6 +603,7 @@ dialog:focus-visible { outline: none; }
 .menu-item[aria-disabled="true"] { color: var(--text-faint); }
 .menu-icon { display: flex; flex: none; width: 16px; color: var(--text-muted); }
 .menu-item:focus .menu-icon, .menu-item[aria-expanded="true"] .menu-icon { color: inherit; }
+.menu-item .menu-icon[data-color] { color: var(--session-color); }
 .menu-item[aria-disabled="true"] .menu-icon { color: inherit; opacity: 0.7; }
 .menu-item[aria-checked="true"] .menu-icon { color: var(--accent-text); }
 .menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }

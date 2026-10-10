@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { writeFile, readFile, mkdir, chmod, rm, access } from 'node:fs/promises';
+import { writeFile, readFile, mkdir, chmod, rm, access, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { userInfo } from 'node:os';
 import { withDirectory, startSshd, sshProfile, launch, freePort } from './lib/harness.mjs';
@@ -149,6 +149,11 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await waitState(s => !s.workspaces.some(w => w.id === simultaneous));
   assert.equal((await app.state()).workspaces.find(w => w.id === first.id).application.event.type, 'applications.ready');
   const browser = await api('newBrowserTab', connection); assert.notEqual(browser, first.id);
+  // An application takes no session color or session row, so the first ordinary session takes the first color.
+  const colors = Object.fromEntries((await app.state()).workspaces.map(w => [w.id, w.color]));
+  assert.deepEqual([colors[first.id], colors[browser]], [undefined, 0]);
+  await expect(page.locator(`[data-order-key="session:${first.id}"]`)).toHaveClass('row-entry');
+  await expect(page.locator(`[data-order-key="session:${first.id}"] > div.row`)).toHaveCount(1);
   const countBeforePopup = (await app.state()).workspaces.length;
   await application.evaluate(({ webContents }) => webContents.getAllWebContents().find(w => w.getTitle() === 'Editor fixture').executeJavaScript(`document.querySelector('a').click()`));
   await waitState(s => s.workspaces.find(w => w.id === browser)?.tabs.length === 2, 'application popup uses ordinary browser');
@@ -193,8 +198,26 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await expect(page.locator('.process-pid')).toHaveText('');
   await api('reconnect', connection);
   await waitState(s => s.connections[0]?.status === 'connected');
-  await api('retryApplication', second);
-  await waitState(s => s.workspaces.find(w => w.id === second)?.application.event.type === 'applications.ready', 'retry');
+  // Reconnecting launches the application again.
+  await waitState(s => s.workspaces.find(w => w.id === second)?.application.event.type === 'applications.ready', 'relaunch on reconnect');
+  // A declined launch stays cancelled through a reconnect, even when the connection drops before the helper ends it.
+  const consents = join(data, 'bartizan/tools/vscode/consent');
+  await rename(consents, `${consents}.kept`);
+  const declined = await api('newApplication', connection, 'vscode');
+  const asked = await waitState(s => s.workspaces.find(w => w.id === declined)?.application.event.type === 'applications.consent', 'consent asked');
+  const declinedHelper = Number(await readFile(helperPid, 'utf8'));
+  process.kill(declinedHelper, 'SIGSTOP');
+  cleanup(() => { try { process.kill(declinedHelper, 'SIGCONT'); } catch {} });
+  await api('respondApplication', declined, asked.workspaces.find(w => w.id === declined).application.event.consentId, false);
+  await api('disconnect', connection);
+  process.kill(declinedHelper, 'SIGCONT');
+  await waitState(s => s.workspaces.find(w => w.id === declined)?.application.event.reason === 'cancelled', 'declined launch ended');
+  await rm(consents, { recursive: true, force: true });
+  await rename(`${consents}.kept`, consents);
+  await api('reconnect', connection);
+  await waitState(s => s.workspaces.find(w => w.id === second)?.application.event.type === 'applications.ready', 'relaunch beside a declined launch');
+  assert.equal((await app.state()).workspaces.find(w => w.id === declined).application.event.reason, 'cancelled');
+  await api('browser', declined, 'close-workspace');
   await api('settings', { remoteSessionIntegration: true });
   await waitState(s => s.connections[0].remoteSessions?.sessions.some(x => x.label === 'application-rig'), 'discovery enabled alongside application');
   await expect(page.locator('.remote-entry + .details-entry')).toBeVisible();
@@ -262,7 +285,6 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await expect.poll(() => application.evaluate(() => typeof globalThis.releaseApplicationNetwork)).toBe('function');
   await api('reconnect', connection);
   await waitState(s => s.connections[0].status === 'connected');
-  await api('retryApplication', racing);
   const readyState = await waitState(s => s.workspaces.find(w => w.id === racing)?.application.event.type === 'applications.ready');
   const racingLaunch = readyState.workspaces.find(w => w.id === racing).application.launchId;
   const pausedHelper = Number(await readFile(helperPid, 'utf8'));
@@ -313,7 +335,7 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await reconnect();
   // The connection looks for T3 Code again each time it connects.
   await waitState(s => s.connections[0].installed?.includes('t3'), 'T3 Code found');
-  assert.ok((await addMenu()).includes('T3 Code'));
+  assert.deepEqual(await addMenu(), ['Terminal', 'Browser Session', '-', 'T3 Code', 'Visual Studio Code']);
   assert.deepEqual(await app.menu.icons(), { Terminal: 'terminal', 'Browser Session': 'window', 'Visual Studio Code': 'code', 'T3 Code': 'agent' });
   await chooseT3();
   let current = await t3Ready(1, 'T3 Code ready');

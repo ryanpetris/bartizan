@@ -230,7 +230,7 @@ export function terminalName(terminal: TerminalSession) {
   return value === 1 ? 'Terminal' : `Terminal ${value}`;
 }
 /** Each browser session has its own colour. */
-export const sessionColor = (workspace: Workspace) => `var(--session-${workspace.color % 9})`;
+export const sessionColor = ({ color }: Pick<Workspace, 'color'>) => color === undefined ? undefined : `var(--session-${color % 9})`;
 export const statusText = (item: Pick<Connection, 'status' | 'exitCode'>) =>
   item.status === 'connecting'
     ? 'Connecting'
@@ -277,7 +277,7 @@ export const dialogHost = { document };
 export const dialogOpen = () => dialogHost.document.querySelector('dialog[open]') !== null;
 
 /**
- * Navigation order the user chose, by scope: `connections`, `items:<connection>` and `tabs:<browser session>`. It lasts for
+ * Navigation order, by scope: `connections`, `items:<connection>` and `tabs:<browser session>`. It lasts for
  * the application launch, including renderer reloads.
  */
 const orders: Record<string, string[]> = (() => {
@@ -287,17 +287,30 @@ const orders: Record<string, string[]> = (() => {
     return {};
   }
 })();
-/** Sorts items by their chosen order; items without one follow in their own order. */
+/** Keeps the order, and gives the main process the order of a connection's items for the links it opens. */
+function saveOrders(scope: string) {
+  try {
+    sessionStorage.setItem('navigation-order', JSON.stringify(orders));
+  } catch {
+    /* The order still applies until the page reloads. */
+  }
+  const [kind, id] = scope.split(':');
+  if (kind === 'items') api.orderItems(id!, orders[scope]!);
+}
+/**
+ * Sorts items by their order in the scope. An item the scope has not shown before joins the end, and the items gone by
+ * then leave the order.
+ */
 function ordered<T>(scope: string, items: T[], key: (item: T) => string): T[] {
-  const chosen = orders[scope] ?? [];
-  const rank = (item: T) => {
-    const index = chosen.indexOf(key(item));
-    return index < 0 ? chosen.length : index;
-  };
-  return items
-    .map((item, index) => ({ item, index }))
-    .sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index)
-    .map(({ item }) => item);
+  const keys = items.map(key),
+    known = orders[scope] ?? [],
+    fresh = keys.filter((item) => !known.includes(item));
+  if (fresh.length) {
+    orders[scope] = [...known.filter((item) => keys.includes(item)), ...fresh];
+    saveOrders(scope);
+  }
+  const order = orders[scope] ?? known;
+  return [...items].sort((a, b) => order.indexOf(key(a)) - order.indexOf(key(b)));
 }
 /** The keys a scope currently shows, in navigation order. */
 export function scopeKeys(scope: string): string[] {
@@ -312,11 +325,7 @@ export function moveKey(scope: string, key: string, before?: string) {
   const keys = scopeKeys(scope).filter((item) => item !== key);
   keys.splice(before === undefined ? keys.length : keys.indexOf(before), 0, key);
   orders[scope] = keys;
-  try {
-    sessionStorage.setItem('navigation-order', JSON.stringify(orders));
-  } catch {
-    /* The order still applies until the page reloads. */
-  }
+  saveOrders(scope);
   render();
 }
 export const sessionTabs = (workspace: Workspace) => ordered(`tabs:${workspace.id}`, workspace.tabs, (tab) => tab.id);
@@ -339,11 +348,6 @@ export function groups(state = store.state): Group[] {
       entries: entries(connection, state),
     }));
 }
-/** The connection's first browser session in navigation order. */
-export const firstSession = (connectionId: string) =>
-  groups()
-    .find((group) => group.connection.id === connectionId)
-    ?.entries.find((entry) => entry.workspace && !entry.workspace.application)?.workspace;
 /** A profile's connecting or connected connection, whether or not it has children. */
 export const activeConnection = (profileId?: string) =>
   profileId ? store.state.connections.find((c) => c.profileId === profileId && c.status !== 'closed') : undefined;

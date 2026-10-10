@@ -107,6 +107,7 @@ export function createWebAPI(): API {
       linkMenu = undefined;
       if (item !== null && links[item]) openLink(links[item]);
     },
+    orderItems: () => {},
     showBrowser: () => {},
     overlay: () => {},
   };

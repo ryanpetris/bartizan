@@ -1,7 +1,6 @@
 import { Processes } from './processes';
 import { userInfo } from 'node:os';
 import { remoteCommand, loginCommand } from './remote-sessions';
-import { remotePorts } from './remote-ports';
 import type { HelperMessage, HelperRequest, RemoteSession } from '../helper-messages';
 import { RemoteHelper } from './remote-helper';
 import { RemoteIntegration } from './remote-integration';
@@ -41,7 +40,6 @@ export class ConnectionController {
   private readonly integration = new RemoteIntegration(this);
   private readonly helperUsers = new Set<object>();
   private disposed = false;
-  private ports?: { at: number; ports: Promise<number[]> };
   constructor(id: string, private overrides: Spec, profileId: string | undefined, private configuration: Configuration,
     private directory: string, private askpass: Askpass, private askpassHelper: string, private publish: () => void,
     private data: (id: string, chunk: string) => void, private diagnostic: (message: string, connectionId: string, label: string) => void,
@@ -117,7 +115,7 @@ export class ConnectionController {
         this.info.status = 'connected'; this.integration.sync(this.spec.remote_sessions ?? this.configuration.catalog.settings.remoteSessionIntegration); this.browsers?.sync();
         if (initial && this.terminals.has(initial.info.id) && initial.info.status !== 'closed') initial.start(transport);
         for (const terminal of this.terminals.values()) if (terminal.reconnectOnConnect) this.startTerminal(terminal);
-        for (const browser of this.browsers?.entries.values() ?? []) if (browser.application?.relaunches && browser.info.application?.event.type === 'applications.ended') browser.application.retry(true);
+        for (const browser of this.browsers?.entries.values() ?? []) { const event = browser.info.application?.event; if (event?.type === 'applications.ended' && event.reason !== 'cancelled') browser.application?.retry(true); }
         void this.detect(transport);
         this.changed();
       },
@@ -235,13 +233,6 @@ export class ConnectionController {
     const terminal = this.allocateTerminal(remoteSession);
     this.startTerminal(terminal, command ? loginCommand(command) : undefined);
     return terminal.info.id;
-  }
-  /** The host's listening ports, read again at most every few seconds. */
-  remotePorts(): Promise<number[]> {
-    if (this.info.status !== 'connected') return Promise.resolve([]);
-    const now = performance.now();
-    if (!this.ports || now - this.ports.at >= 5000) this.ports = { at: now, ports: remotePorts(this.socket, this.transport!.spec) };
-    return this.ports.ports;
   }
   /** Whether the connection was made from a destination chosen by host, username and port alone. */
   chosen = false;

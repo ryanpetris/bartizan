@@ -111,7 +111,7 @@ else void app.whenReady().then(async () => {
   sessions.added = connection => {
     const owned = connection.browsers = new Browsers(connection, browsers, window, (id, action) => send({ type: 'browser-shortcut', id, action }), send);
     owned.added = () => overlays.raise();
-    owned.openPopup = (id, url) => linkMenus.open(id, url, undefined, true);
+    owned.openPopup = (id, url, from) => linkMenus.open(id, url, undefined, `session:${from}`);
     owned.openExternal = (id, url) => linkMenus.external(id, url);
     owned.pageMenu = (id, tabId, params) => { try { linkMenus.page(id, tabId, params); } catch {} };
   };
@@ -177,9 +177,13 @@ else void app.whenReady().then(async () => {
   });
   fieldMenu(window.webContents);
   const point = z.strictObject({ x: z.number().finite(), y: z.number().finite() });
-  handle('link-menu', (id: unknown, url: unknown, at: unknown, session: unknown) => linkMenus.show(window.webContents, terminalConnection(id), z.union([z.string().max(8192), z.array(z.string().max(8192)).max(64)]).parse(url), { first: z.string().optional().parse(session) }, point.parse(at)));
+  handle('link-menu', (id: unknown, url: unknown, at: unknown) => linkMenus.show(window.webContents, terminalConnection(id), z.union([z.string().max(8192), z.array(z.string().max(8192)).max(64)]).parse(url), point.parse(at), `terminal:${id}`));
   handle('menu-chosen', (id: unknown, item: unknown) => menus.choose(z.number().int().parse(id), z.number().int().nullable().parse(item)));
-  handle('open-link', (id: unknown, url: unknown, session: unknown) => linkMenus.open(terminalConnection(id), z.string().max(8192).parse(url), z.string().optional().parse(session), true));
+  handle('open-link', (id: unknown, url: unknown) => linkMenus.open(terminalConnection(id), z.string().max(8192).parse(url), undefined, `terminal:${id}`));
+  handle('order-items', (id, keys) => {
+    const parsed = z.array(z.string().max(128)).max(2000).safeParse(keys), browsers = typeof id === 'string' ? sessions.entries.get(id)?.browsers : undefined;
+    if (parsed.success && browsers) browsers.order = parsed.data;
+  });
   handle('certificate-answer', (id: unknown, allow: unknown) => browsers.answerCertificate(z.string().uuid().parse(id), z.boolean().parse(allow)));
   handle('set-fullscreen', (mode: unknown) => setFullscreen(z.union([z.literal(false), z.enum(['window', 'content'])]).parse(mode)));
   handle('choose-file', async () => { const result = await dialog.showOpenDialog(window, { properties: ['openFile'] }); return result.filePaths[0]; });
@@ -198,7 +202,6 @@ else void app.whenReady().then(async () => {
     if (!connection) throw new Error('Connection is not connected');
     return browsers.open(connection, undefined, z.string().optional().parse(session), true);
   }));
-  handle('remote-ports', (id: unknown) => sessions.entries.get(z.string().parse(id))?.remotePorts() ?? []);
   handle('rename-browser', (id: unknown, name: unknown) => browsers.rename(z.string().parse(id), z.string().regex(/^[^\x00-\x1f\x7f]*$/, 'Control characters are not allowed').parse(name)));
   handle('browser', async (id: unknown, action: unknown, tab: unknown, url: unknown) => {
     const workspaceId = z.string().parse(id);

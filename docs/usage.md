@@ -34,17 +34,17 @@ Drag to select text. Releasing the mouse copies nonblank text to the clipboard a
 
 Right-click a terminal away from links for **Copy**, **Paste** and **Select All**. Select All selects the whole scrollback for **Copy**. When a remote program handles mouse input, right clicks go to the program; hold Shift for the menu. Ctrl+Shift+V and Shift+Insert also paste, or Cmd+V on macOS.
 
-Click an HTTP or HTTPS link to open it in the connection's first browser session, meaning the first session in navigation order. Bartizan creates a session if needed. Right-click a link to choose a different destination. Shift+F10 offers links from the terminal, each with its destinations in a submenu when there are several; when there are none, the key goes to the remote program.
+Click an HTTP or HTTPS link to open it in the nearest browser session below the terminal in navigation, or else the nearest one above it. Without a browser session, Bartizan creates one at the end of the list. Right-click a link to choose a different destination. Shift+F10 offers links from the terminal, each with its destinations in a submenu when there are several; when there are none, the key goes to the remote program.
 
 ## Browse Through SSH
 
 A new browser session starts with one empty tab. Enter an HTTP or HTTPS URL in **Address** and press Enter. An address without a scheme uses HTTP, and `view-source:` before an address shows the page's source. The field does not perform web searches. While a page loads, **Address** shows the address it is loading; **Stop** returns it to the page that was there.
 
-While **Address** has focus, a list below it suggests addresses, and once you type, those that contain the text: first those the connection's tabs have been to or been sent to during this app session, most recent first, then `http://localhost:PORT/` for each port listening on the remote host's loopback or every address. Ports are read from Linux hosts only. Up and Down move through the list, Enter opens the highlighted address or else the text, and Escape closes the list before it restores the address.
+While **Address** has focus, a list below it suggests the addresses the connection's tabs have been to or been sent to during this app session, most recent first, and once you type, those that contain the text. Up and Down move through the list, Enter opens the highlighted address or else the text, and Escape closes the list before it restores the address.
 
 The add button on a session row opens another tab there. Closing the tab you are viewing shows the tab after it in the session, or the one before it when it was last.
 
-Sessions receive a color and a name such as Browser 1. Use **Rename** in a session row's context menu to change its name. Clicking the row opens its first tab; if the session is empty, it opens a new tab.
+Sessions receive a color and the name Browser. Use **Rename** in a session row's context menu to change its name. Clicking the row opens its first tab; if the session is empty, it opens a new tab.
 
 A tab row's context menu offers **Reload**, **Duplicate Tab**, **Copy Address**, **Open in External Browser** where it is available, **Mute Tab**, **Close Tab**, **Close Other Tabs**, **Close Tabs Below**, or **Close Tabs to the Right** where tabs run across the window, and **Reopen Closed Tab**, which reopens the session's most recently closed tab at its address. Selecting a tab that shows a page gives the page the keyboard. When you close a tab whose page asks before it is left, **Leave Page?** offers **Leave** and **Stay**. A page without a title of its own, such as JSON or an image, is named by its host and path.
 
@@ -66,7 +66,7 @@ Website connections and DNS lookups pass through SSH. Remote loopback addresses 
 
 ### Links and Popups
 
-Right-click a link in a page or terminal to open it in the current/default session, a new session, or a named session on the same connection. In a page, **Open Link in New Tab** opens it in a tab behind the current one. **Copy Link** copies the address. **Open in External Browser** appears when `xdg-open` is available; that opens your system browser outside Bartizan's SSH routing.
+Right-click a link in a page or terminal to open it in the current session (in a terminal, the one a click would use), a new session, or another session on the same connection, listed in navigation order with its name and color. Links that Visual Studio Code or T3 Code open, or that are right-clicked in them, go to the browser session nearest the application in the same way. In a page, **Open Link in New Tab** opens it in a tab behind the current one. **Copy Link** copies the address. **Open in External Browser** appears when `xdg-open` is available; that opens your system browser outside Bartizan's SSH routing.
 
 When a page opens a `mailto:`, `tel:` or `sms:` link, **Open in Another Application?** shows the link as it will be opened, with every recipient but a long subject or body cut short, and **Open** hands it to your system's default application for its scheme, which on Linux is through `xdg-open`. A `mailto:` link keeps only its recipients, subject and body, in that order; one whose recipients could be read as more fields does nothing. If no application opens the link, Bartizan says so. Only the tab on show asks, while Bartizan's window has focus, one question at a time, and **Cancel** leaves the page asking nothing more until you next act in it. Right-clicking such a link offers **Open Link**, which asks the same, where `xdg-open` is available, and **Copy Link**. Links with other schemes, such as `file:`, open nothing.
 
@@ -141,10 +141,10 @@ Rail is the default theme; this guide names controls as Rail places them. **Coll
 
 Choose **Visual Studio Code** from a connected profile's add menu to open an application tab. Bartizan checks for the latest stable release on the remote system, downloads it into the user's cache when needed, and displays progress in the tab. If the update check fails, it uses the newest complete cached installation.
 
-The tab displays the remote application's license notice when consent is needed. **Accept and Continue** proceeds. **Cancel**, in the notice or beside the launch progress, ends the launch. Closing the tab stops its remote server. After a disconnection, reconnect and choose **Retry** in the tab. Visual Studio Code settings and extensions persist separately from the download cache. Visual Studio Code requires the Electron desktop client and a Linux or macOS remote system with Python 3.9 or later.
+The tab displays the remote application's license notice when consent is needed. **Accept and Continue** proceeds. **Cancel**, in the notice or beside the launch progress, ends the launch. Closing the tab stops its remote server. After a disconnection, the tab starts Visual Studio Code again when the connection reconnects, unless its launch was cancelled. Visual Studio Code settings and extensions persist separately from the download cache. Visual Studio Code requires the Electron desktop client and a Linux or macOS remote system with Python 3.9 or later.
 
 **T3 Code** appears in the add menu when the remote system has it installed: when the login shell finds `t3`, or `~/.local/bin/t3` is executable. Bartizan looks each time the connection connects and never installs T3 Code itself. Each choice of T3 Code opens a new T3 Code tab, which signs in through a single-use pairing link of its own.
 
 Bartizan uses the T3 Code server already running for the remote account. Without one, it starts a server on a random loopback port, which the connection's T3 Code tabs share; it stops when the last of them closes or the connection ends. A server this connection did not start stays running; if it stops, the tabs using it start T3 Code again. T3 Code keeps its data in `$T3CODE_HOME`, or `~/.t3`; a relative `$T3CODE_HOME` is taken from the home directory.
 
-After a disconnection, the T3 Code tabs stay. When the connection reconnects, they start T3 Code again. If T3 Code is no longer installed, the tabs say so and **Retry** tries again.
+After a disconnection, the T3 Code tabs stay. When the connection reconnects, they start T3 Code again, unless their launch was cancelled. If T3 Code is no longer installed, the tabs say so and **Retry** tries again.

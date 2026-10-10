@@ -16,13 +16,15 @@ export class ApplicationSession {
   private restarts = 0;
   /** Whether the tab has opened this launch's sign-in page. */
   private arrived = false;
+  /** Whether the user declined this launch's consent request, which ends it as cancelled whatever ends it first. */
+  private declined = false;
   static initial(application: ApplicationId, launchId: string = randomUUID()): ApplicationState {
     return { application, launchId, event: { type: 'applications.progress', launchId, phase: applications[application].updates ? 'checking' : 'starting' } };
   }
   constructor(readonly connection: ConnectionController, readonly browser: BrowserSession, readonly application: ApplicationId) { this.id = browser.info.application!.launchId; }
   get relaunches() { return !!applications[this.application].relaunches; }
   start() {
-    this.relaunching = false; this.arrived = false;
+    this.relaunching = false; this.arrived = false; this.declined = false;
     this.process = { id: this.id, name: `${applications[this.application].name} Launcher`, status: 'starting' };
     this.connection.processes.report(this.process);
     this.browser.info.application = ApplicationSession.initial(this.application, this.id);
@@ -86,9 +88,10 @@ export class ApplicationSession {
   fail(message: string) {
     const state = this.browser.info.application;
     if (!state || state.event.type === 'applications.ended') return;
-    state.event = { type: 'applications.ended', launchId: this.id, reason: 'failed', error: { code: 'connection_failed', message } };
+    state.event = this.declined ? { type: 'applications.ended', launchId: this.id, reason: 'cancelled' }
+      : { type: 'applications.ended', launchId: this.id, reason: 'failed', error: { code: 'connection_failed', message } };
     this.process.pid = undefined; this.process.status = 'failed'; this.process.message = message;
-    this.connection.processes.report(this.closing ? { id: this.id, status: 'stopped' } : this.process);
+    this.connection.processes.report(this.closing || this.declined ? { id: this.id, status: 'stopped' } : this.process);
     this.release(); this.connection.changed();
   }
   /** Launches again; before a `relaunches` launch has signed in, its address may be spent, so a retry then launches again too. */
@@ -109,6 +112,7 @@ export class ApplicationSession {
   async respond(consentId: string, accepted: boolean) {
     const state = this.browser.info.application!;
     if (state.event.type !== 'applications.consent' || state.event.consentId !== consentId) throw new Error('Consent request expired');
+    if (!accepted) this.declined = true;
     await this.connection.sendHelperMessage({ type: 'applications.respond', launchId: this.id, consentId, accepted });
     if (accepted && state.event.type === 'applications.consent') {
       state.event = { type: 'applications.progress', launchId: this.id, phase: 'starting' };

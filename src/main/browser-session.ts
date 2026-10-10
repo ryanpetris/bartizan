@@ -213,7 +213,7 @@ export class BrowserSession {
   handOff(contents: WebContents) {
     const finish = (url?: string) => {
       clearTimeout(timer);
-      if (url && !this.closed) this.openPopup?.(this.info.connectionId, url);
+      if (url && !this.closed) this.openPopup?.(this.info.connectionId, url, this.info.id);
       if (!contents.isDestroyed()) contents.close();
     };
     const timer = setTimeout(finish, 30000);

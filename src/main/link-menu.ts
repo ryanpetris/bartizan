@@ -30,16 +30,16 @@ export class LinkMenus {
     private serialize: <T>(action: () => Promise<T>) => Promise<T>, private selected: (id: string) => void, private error: (message: string, connectionId: string, label?: string) => void) {}
 
   /**
-   * Shows the link menu of a terminal in `origin`, the application page, at a point of it; Open Link uses the `first`
-   * session in the navigation. Several links each have a submenu.
+   * Shows the link menu of a terminal, navigation item `from`, in `origin`, the application page, at a point of it.
+   * Several links each have a submenu.
    */
-  show(origin: WebContents, connectionId: string, url: string | string[], sessions: { first?: string }, at: { x: number; y: number }) {
+  show(origin: WebContents, connectionId: string, url: string | string[], at: { x: number; y: number }, from: string) {
     const urls = Array.isArray(url) ? [...new Set(url)].map(linkURL) : [linkURL(url)];
     if (!urls.length) return;
-    const items = urls.length === 1 ? this.items(connectionId, urls[0]!, sessions) : urls.map(target => ({
+    const items = urls.length === 1 ? this.items(connectionId, urls[0]!, { from }) : urls.map(target => ({
       label: target.replace(/[\u202a-\u202e\u2066-\u2069]/g, '').slice(0, 160),
       icon: 'link',
-      submenu: this.items(connectionId, target, sessions),
+      submenu: this.items(connectionId, target, { from }),
     }));
     this.menus.open(origin, items, at.x, at.y, connectionId);
   }
@@ -56,7 +56,7 @@ export class LinkMenus {
     const web = webAddress;
     const address = contents.getURL(), ordinary = !entry.info.application;
     const groups: MenuItem[][] = [];
-    if (web(params.linkURL)) groups.push(this.items(connectionId, params.linkURL, { current: workspaceId }));
+    if (web(params.linkURL)) groups.push(this.items(connectionId, params.linkURL, ordinary ? { current: workspaceId } : { from: `session:${workspaceId}` }));
     const system = systemLink(params.linkURL);
     if (system) groups.push([
       ...externalBrowserAvailable() ? [{ label: 'Open Link', icon: 'external', click: () => { const tab = this.browsers.tabs.get(tabId); tab?.allowPrompts(); tab?.handOff(params.linkURL); } }] : [],
@@ -118,15 +118,18 @@ export class LinkMenus {
     ];
     this.menus.show(contents, items, params.x, params.y);
   }
-  /** Opens a link in a browser session of the connection and shows it; see `Browsers.open` for `session` and `fallback`. */
-  open(connectionId: string, url: string, session?: string, fallback = false) {
-    if (session && this.browsers.entries.get(session)?.info.application) session = undefined;
+  /**
+   * Opens a link in browser session `session` of the connection and shows it. Without one, or for an application's
+   * session, it opens in the session nearest after navigation item `from`, or else before it, or else in a new one.
+   */
+  open(connectionId: string, url: string, session?: string, from?: string) {
+    if (session && this.browsers.entries.get(session)?.info.application) { from = `session:${session}`; session = undefined; }
     const target = linkURL(url);
     const label = this.sessions.entries.get(connectionId)?.info.label;
     void this.serialize(async () => {
       const connection = this.sessions.entries.get(connectionId);
       if (!connection) throw new Error('Connection is closed');
-      this.selected(await this.browsers.open(connection, target, session, fallback));
+      this.selected(await this.browsers.open(connection, target, session ?? connection.browsers?.nearest(from)?.info.id ?? 'new'));
     }).catch(error => this.error(String(error), connectionId, label));
   }
   /**
@@ -147,21 +150,22 @@ export class LinkMenus {
       child.unref();
     }
   }
-  private items(connectionId: string, url: string, { current: currentId, first }: { current?: string; first?: string }): MenuItem[] {
+  /** The items for a link in the page of ordinary session `current`, or else in navigation item `from`. */
+  private items(connectionId: string, url: string, { current: currentId, from }: { current?: string; from?: string }): MenuItem[] {
     const target = linkURL(url);
     const connection = this.sessions.entries.get(connectionId);
     if (!connection) return [];
     if (currentId && !connection.browsers?.entries.has(currentId)) return [];
     const label = connection.info.label;
-    const sessions = [...connection.browsers?.entries.values() ?? []].filter(e => !e.info.application);
+    const sessions = connection.browsers?.sessions() ?? [];
     const connected = connection.info.status === 'connected';
     const run = (action: () => Promise<unknown>) => { void action().catch(error => this.error(String(error), connectionId, label)); };
     const current = sessions.find(entry => entry.info.id === currentId);
     const items: MenuItem[] = [
-      { label: 'Open Link', enabled: Boolean(currentId) || sessions.length > 0 || connected, click: () => this.open(connectionId, target, currentId ?? first, !currentId) },
+      { label: 'Open Link', enabled: Boolean(currentId) || sessions.length > 0 || connected, click: () => this.open(connectionId, target, currentId, from) },
       ...current ? [{ label: 'Open Link in New Tab', click: () => run(() => current.open({ url: target, background: true })) }] : [],
       { label: 'Open in New Browser Session', icon: 'window', enabled: connected, click: () => this.open(connectionId, target, 'new') },
-      ...sessions.filter(e => e.info.id !== currentId).map(entry => ({ label: `Open in ${browserSessionName(entry.info)}`, click: () => this.open(connectionId, target, entry.info.id) })),
+      ...sessions.filter(e => e.info.id !== currentId).map(entry => ({ label: `Open in ${browserSessionName(entry.info)}`, icon: 'window', color: entry.info.color, click: () => this.open(connectionId, target, entry.info.id) })),
     ];
     if (externalBrowserAvailable()) items.push({ label: 'Open in External Browser', icon: 'external', click: () => run(() => shell.openExternal(target)) });
     items.push({ type: 'separator' }, { label: 'Copy Link', icon: 'link', click: () => run(async () => { await clipboard.writeText(target); }) });
