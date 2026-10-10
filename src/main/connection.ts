@@ -8,8 +8,8 @@ import { RemoteIntegration } from './remote-integration';
 import { resolveSpec, merge, builtins, type Spec, type Catalog } from '../core/config';
 import type { Configuration } from '../core/configuration';
 import type { Browsers } from './browser';
-import { ApplicationSession, applications } from './application-session';
-import type { Connection, TerminalSession } from '../shared';
+import { ApplicationSession } from './application-session';
+import { applications, type ApplicationId, type Connection, type TerminalSession } from '../shared';
 import type { ConnectionInfo } from './connection-info';
 import type { Askpass } from './askpass';
 import { SshConnection } from './ssh-connection';
@@ -68,13 +68,21 @@ export class ConnectionController {
     else this.helperUsers.delete(consumer);
     this.syncHelper();
   }
-  async openApplication(application: keyof typeof applications) {
+  async openApplication(application: ApplicationId) {
     if (!this.browsers) throw new Error('Embedded browsers are unavailable');
-    const id = await this.browsers.open(undefined, 'new', false, { name: applications[application], application: ApplicationSession.initial(application) });
+    const id = await this.browsers.open(undefined, 'new', false, { name: applications[application].name, application: ApplicationSession.initial(application) });
     const browser = this.browsers.entries.get(id)!;
     browser.application = new ApplicationSession(this, browser, application);
     browser.application.start();
     return id;
+  }
+  /** Looks for the optional applications on the host, as its login shell finds them or in the user's own programs. */
+  private async detect(transport: SshConnection) {
+    if (!this.browsers) return;
+    const found = await remoteCommand(transport.socket, transport.spec, 'if command -v t3 >/dev/null 2>&1 || { [ -f "$HOME/.local/bin/t3" ] && [ -x "$HOME/.local/bin/t3" ]; }; then echo t3; fi').catch(() => '');
+    if (this.transport !== transport || this.info.status !== 'connected') return;
+    this.info.installed = found.split('\n').filter((line): line is ApplicationId => line === 't3');
+    this.changed();
   }
   private syncHelper() {
     const needed = this.helperUsers.size > 0;
@@ -109,6 +117,8 @@ export class ConnectionController {
         this.info.status = 'connected'; this.integration.sync(this.spec.remote_sessions ?? this.configuration.catalog.settings.remoteSessionIntegration); this.browsers?.sync();
         if (initial && this.terminals.has(initial.info.id) && initial.info.status !== 'closed') initial.start(transport);
         for (const terminal of this.terminals.values()) if (terminal.reconnectOnConnect) this.startTerminal(terminal);
+        for (const browser of this.browsers?.entries.values() ?? []) if (browser.application?.relaunches && browser.info.application?.event.type === 'applications.ended') browser.application.retry(true);
+        void this.detect(transport);
         this.changed();
       },
       code => {
@@ -245,6 +255,7 @@ export class ConnectionController {
     return this.transport?.details() ?? Promise.resolve({ status: this.info.status, username: this.info.username || userInfo().username });
   }
   private disconnected() {
+    this.info.installed = undefined;
     this.integration.sync(false);
     for (const application of this.applications.values()) application.fail('Connection disconnected');
     this.syncHelper();

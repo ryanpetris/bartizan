@@ -50,6 +50,23 @@ def read_json(path):
         return None
 
 
+def stop(process, grace=3):
+    """Stops a process that leads a session of its own, with the children that can outlive it."""
+    try:
+        os.killpg(process.pid, signal.SIGINT)
+    except ProcessLookupError:
+        pass
+    try:
+        process.wait(timeout=grace)
+    except subprocess.TimeoutExpired:
+        pass
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait()
+
+
 class Cancelled(Exception):
     pass
 
@@ -240,21 +257,16 @@ class Launch:
         process, self.process = self.process, None
         if process is None:
             return
-        # The CLI owns server children which can outlive the CLI itself.
-        try:
-            os.killpg(process.pid, signal.SIGINT)
-        except ProcessLookupError:
-            pass
-        try:
-            process.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            pass
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        process.wait()
+        stop(process)
         process.stdout.close()
+
+    def wait(self):
+        while self.process.poll() is None:
+            self.check()
+            # Drain output so a verbose server cannot block on its pipe.
+            if select.select([self.process.stdout], [], [], 0.2)[0]:
+                os.read(self.process.stdout.fileno(), 65536)
+        return self.process.returncode
 
     def run(self):
         reason, error, exit_code = "failed", None, None
@@ -262,13 +274,10 @@ class Launch:
             adapter = self.manager.adapters.get(self.application)
             if adapter is None:
                 raise ValueError("Unknown application")
-            adapter(self).start()
-            while self.process.poll() is None:
-                self.check()
-                # Drain output so a verbose server cannot block on its pipe.
-                if select.select([self.process.stdout], [], [], 0.2)[0]:
-                    os.read(self.process.stdout.fileno(), 65536)
-            exit_code = self.process.returncode
+            application = adapter(self)
+            application.start()
+            # An adapter that supervises something other than its own process waits for it itself.
+            exit_code = getattr(application, "wait", self.wait)()
             reason = "exited" if exit_code == 0 else "failed"
             if exit_code:
                 error = dict(code="process_exited", message="Application process exited unexpectedly")
@@ -297,6 +306,8 @@ class Applications:
         self.emit = emit
         self.adapters = adapters
         self.launches = {}
+        # Servers that an application's launches share, by application.
+        self.servers = {}
         self.lock = threading.Lock()
 
     def request(self, message):

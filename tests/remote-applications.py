@@ -4,19 +4,25 @@ import json
 import os
 from pathlib import Path
 import queue
+import signal
+import shutil
+import socket
 import stat
+import subprocess
 import sys
 import tarfile
 import tempfile
 import threading
 import time
 import unittest
+import urllib.request
 import zipfile
 from unittest.mock import patch
 
 root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root / 'src/main/remote-helper'))
-from helper.applications import Applications, Launch, Cancelled, xdg
+from helper.applications import Applications, Launch, Cancelled, stop, xdg
+from helper.t3 import T3, answers, pairing, base_dir
 from helper.vscode import VSCode
 
 class ApplicationsTest(unittest.TestCase):
@@ -262,6 +268,277 @@ class ApplicationsTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'supported Linux or macOS architecture'):
                     VSCode(launch).release()
                 request.assert_not_called()
+
+class T3Test(unittest.TestCase):
+    """Every launch here sees only a private home and a fixture `t3`, never an installed one."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.directory = Path(self.temporary.name)
+        self.home, self.bin = self.directory / 'home', self.directory / 'bin'
+        for directory in (self.home, self.bin):
+            directory.mkdir()
+        self.environment = patch.dict(os.environ, HOME=str(self.home), PATH=str(self.bin) + ':/usr/bin:/bin', XDG_CACHE_HOME=str(self.directory / 'cache'))
+        self.environment.start()
+        os.environ.pop('T3CODE_HOME', None)
+        self.events = queue.Queue()
+        self.seen = []
+        self.manager = Applications(self.events.put, {"t3": T3})
+        self.external = None
+        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+    def tearDown(self):
+        self.manager.close()
+        if self.external:
+            self.external.kill(); self.external.wait()
+        self.environment.stop()
+        self.temporary.cleanup()
+
+    def install(self, target=None):
+        target = target or self.bin / 't3'
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text((root / 'tests/fixtures/t3.py').read_text())
+        target.chmod(0o700)
+        return target
+
+    def event(self, identifier, kind):
+        deadline = time.monotonic() + 15
+        while time.monotonic() < deadline:
+            event = self.events.get(timeout=max(.01, deadline - time.monotonic()))
+            self.seen.append(event)
+            if event.get('launchId') != identifier:
+                continue
+            if event['type'] == 'applications.' + kind:
+                return event
+            if event['type'] == 'applications.ended':
+                self.fail(event)
+        self.fail('Missing event ' + kind)
+
+    def launch(self, identifier):
+        self.manager.request(dict(type='applications.launch', launchId=identifier, application='t3'))
+
+    def starts(self):
+        try:
+            return [json.loads(line) for line in (self.home / '.t3/userdata/serve.log').read_text().splitlines()]
+        except OSError:
+            return []
+
+    def runtime(self):
+        return json.loads((self.home / '.t3/userdata/server-runtime.json').read_text())
+
+    def pair(self, url):
+        token = url.split('#token=', 1)[1]
+        request = urllib.request.Request(url.split('/pair', 1)[0] + '/api/auth/browser-session', data=json.dumps(dict(credential=token)).encode(), method='POST')
+        with self.opener.open(request, timeout=5) as response:
+            return response.headers['Set-Cookie'].split(';', 1)[0]
+
+    def ended(self, *identifiers):
+        """The reasons the launches given end for, which end without an error."""
+        reasons = {}
+        while set(reasons) != set(identifiers):
+            event = self.events.get(timeout=15)
+            self.seen.append(event)
+            if event['type'] == 'applications.ended' and event['launchId'] in identifiers:
+                self.assertNotIn('error', event)
+                reasons[event['launchId']] = event['reason']
+        return reasons
+
+    def drain(self):
+        while True:
+            try:
+                self.seen.append(self.events.get_nowait())
+            except queue.Empty:
+                return self.seen
+
+    def stop(self, identifier):
+        self.manager.request(dict(type='applications.stop', launchId=identifier))
+        self.assertEqual(self.event(identifier, 'ended')['reason'], 'stopped')
+
+    def test_not_installed(self):
+        self.assertIsNone(shutil.which('t3'))
+        (self.home / '.local/bin').mkdir(parents=True)
+        (self.home / '.local/bin/t3').write_text('')
+        self.launch('missing')
+        ended = self.events.get(timeout=8)
+        while ended['type'] != 'applications.ended':
+            ended = self.events.get(timeout=8)
+        self.assertEqual((ended['reason'], ended['error']['message']), ('failed', 'T3 Code is not installed'))
+        # The user's own programs count as installed when the login path leaves them out.
+        self.install(self.home / '.local/bin/t3')
+        self.launch('fallback')
+        self.assertIn('/pair#token=', self.event('fallback', 'ready')['view']['url'])
+
+    def test_launches_share_a_server_until_the_last_ends(self):
+        self.install()
+        self.launch('one')
+        url = self.event('one', 'ready')['view']['url']
+        self.assertEqual([event['component'] for event in self.seen if event['type'] == 'applications.progress'], ['T3 Code', 'T3 Code'])
+        origin = 'http://127.0.0.1:{}'.format(self.runtime()['port'])
+        self.assertTrue(url.startswith(origin + '/pair#token='), url)
+        starts = self.starts()
+        self.assertEqual(len(starts), 1)
+        self.assertEqual((starts[0]['cwd'], starts[0]['directory']), (str(self.home), str(self.home)))
+        server = self.runtime()['pid']
+        self.assertEqual([event['pid'] for event in self.seen if event['type'] == 'applications.spawned'], [server])
+        # A second launch shares the running server and pairs on its own.
+        self.launch('two')
+        second = self.event('two', 'ready')['view']['url']
+        self.assertTrue(second.startswith(origin + '/pair#token='))
+        self.assertNotEqual(second, url)
+        self.assertEqual(len(self.starts()), 1)
+        self.assertEqual([event['pid'] for event in self.seen if event['type'] == 'applications.spawned'], [server])
+        self.pair(url)
+        self.pair(second)
+        # The server outlasts the launch that started it while another uses it.
+        self.stop('one')
+        os.kill(server, 0)
+        self.launch('three')
+        self.event('three', 'ready')
+        self.stop('two')
+        os.kill(server, 0)
+        self.stop('three')
+        with self.assertRaises(ProcessLookupError): os.kill(server, 0)
+        self.assertFalse((self.home / '.t3/userdata/server-runtime.json').exists())
+        self.assertEqual(self.manager.servers, {})
+        self.assertEqual(len(self.starts()), 1)
+
+    def test_server_that_goes_away_ends_its_launches(self):
+        self.install()
+        self.launch('one')
+        self.event('one', 'ready')
+        self.launch('two')
+        self.event('two', 'ready')
+        os.kill(self.runtime()['pid'], signal.SIGTERM)
+        self.assertEqual(self.ended('one', 'two'), {'one': 'exited', 'two': 'exited'})
+        # One that crashes ends them the same way.
+        self.launch('three')
+        self.event('three', 'ready')
+        self.assertEqual(len(self.starts()), 2)
+        os.kill(self.runtime()['pid'], signal.SIGKILL)
+        self.assertEqual(self.ended('three'), {'three': 'exited'})
+        self.assertEqual(self.manager.servers, {})
+
+    def test_launches_at_once_share_one_server(self):
+        self.install()
+        self.launch('one')
+        self.launch('two')
+        ready = set()
+        while ready != {'one', 'two'}:
+            event = self.events.get(timeout=15)
+            self.seen.append(event)
+            self.assertNotEqual(event['type'], 'applications.ended', event)
+            if event['type'] == 'applications.ready':
+                ready.add(event['launchId'])
+        self.assertEqual(len(self.starts()), 1)
+        self.assertEqual(self.manager.servers['t3'].users, {'one', 'two'})
+        self.assertEqual([event['pid'] for event in self.seen if event['type'] == 'applications.spawned'], [self.runtime()['pid']])
+
+    def test_launch_waits_for_a_stopping_server(self):
+        self.install()
+        self.launch('one')
+        self.event('one', 'ready')
+        server = self.runtime()['pid']
+        release = threading.Event()
+        def held(process, grace):
+            release.wait(8)
+            stop(process, grace)
+        with patch('helper.t3.stop', held):
+            self.manager.request(dict(type='applications.stop', launchId='one'))
+            deadline = time.monotonic() + 8
+            while not self.manager.servers['t3'].stopping:
+                self.assertLess(time.monotonic(), deadline); time.sleep(.01)
+            self.launch('two')
+            time.sleep(.5)
+            self.assertFalse(any(event.get('launchId') == 'two' and event['type'] == 'applications.ready' for event in self.drain()))
+            os.kill(server, 0)
+            release.set()
+            self.event('two', 'ready')
+        with self.assertRaises(ProcessLookupError): os.kill(server, 0)
+        self.assertEqual(len(self.starts()), 2)
+        self.assertEqual(self.manager.servers['t3'].process.pid, self.runtime()['pid'])
+
+    def test_launch_cancelled_while_starting_a_server(self):
+        self.install()
+        started = threading.Event()
+        def answering(url, timeout=3):
+            # A server answers its root only once the test lets it.
+            return started.is_set() if url.endswith('/') else answers(url, timeout)
+        with patch('helper.t3.answers', answering):
+            self.launch('one')
+            deadline = time.monotonic() + 8
+            while not self.starts():
+                self.assertLess(time.monotonic(), deadline); time.sleep(.01)
+            # The second launch waits on the lock the first holds while its server starts.
+            self.launch('two')
+            time.sleep(.3)
+            self.manager.request(dict(type='applications.stop', launchId='one'))
+            self.assertEqual(self.event('one', 'ended')['reason'], 'cancelled')
+            with self.assertRaises(ProcessLookupError): os.kill(self.starts()[0]['pid'], 0)
+            started.set()
+            self.event('two', 'ready')
+        self.assertEqual(len(self.starts()), 2)
+        self.assertEqual(self.manager.servers['t3'].users, {'two'})
+
+    def test_stop_without_lock_directory(self):
+        self.install()
+        self.launch('one')
+        self.event('one', 'ready')
+        server = self.runtime()['pid']
+        shutil.rmtree(self.directory / 'cache')
+        self.stop('one')
+        with self.assertRaises(ProcessLookupError): os.kill(server, 0)
+
+    def test_reuse_leaves_server_running(self):
+        executable = self.install()
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', 0)); port = probe.getsockname()[1]
+        self.external = subprocess.Popen([str(executable), 'serve', '--host', '127.0.0.1', '--port', str(port), '--base-dir', str(self.home / '.t3'), str(self.home)],
+                                         env=dict(os.environ, T3CODE_NO_BROWSER='1'), stdout=subprocess.DEVNULL)
+        deadline = time.monotonic() + 8
+        while not (self.home / '.t3/userdata/server-runtime.json').exists():
+            self.assertLess(time.monotonic(), deadline); time.sleep(.05)
+        self.launch('reuse')
+        self.assertTrue(self.event('reuse', 'ready')['view']['url'].startswith('http://127.0.0.1:{}/pair#token='.format(port)))
+        self.assertFalse(any(event['type'] == 'applications.spawned' for event in self.seen))
+        self.assertEqual(self.manager.servers, {})
+        self.manager.request(dict(type='applications.stop', launchId='reuse'))
+        self.assertEqual(self.event('reuse', 'ended')['reason'], 'stopped')
+        self.assertIsNone(self.external.poll())
+        self.assertEqual(len(self.starts()), 1)
+        # A shared server that goes away ends the launch without a failure.
+        self.launch('watch')
+        self.event('watch', 'ready')
+        self.external.terminate(); self.external.wait()
+        ended = self.event('watch', 'ended')
+        self.assertEqual(ended['reason'], 'exited')
+        self.assertNotIn('error', ended)
+        # A record left by a server that is gone starts another.
+        (self.home / '.t3/userdata/server-runtime.json').write_text(json.dumps(dict(version=1, pid=self.external.pid, port=port, origin='http://127.0.0.1:{}'.format(port))))
+        self.launch('stale')
+        self.event('stale', 'ready')
+        self.assertEqual(len(self.starts()), 2)
+        self.assertNotEqual(self.runtime()['port'], port)
+
+    def test_base_directory(self):
+        self.assertEqual(base_dir(), self.home / '.t3')
+        with patch.dict(os.environ, T3CODE_HOME=str(self.directory / 'shared')):
+            self.assertEqual(base_dir(), self.directory / 'shared')
+        # T3 Code expands a leading ~ and resolves the rest against where it starts, which for its servers is home.
+        for value, expected in [('relative', self.home / 'relative'), ('~/custom/', self.home / 'custom'), ('~', self.home), (' ', self.home / '.t3'), ('../shared/./t3', self.directory / 'shared/t3')]:
+            with self.subTest(value=value), patch.dict(os.environ, T3CODE_HOME=value):
+                self.assertEqual(base_dir(), expected)
+
+    def test_pairing_output(self):
+        record = lambda url: ('level=INFO message="starting"\n{"partial": \n' + json.dumps(dict(id='1', credential='secret', pairUrl=url), indent=2) + '\n').encode()
+        self.assertEqual(pairing(record('http://127.0.0.1:4100/pair#token=secret'), 'http://127.0.0.1:4100'), 'http://127.0.0.1:4100/pair#token=secret')
+        for url in ['http://127.0.0.1:4101/pair#token=secret', 'https://127.0.0.1:4100/pair#token=secret', 'http://example.com:4100/pair#token=secret',
+                    'http://user:secret@127.0.0.1:4100/pair', 'javascript:secret', None, 4100]:
+            with self.subTest(url=url):
+                with self.assertRaises(ValueError) as caught:
+                    pairing(record(url), 'http://127.0.0.1:4100')
+                self.assertNotIn('secret', str(caught.exception))
+        with self.assertRaisesRegex(ValueError, 'did not create'):
+            pairing(b'{"credential": "secret"}', 'http://127.0.0.1:4100')
 
 if __name__ == '__main__':
     unittest.main()

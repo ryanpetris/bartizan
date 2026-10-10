@@ -18,6 +18,7 @@ import {
   openTerminal,
   openBrowser,
   openApplication,
+  applicationIcon,
   openBrowserTab,
   render,
   reconnect,
@@ -284,7 +285,7 @@ function TabRow({
         ) : favicon ? (
           <img className="favicon" src={favicon} alt="" draggable={false} onError={() => dropFavicon(tab.id)} />
         ) : (
-          <Icon name={state === 'error' || state === 'certificate' ? 'alert' : workspace.application ? 'code' : 'globe'} />
+          <Icon name={state === 'error' || state === 'certificate' ? 'alert' : workspace.application ? applicationIcon(workspace.application.application) : 'globe'} />
         )
       }
       onSelect={() => selectTab(workspace.id, tab.id)}
@@ -423,7 +424,8 @@ export function ConnectionTools({ connection }: { connection: Group['connection'
           openMenu(event.currentTarget, [
             { label: 'Terminal', icon: 'terminal', action: () => void openTerminal(id) },
             { label: 'Browser Session', icon: 'window', action: () => void openBrowser(id) },
-            { label: 'Visual Studio Code', icon: 'code', action: () => void openApplication(id, 'vscode') },
+            { label: 'Visual Studio Code', icon: applicationIcon('vscode'), action: () => void openApplication(id, 'vscode') },
+            ...(connection.installed?.includes('t3') ? [{ label: 'T3 Code', icon: applicationIcon('t3'), action: () => void openApplication(id, 't3') }] : []),
           ], { stale: connectionChanges(id) }) : void openTerminal(id)
         }
       />

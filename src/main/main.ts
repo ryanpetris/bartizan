@@ -7,14 +7,13 @@ import { configurationFile } from '../core/config';
 import { createBackend } from '../backend/app';
 import { dispatch, type Request } from '../transport';
 import { graphicsLog, observeGraphics } from './graphics';
-import { applications as applicationNames } from './application-session';
 import { Browsers } from './browser';
 import { BrowserWindowController } from './browser-window';
 import { LinkMenus, externalBrowserAvailable } from './link-menu';
 import { Overlays } from './overlays';
 import { Menus } from './menus';
 import { themes } from '../themes';
-import { defaultSettings, browserActions, overlayNames, pageShortcuts, type PageShortcut, type FullscreenMode, type Event, type Question } from '../shared';
+import { applications, defaultSettings, browserActions, overlayNames, pageShortcuts, type ApplicationId, type PageShortcut, type FullscreenMode, type Event, type Question } from '../shared';
 
 const args = process.argv.slice(process.defaultApp ? 2 : 1);
 if (args[0] === 'serve') {
@@ -100,7 +99,7 @@ else void app.whenReady().then(async () => {
     if (!application) throw new Error('Application is closed');
     return application;
   };
-  handle('new-application', (id: unknown, application: unknown) => serialize(() => sessions.get(z.string().parse(id)).openApplication(z.enum(Object.keys(applicationNames) as (keyof typeof applicationNames)[]).parse(application))));
+  handle('new-application', (id: unknown, application: unknown) => serialize(() => sessions.get(z.string().parse(id)).openApplication(z.enum(Object.keys(applications) as ApplicationId[]).parse(application))));
   handle('retry-application', (id: unknown) => applicationOwner(z.string().parse(id)).retry());
   handle('respond-application', (id: unknown, consentId: unknown, accepted: unknown) => applicationOwner(z.string().parse(id)).respond(z.string().parse(consentId), z.boolean().parse(accepted)));
   const overlays = new Overlays(window, contents => fieldMenu(contents));

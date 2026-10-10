@@ -1,10 +1,10 @@
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { writeFile, readFile, mkdir, chmod } from 'node:fs/promises';
+import { execFileSync, spawn } from 'node:child_process';
+import { writeFile, readFile, mkdir, chmod, rm, access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { userInfo } from 'node:os';
-import { withDirectory, startSshd, sshProfile, launch } from './lib/harness.mjs';
+import { withDirectory, startSshd, sshProfile, launch, freePort } from './lib/harness.mjs';
 
 execFileSync('python3', ['-B', 'tests/remote-applications.py'], { stdio: 'inherit' });
 await withDirectory('applications', async (directory, cleanup) => {
@@ -14,7 +14,9 @@ await withDirectory('applications', async (directory, cleanup) => {
   const tmux = (...args) => execFileSync('/usr/bin/tmux', ['-S', tmuxSocket, ...args]);
   tmux('-f', '/dev/null', 'new-session', '-d', '-s', 'application-rig', 'sleep 600');
   cleanup(() => { try { tmux('kill-server'); } catch {} });
-  const bin = join(directory, 'bin'), cache = join(directory, 'cache'), data = join(directory, 'data');
+  // The host's account has a home of its own, so no installed T3 Code or its data is ever in reach.
+  const bin = join(directory, 'bin'), cache = join(directory, 'cache'), data = join(directory, 'data'), home = join(directory, 'home');
+  await mkdir(home);
   const version = join(cache, 'bartizan/tools/vscode/1.10.0');
   await mkdir(bin); await mkdir(version, { recursive: true });
   await writeFile(join(version, 'code'), await readFile('tests/fixtures/application.py')); await chmod(join(version, 'code'), 0o700);
@@ -33,7 +35,7 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   const login = join(directory, 'login');
   await executable(login, '#!/bin/sh\nexec /bin/sh -c "$2"\n');
   const shell = join(directory, 'shell');
-  await executable(shell, `#!/bin/sh\nexport PATH='${bin}':/usr/bin:/bin\nexport SHELL='${login}'\nexport TMUX_TMPDIR='${directory}'\nexport XDG_CACHE_HOME='${cache}'\nexport XDG_DATA_HOME='${data}'\nif [ -z "$SSH_ORIGINAL_COMMAND" ]; then exec /bin/sh; fi\nexec /bin/sh -c "$SSH_ORIGINAL_COMMAND"\n`);
+  await executable(shell, `#!/bin/sh\nexport HOME='${home}'\nunset T3CODE_HOME\nexport PATH='${bin}':/usr/bin:/bin\nexport SHELL='${login}'\nexport TMUX_TMPDIR='${directory}'\nexport XDG_CACHE_HOME='${cache}'\nexport XDG_DATA_HOME='${data}'\nif [ -z "$SSH_ORIGINAL_COMMAND" ]; then exec /bin/sh; fi\nexec /bin/sh -c "$SSH_ORIGINAL_COMMAND"\n`);
   const sshd = await startSshd(directory, { config: `ForceCommand ${shell}\n` }); cleanup(sshd.stop);
   const config = join(directory, 'config.yaml');
   await writeFile(config, `version: 1\nsettings:\n  remoteSessionIntegration: false\nprofiles:\n  test:\n${sshProfile(sshd)}`);
@@ -273,6 +275,154 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   assert.equal((await app.state()).connections[0].processes.find(record => record.id === racingLaunch)?.status, 'stopping');
   process.kill(pausedHelper, 'SIGCONT');
   await waitState(s => !s.connections[0].processes.some(record => record.id === racingLaunch));
+
+  // T3 Code is offered only where the host has `t3`; each choice of it opens a session of its own, and they share one server.
+  await api('settings', { theme: 'rail' });
+  const t3Log = join(home, '.t3/userdata/serve.log'), t3Runtime = join(home, '.t3/userdata/server-runtime.json');
+  const starts = async () => { try { return (await readFile(t3Log, 'utf8')).split('\n').filter(Boolean).map(line => JSON.parse(line)); } catch { return []; } };
+  const alive = pid => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  /** Opens the connection's Add menu and returns its items. */
+  const addMenu = async () => { await app.menu.close(); await page.locator('.connection-add:visible').click(); return app.menu.shown(); };
+  const chooseT3 = () => app.menu.choose('T3 Code');
+  const openT3 = async () => { await addMenu(); await chooseT3(); };
+  const t3Sessions = state => state.workspaces.filter(w => w.application?.application === 't3');
+  // Waits for this many T3 Code sessions, each ready with a launch other than those given.
+  const t3Ready = (count, label, previous = []) => waitState(s => {
+    const sessions = t3Sessions(s);
+    return sessions.length === count && sessions.every(w => w.application.event.type === 'applications.ready' && !previous.includes(w.application.launchId));
+  }, label);
+  const launches = state => t3Sessions(state).map(w => w.application.launchId);
+  const closeT3 = async session => {
+    await api('browser', session.id, 'close-workspace');
+    await waitState(s => !s.connections[0].processes.some(record => record.id === session.application.launchId), 'T3 Code launch ended');
+  };
+  // A tab reports its page's title until the main process hears that the page replacing it has committed, so the script
+  // may run in a document with nothing in it yet, or in a frame being replaced.
+  const t3Pages = () => application.evaluate(({ webContents }) => Promise.all(webContents.getAllWebContents().filter(w => w.getTitle() === 'T3 fixture')
+    .map(w => w.executeJavaScript(`document.querySelector('#state')?.textContent`).then(state => `${new URL(w.getURL()).port} ${state}`, () => 'pending'))));
+  const reconnect = async () => {
+    await api('disconnect', connection);
+    await waitState(s => s.connections[0].status === 'closed');
+    await api('reconnect', connection);
+    await waitState(s => s.connections[0].status === 'connected');
+  };
+  await waitState(s => s.connections[0].installed?.length === 0, 'applications looked for');
+  await page.locator('.nav-item[data-kind="details"]').click();
+  assert.ok(!(await addMenu()).includes('T3 Code'));
+  await executable(join(bin, 't3'), await readFile('tests/fixtures/t3.py', 'utf8'));
+  await reconnect();
+  // The connection looks for T3 Code again each time it connects.
+  await waitState(s => s.connections[0].installed?.includes('t3'), 'T3 Code found');
+  assert.ok((await addMenu()).includes('T3 Code'));
+  assert.deepEqual(await app.menu.icons(), { Terminal: 'terminal', 'Browser Session': 'window', 'Visual Studio Code': 'code', 'T3 Code': 'agent' });
+  await chooseT3();
+  let current = await t3Ready(1, 'T3 Code ready');
+  const t3 = t3Sessions(current)[0];
+  assert.equal(t3.name, 'T3 Code');
+  const port = (await starts())[0].port;
+  await expect.poll(t3Pages).toEqual([`${port} paired`]);
+  await waitState(s => t3Sessions(s)[0]?.tabs[0]?.url === `http://127.0.0.1:${port}/` && t3Sessions(s)[0].tabs[0].title === 'T3 fixture', 'the paired page names its tab');
+  await expect(page.locator('.browser-toolbar')).toBeHidden();
+  await expect(page.locator('.application-status')).toHaveCount(0);
+  // Choosing T3 Code again opens another session, which is shown and signs in to the same server with a link of its own.
+  await openT3();
+  current = await t3Ready(2, 'second T3 Code');
+  const another = t3Sessions(current).find(w => w.id !== t3.id);
+  assert.deepEqual(t3Sessions(current).map(w => w.tabs.length), [1, 1]);
+  await expect(page.locator('.nav-item[data-kind="tab"][aria-current="page"]')).toHaveAttribute('data-workspace', another.id);
+  await expect.poll(t3Pages).toEqual([`${port} paired`, `${port} paired`]);
+  assert.equal((await starts()).length, 1);
+  // A page of its own server that T3 Code opens in a new window opens in an ordinary session, which has no sign-in.
+  const popup = `http://127.0.0.1:${port}/popup`;
+  const popups = s => s.workspaces.flatMap(w => w.application ? [] : w.tabs.filter(tab => tab.url === popup).map(tab => [w.id, tab.id]));
+  await application.evaluate(({ webContents }, popup) => webContents.getAllWebContents().find(w => w.getTitle() === 'T3 fixture')
+    .executeJavaScript(`window.open(${JSON.stringify(popup)}); 0`, true), popup);
+  current = await waitState(s => popups(s).length === 1, 'T3 Code popup in an ordinary session');
+  assert.deepEqual(t3Sessions(current).map(w => w.tabs.length), [1, 1]);
+  await expect.poll(async () => (await t3Pages()).sort()).toEqual([`${port} paired`, `${port} paired`, `${port} unpaired`]);
+  await api('browser', popups(current)[0][0], 'close', popups(current)[0][1]);
+  await expect.poll(t3Pages).toEqual([`${port} paired`, `${port} paired`]);
+  // The server outlasts the session that started it while another uses it.
+  await closeT3(t3);
+  assert.ok(alive((await starts())[0].pid));
+  await expect.poll(t3Pages).toEqual([`${port} paired`]);
+  await openT3();
+  current = await t3Ready(2, 'third T3 Code');
+  await expect.poll(t3Pages).toEqual([`${port} paired`, `${port} paired`]);
+  assert.equal((await starts()).length, 1);
+  // Disconnecting keeps the sessions; reconnecting launches each again, on one new server.
+  const firstServer = (await starts())[0].pid, before = launches(current);
+  await api('disconnect', connection);
+  await waitState(s => t3Sessions(s).length === 2 && t3Sessions(s).every(w => w.application.event.type === 'applications.ended'), 'disconnected T3 Code');
+  await expect.poll(() => alive(firstServer)).toBe(false);
+  await api('reconnect', connection);
+  await waitState(s => s.connections[0].status === 'connected');
+  await t3Ready(2, 'relaunched T3 Code', before);
+  await expect.poll(async () => (await starts()).length).toBe(2);
+  const relaunched = (await starts())[1].port;
+  await expect.poll(t3Pages).toEqual([`${relaunched} paired`, `${relaunched} paired`]);
+  // A host where T3 Code is gone keeps the sessions and says so in them.
+  await rm(join(bin, 't3'));
+  await reconnect();
+  current = await waitState(s => t3Sessions(s).length === 2 && t3Sessions(s).every(w => { const event = w.application.event; return event.type === 'applications.ended' && event.error?.message === 'T3 Code is not installed'; }), 'T3 Code missing');
+  const [one, two] = t3Sessions(current);
+  await waitState(s => s.connections[0].installed?.length === 0);
+  await page.locator(`.nav-item[data-kind="tab"][data-id="${one.tabs[0].id}"]`).click();
+  await expect(page.locator('.application-status .notice-message')).toHaveText('T3 Code is not installed');
+  assert.ok(!(await addMenu()).includes('T3 Code'));
+  await executable(join(bin, 't3'), await readFile('tests/fixtures/t3.py', 'utf8'));
+  await page.locator('.application-status').getByRole('button', { name: 'Retry', exact: true }).click();
+  await waitState(s => s.workspaces.find(w => w.id === one.id)?.application.event.type === 'applications.ready', 'retried T3 Code');
+  const retried = (await starts()).at(-1);
+  // The other session keeps the page of its launch before until it launches again.
+  await expect.poll(async () => (await t3Pages()).sort()).toEqual([`${relaunched} paired`, `${retried.port} paired`].sort());
+  await page.locator(`.nav-item[data-kind="tab"][data-id="${two.tabs[0].id}"]`).click();
+  await page.locator('.application-status').getByRole('button', { name: 'Retry', exact: true }).click();
+  current = await t3Ready(2, 'both T3 Code sessions retried');
+  await expect.poll(t3Pages).toEqual([`${retried.port} paired`, `${retried.port} paired`]);
+  assert.equal((await starts()).at(-1).pid, retried.pid);
+  // Closing one session keeps the server; closing the last stops the server Bartizan started.
+  await closeT3(t3Sessions(current)[0]);
+  assert.ok(alive(retried.pid));
+  await closeT3(t3Sessions(current)[1]);
+  await expect.poll(() => alive(retried.pid)).toBe(false);
+  await expect.poll(() => access(t3Runtime).then(() => true, () => false)).toBe(false);
+  // A server that was already running is used and left running.
+  const sharedPort = await freePort();
+  const shared = spawn('python3', [join(bin, 't3'), 'serve', '--host', '127.0.0.1', '--port', String(sharedPort), '--base-dir', join(home, '.t3'), home],
+    { env: { ...process.env, HOME: home, T3CODE_NO_BROWSER: '1' }, stdio: 'ignore' });
+  cleanup(() => shared.kill('SIGKILL'));
+  await expect.poll(() => access(t3Runtime).then(() => true, () => false)).toBe(true);
+  const known = (await starts()).length;
+  await reconnect();
+  await waitState(s => s.connections[0].installed?.includes('t3'), 'T3 Code found again');
+  await page.locator('.nav-item[data-kind="details"]').click();
+  await openT3();
+  await t3Ready(1, 'T3 Code on a running server');
+  await openT3();
+  current = await t3Ready(2, 'T3 Code on a running server again');
+  await expect.poll(t3Pages).toEqual([`${sharedPort} paired`, `${sharedPort} paired`]);
+  await closeT3(t3Sessions(current)[0]);
+  assert.ok(alive(shared.pid));
+  await openT3();
+  current = await t3Ready(2, 'T3 Code on a running server once more');
+  assert.equal((await starts()).length, known);
+  // A server that goes away while the connection is up gives way to one of the connection's own, which its sessions share.
+  shared.kill('SIGTERM');
+  current = await t3Ready(2, 'T3 Code after its server went away', launches(current));
+  assert.equal((await starts()).length, known + 1);
+  const own = (await starts()).at(-1);
+  await expect.poll(t3Pages).toEqual([`${own.port} paired`, `${own.port} paired`]);
+  // So does a crash of the connection's own server.
+  process.kill(own.pid, 'SIGKILL');
+  current = await t3Ready(2, 'T3 Code after its server crashed', launches(current));
+  assert.equal((await starts()).length, known + 2);
+  const restarted = (await starts()).at(-1);
+  await expect.poll(t3Pages).toEqual([`${restarted.port} paired`, `${restarted.port} paired`]);
+  await closeT3(t3Sessions(current)[0]);
+  assert.ok(alive(restarted.pid));
+  await closeT3(t3Sessions(current)[1]);
+  await expect.poll(() => alive(restarted.pid)).toBe(false);
   assert.deepEqual(app.errors, []);
-  console.log('Application launch, consent, native view, cache, cleanup, retry and cancel passed');
+  console.log('Application launch, consent, native view, cache, cleanup, retry, cancel and T3 Code passed');
 });

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { applicationShowsPage, formatBytes, type Workspace } from '../shared';
-import { api, run, store, select } from './store';
+import { applications, applicationShowsPage, formatBytes, type Workspace } from '../shared';
+import { api, run, store, select, activeTab, applicationIcon } from './store';
 import { Button, Icon } from './ui';
 
 /** Remote notices are text; only HTTP links become controls, opening through the connection. */
@@ -18,7 +18,7 @@ export function ApplicationStatus({ workspace }: { workspace: Workspace }) {
   const [pending, setPending] = useState<string>();
   const application = workspace.application!;
   const event = application.event;
-  const tab = workspace.tabs[0];
+  const tab = activeTab(workspace);
   const connection = store.state.connections.find(c => c.id === workspace.connectionId);
   const connected = connection?.status === 'connected';
   const answer = (accepted: boolean) => {
@@ -37,7 +37,7 @@ export function ApplicationStatus({ workspace }: { workspace: Workspace }) {
   return <section className="application-status" data-state={state} aria-labelledby="application-title">
     <div className="application-card">
       <header className="dialog-header">
-        <span className="dialog-icon session-badge"><Icon name="code" /></span>
+        <span className="dialog-icon session-badge"><Icon name={applicationIcon(application.application)} /></span>
         <div className="dialog-titles">
           <h2 id="application-title">{workspace.name}</h2>
           <p className="dialog-context">{facts.join(' · ')}</p>
@@ -59,7 +59,7 @@ export function ApplicationStatus({ workspace }: { workspace: Workspace }) {
           </div>
         </div>
         <footer className="dialog-actions">
-          <Button disabled={!connected} onClick={() => void run('application', event.type === 'applications.ended' ? api.retryApplication(workspace.id) : api.browser(workspace.id, 'reload', tab!.id), workspace.connectionId)}>Retry</Button>
+          <Button disabled={!connected} onClick={() => void run('application', event.type === 'applications.ended' || applications[application.application].relaunches ? api.retryApplication(workspace.id) : api.browser(workspace.id, 'reload', tab!.id), workspace.connectionId)}>Retry</Button>
         </footer>
       </> : state === 'ended' && event.type === 'applications.ended' ? <>
         <p className="application-ended" role="status">{event.reason === 'cancelled' ? 'Cancelled' : 'Stopped'}</p>
@@ -75,7 +75,7 @@ export function ApplicationStatus({ workspace }: { workspace: Workspace }) {
           </p>
         </div>
         <footer className="dialog-actions">
-          <Button disabled={!tab} onClick={() => { if (tab) void run('browser', api.browser(workspace.id, 'close', tab.id), workspace.connectionId); }}>Cancel</Button>
+          <Button onClick={() => void run('browser', api.browser(workspace.id, 'close-workspace'), workspace.connectionId)}>Cancel</Button>
         </footer>
       </>}
     </div>

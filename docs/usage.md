@@ -62,7 +62,7 @@ The toolbar's **Page Menu** offers the same commands with **Clear Site Data**, *
 
 **Developer Tools**, or F12, opens the selected tab's tools docked below the page, inside the window; the same control closes them. Drag the divider to resize them, and use **Dock Developer Tools at Right** in the Page Menu to move them beside the page. The dock side and size last for the current app session. Requests the tools make pass through SSH like the page's own.
 
-Website connections and DNS lookups pass through SSH. Remote loopback addresses refer to the SSH server. If the SSH transport ends, sessions go offline without switching to a direct connection. Website permission requests are denied, including camera, microphone and geolocation access, apart from writing to the clipboard; Visual Studio Code may also read it. A page that crashes, or one other than Visual Studio Code that stops responding, shows **Couldn't Load Page**, and **Retry** loads it again.
+Website connections and DNS lookups pass through SSH. Remote loopback addresses refer to the SSH server. If the SSH transport ends, sessions go offline without switching to a direct connection. Website permission requests are denied, including camera, microphone and geolocation access, apart from writing to the clipboard; remote applications such as Visual Studio Code and T3 Code may also read it. A page that crashes, or one outside a remote application that stops responding, shows **Couldn't Load Page**, and **Retry** loads it again.
 
 ### Links and Popups
 
@@ -70,9 +70,9 @@ Right-click a link in a page or terminal to open it in the current/default sessi
 
 When a page opens a `mailto:`, `tel:` or `sms:` link, **Open in Another Application?** shows the link as it will be opened, with every recipient but a long subject or body cut short, and **Open** hands it to your system's default application for its scheme, which on Linux is through `xdg-open`. A `mailto:` link keeps only its recipients, subject and body, in that order; one whose recipients could be read as more fields does nothing. If no application opens the link, Bartizan says so. Only the tab on show asks, while Bartizan's window has focus, one question at a time, and **Cancel** leaves the page asking nothing more until you next act in it. Right-clicking such a link offers **Open Link**, which asks the same, where `xdg-open` is available, and **Copy Link**. Links with other schemes, such as `file:`, open nothing.
 
-Right-clicking an image, a text field or selected text offers the items for it. Anywhere else, the menu offers **Back**, **Forward**, **Reload**, **Copy Page Address**, **Open Page in External Browser** where it is available, **Save as PDF…**, **Print…** and **View Page Source**, which opens the page's source in a new tab; in Visual Studio Code it leaves out the commands for the page's address and source. Every page menu ends with **Inspect Element**, which opens developer tools on that element.
+Right-clicking an image, a text field or selected text offers the items for it. Anywhere else, the menu offers **Back**, **Forward**, **Reload**, **Copy Page Address**, **Open Page in External Browser** where it is available, **Save as PDF…**, **Print…** and **View Page Source**, which opens the page's source in a new tab; in a remote application it leaves out the commands for the page's address and source. Every page menu ends with **Inspect Element**, which opens developer tools on that element.
 
-A page's new windows open as tabs in its own session and stay connected to the page that opened them, as sign-in popups need. Until such a tab is sent to an address, **Address** shows `about:blank`. Ctrl+click or middle-click a link to open it in a tab behind the current one. Apart from those, each page can open at most one popup per second. Popups from Visual Studio Code open in an ordinary browser session of the connection.
+A page's new windows open as tabs in its own session and stay connected to the page that opened them, as sign-in popups need. Until such a tab is sent to an address, **Address** shows `about:blank`. Ctrl+click or middle-click a link to open it in a tab behind the current one. Apart from those, each page can open at most one popup per second. Popups from Visual Studio Code and T3 Code open in an ordinary browser session of the connection.
 
 ### Certificates, Sign-In and Downloads
 
@@ -88,7 +88,7 @@ Cancelling a sign-in, certificate warning, download save dialog or **Open in Ano
 
 ## Shortcuts
 
-A page sees the find, reload, print, zoom, back and forward keys first, so a site that uses them itself keeps them; Bartizan acts when the page leaves the key alone. Ctrl+L, Ctrl+Shift+N, F11, the tab keys and the developer tools keys always belong to Bartizan. Visual Studio Code keeps every key but Ctrl+Shift+N and F11. On macOS, use Cmd in place of Ctrl, apart from Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+Page Down and Ctrl+Page Up.
+A page sees the find, reload, print, zoom, back and forward keys first, so a site that uses them itself keeps them; Bartizan acts when the page leaves the key alone. Ctrl+L, Ctrl+Shift+N, F11, the tab keys and the developer tools keys always belong to Bartizan. Visual Studio Code and T3 Code keep every key but Ctrl+Shift+N and F11. On macOS, use Cmd in place of Ctrl, apart from Ctrl+Tab, Ctrl+Shift+Tab, Ctrl+Page Down and Ctrl+Page Up.
 
 | Keys | Where | Action |
 | --- | --- | --- |
@@ -142,3 +142,9 @@ Rail is the default theme; this guide names controls as Rail places them. **Coll
 Choose **Visual Studio Code** from a connected profile's add menu to open an application tab. Bartizan checks for the latest stable release on the remote system, downloads it into the user's cache when needed, and displays progress in the tab. If the update check fails, it uses the newest complete cached installation.
 
 The tab displays the remote application's license notice when consent is needed. **Accept and Continue** proceeds. **Cancel**, in the notice or beside the launch progress, ends the launch. Closing the tab stops its remote server. After a disconnection, reconnect and choose **Retry** in the tab. Visual Studio Code settings and extensions persist separately from the download cache. Visual Studio Code requires the Electron desktop client and a Linux or macOS remote system with Python 3.9 or later.
+
+**T3 Code** appears in the add menu when the remote system has it installed: when the login shell finds `t3`, or `~/.local/bin/t3` is executable. Bartizan looks each time the connection connects and never installs T3 Code itself. Each choice of T3 Code opens a new T3 Code tab, which signs in through a single-use pairing link of its own.
+
+Bartizan uses the T3 Code server already running for the remote account. Without one, it starts a server on a random loopback port, which the connection's T3 Code tabs share; it stops when the last of them closes or the connection ends. A server this connection did not start stays running; if it stops, the tabs using it start T3 Code again. T3 Code keeps its data in `$T3CODE_HOME`, or `~/.t3`; a relative `$T3CODE_HOME` is taken from the home directory.
+
+After a disconnection, the T3 Code tabs stay. When the connection reconnects, they start T3 Code again. If T3 Code is no longer installed, the tabs say so and **Retry** tries again.

@@ -159,7 +159,8 @@ export class BrowserSession {
         if (this.port !== port || this.closed) return;
         this.relay.route(port);
         this.session.disableNetworkEmulation();
-        for (const tab of this.tabs.values()) tab.reconnected();
+        // An application's launch loads its own tabs again.
+        if (!this.info.application) for (const tab of this.tabs.values()) tab.reconnected();
       });
     }
     this.network = this.network.catch(error => console.error('Could not update browser connection', error));

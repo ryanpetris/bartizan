@@ -4,9 +4,10 @@ import signal
 from helper.applications import Applications
 from helper.messages import emit
 from helper.sessions import monitor
+from helper.t3 import T3
 from helper.vscode import VSCode
 
-applications = Applications(emit, {"vscode": VSCode})
+applications = Applications(emit, {"vscode": VSCode, "t3": T3})
 try:
     emit(dict(type="helper.ready", pid=os.getpid()))
     monitor(applications)

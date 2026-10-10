@@ -7,6 +7,7 @@ import {
   type Workspace,
   type TerminalSession,
   type RemoteSession,
+  type ApplicationId,
 } from '../shared';
 import type { PublicProfile as Profile } from '../core/config';
 import { themes } from '../themes';
@@ -590,7 +591,8 @@ export async function resumeRemoteSessions(connectionId: string, keys: string[],
   render();
 }
 
-export function openApplication(connectionId: string, application: string) {
+export const applicationIcon = (application: ApplicationId) => application === 't3' ? 'agent' : 'code';
+export function openApplication(connectionId: string, application: ApplicationId) {
   const token = ++choice;
   return run('application', api.newApplication(connectionId, application).then(id =>
     whenPresent(state => state.workspaces.some(w => w.id === id && w.tabs.length), () => show({ kind: 'browser', id }), token)), connectionId);

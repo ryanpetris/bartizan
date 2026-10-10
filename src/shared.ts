@@ -94,13 +94,23 @@ export function parseDestination(input: string): { host: string; username?: stri
   const username = value.slice(0, at);
   if (username && usernamePattern.test(username)) return { ...destination, username };
 }
+/**
+ * Remote applications. `updates` launches begin by checking for a release. A `relaunches` application launches again
+ * when the connection reconnects or the server it uses goes away, and signs in through a single-use address.
+ */
+export const applications: Record<'vscode' | 't3', { name: string; updates?: boolean; relaunches?: boolean }> = {
+  vscode: { name: 'Visual Studio Code', updates: true },
+  t3: { name: 'T3 Code', relaunches: true },
+};
+export type ApplicationId = keyof typeof applications;
 export type RemoteProcess = {
   id: string; name: string; status: 'starting' | 'running' | 'retrying' | 'stopping' | 'failed';
   pid?: number; message?: string;
 };
 export type ProcessReport = RemoteProcess | { id: string; status: 'stopped' };
 export type RemoteSessions = { sessions: RemoteSession[]; loading: boolean; errors: SessionFailure[] };
-export type Connection = { id: string; profileId?: string; label: string; host: string; username?: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number; terminal: NonNullable<Spec['terminal']>; processes: RemoteProcess[]; remoteSessions?: RemoteSessions };
+/** `installed` lists the optional applications found on the host since it connected; it is absent until they have been looked for. */
+export type Connection = { id: string; profileId?: string; label: string; host: string; username?: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number; terminal: NonNullable<Spec['terminal']>; processes: RemoteProcess[]; remoteSessions?: RemoteSessions; installed?: ApplicationId[] };
 export type TerminalSession = { remoteSession?: RemoteSession; id: string; connectionId: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number };
 export type CertificateChallenge = { id: string; url: string; origin: string; error: string; fingerprint: string; subject: string; issuer: string; validFrom: string; validTo: string };
 /**
