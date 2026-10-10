@@ -22,7 +22,7 @@ export class BrowserWindowController {
   get challenges() { return [...this.entries.values()].flatMap(session => session.challenges); }
   owner(id: string) {
     const owner = this.entries.get(id);
-    if (!owner) throw new Error('Browser session is closed');
+    if (!owner) throw new Error('Browser is closed');
     return owner;
   }
   open(connection: ConnectionController, ...args: Parameters<Browsers['open']>) {

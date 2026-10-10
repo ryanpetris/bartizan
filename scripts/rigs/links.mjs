@@ -117,7 +117,7 @@ await withDirectory('links', async (directory, cleanup) => {
   const rightClick = (row, link) => async () => { const { x, y } = await point(row, link); await page.mouse.click(x, y, { button: 'right' }); };
   const leftClick = async row => { const { x, y } = await point(row); await page.mouse.click(x, y); };
   const shiftF10 = async () => { await surface.locator('textarea').focus(); await page.keyboard.press('Shift+F10'); };
-  const single = ['Open in New Browser Session', 'Open in External Browser', '-', 'Copy Link'];
+  const single = ['Open in New Browser', 'Open in External Browser', '-', 'Copy Link'];
   const terminalMenu = ['Copy (disabled)', 'Paste', 'Select All'];
   const shiftRightClick = row => async () => {
     const { x, y } = await point(row, false);
@@ -147,7 +147,7 @@ await withDirectory('links', async (directory, cleanup) => {
   await expect.poll(() => app.menu.labels(1)).toEqual(single);
   await expect.poll(() => popup.evaluate(() => document.activeElement === document.querySelectorAll('.menu')[1])).toBe(true);
   await popup.keyboard.press('ArrowDown');
-  assert.equal(await focusedItem(), 'Open in New Browser Session');
+  assert.equal(await focusedItem(), 'Open in New Browser');
   await popup.keyboard.press('ArrowLeft');
   await expect.poll(() => app.menu.labels(1)).toBeUndefined();
   assert.equal(await focusedItem(), plain);
@@ -217,7 +217,7 @@ await withDirectory('links', async (directory, cleanup) => {
   console.log('Clicking a terminal link opens it in the connection\'s browser session.');
 
   await showTerminal();
-  const withBrowser = ['Open in New Browser Session', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link'];
+  const withBrowser = ['Open in New Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link'];
   await menu(rightClick(0), withBrowser);
   await choose('Open in External Browser');
   await expect.poll(() => application.evaluate(() => globalThis.rigExternal)).toEqual([plain]);
@@ -225,20 +225,20 @@ await withDirectory('links', async (directory, cleanup) => {
   await menu(rightClick(0), withBrowser.filter(label => label !== 'Open in External Browser'));
   await application.evaluate((_, opener) => { process.env.PATH = opener; }, opener);
   await menu(rightClick(1), withBrowser);
-  await choose('Open in New Browser Session');
+  await choose('Open in New Browser');
   state = await waitState(s => s.workspaces.length === 2, 'second browser');
   const second = state.workspaces.find(w => w.id !== first);
   assert.deepEqual(second.tabs.map(tab => tab.url), [osc]);
   const firstColor = String(state.workspaces.find(w => w.id === first).color), secondColor = String(second.color);
   assert.notEqual(firstColor, secondColor);
   await showTerminal();
-  await menu(rightClick(0), ['Open in New Browser Session', 'Open in Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
+  await menu(rightClick(0), ['Open in New Browser', 'Open in Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
   // Sessions show in the link menu in their colors.
   assert.deepEqual(await app.menu.colors(), [null, firstColor, secondColor, null, null]);
   await app.menu.chooseColor(secondColor);
   await waitState(s => s.workspaces.find(w => w.id === second.id)?.tabs.length === 2, 'tab in the second session');
   await showTerminal();
-  await menu(rightClick(1), ['Open in New Browser Session', 'Open in Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
+  await menu(rightClick(1), ['Open in New Browser', 'Open in Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
   await app.menu.chooseColor(firstColor);
   await waitState(s => s.workspaces.find(w => w.id === first).tabs.length === 3, 'third tab in the first session');
   console.log('The link menu opens links in a new or a chosen browser session, each in its color, and offers the external browser only when xdg-open is on PATH.');
@@ -252,10 +252,10 @@ await withDirectory('links', async (directory, cleanup) => {
     contents.sendInputEvent({ type: 'mouseDown', x, y, button: 'right', clickCount: 1 });
     contents.sendInputEvent({ type: 'mouseUp', x, y, button: 'right', clickCount: 1 });
   });
-  await menu(rightClickPage, ['Open Link in New Tab', 'Open in New Browser Session', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link', '-', 'Inspect Element']);
+  await menu(rightClickPage, ['Open Link in New Tab', 'Open in New Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link', '-', 'Inspect Element']);
   await copied(pageLink);
   // A press in the page closes its menu, which opens beside the pointer.
-  const pageMenuItems = ['Open Link in New Tab', 'Open in New Browser Session', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link', '-', 'Inspect Element'];
+  const pageMenuItems = ['Open Link in New Tab', 'Open in New Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link', '-', 'Inspect Element'];
   await menu(rightClickPage, pageMenuItems);
   const [menuBox, linkBox] = await Promise.all([
     popup.evaluate(() => document.querySelector('.menu').getBoundingClientRect().toJSON()),
@@ -289,7 +289,7 @@ await withDirectory('links', async (directory, cleanup) => {
   await assert.rejects(api('renameBrowser', second.id, 'A\nB'));
   await api('renameBrowser', second.id, 'A & B');
   await showTerminal();
-  await menu(rightClick(1), ['Open in New Browser Session', 'Open in Browser', 'Open in A & B', 'Open in External Browser', '-', 'Copy Link']);
+  await menu(rightClick(1), ['Open in New Browser', 'Open in Browser', 'Open in A & B', 'Open in External Browser', '-', 'Copy Link']);
   await api('renameBrowser', second.id, '');
   console.log('Renamed sessions appear in the link menu by name.');
   await menu(() => page.locator(`.session-row .nav-item[data-id="${second.id}"]`).click({ button: 'right' }), ['Rename', 'Move Up', 'Move Down (disabled)']);
@@ -297,7 +297,7 @@ await withDirectory('links', async (directory, cleanup) => {
   await expect(page.locator('.session-row .nav-item').first()).toHaveAttribute('data-id', second.id);
   // The link menu lists sessions in the order the panel shows them.
   await showTerminal();
-  await menu(rightClick(1), ['Open in New Browser Session', 'Open in Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
+  await menu(rightClick(1), ['Open in New Browser', 'Open in Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
   assert.deepEqual(await app.menu.colors(), [null, secondColor, firstColor, null, null]);
   await app.menu.close();
   await showTerminal();
@@ -316,15 +316,15 @@ await withDirectory('links', async (directory, cleanup) => {
   console.log('Terminal links use the nearest session below the terminal in the panel, or else above it.');
 
   await showTerminal();
-  await menu(rightClick(0), ['Open in New Browser Session', 'Open in Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
+  await menu(rightClick(0), ['Open in New Browser', 'Open in Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
   await api('browser', second.id, 'close-workspace');
   await waitState(s => s.workspaces.length === 1, 'second session closed');
   await app.menu.chooseColor(secondColor);
-  await waitFor(() => page.evaluate(() => window.rigErrors?.some(entry => entry.source === 'link' && entry.message.includes('Browser session is closed'))), 'stale session error');
+  await waitFor(() => page.evaluate(() => window.rigErrors?.some(entry => entry.source === 'link' && entry.message.includes('Browser is closed'))), 'stale session error');
   assert.equal((await app.state()).workspaces.length, 1);
   const linkErrors = () => page.evaluate(() => window.rigErrors.filter(entry => entry.source === 'link').reduce((sum, entry) => sum + entry.count, 0));
   const reported = await linkErrors();
-  await menu(rightClick(0), ['Open in New Browser Session', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
+  await menu(rightClick(0), ['Open in New Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
   await app.menu.close();
   await api('openLink', terminal, plain);
   await waitState(s => s.workspaces[0].tabs.length === 5, 'terminal link in the remaining session');
@@ -333,7 +333,7 @@ await withDirectory('links', async (directory, cleanup) => {
   await showTerminal();
   await api('disconnect', connection);
   await waitState(s => s.connections[0].status === 'closed', 'disconnected');
-  await menu(rightClick(1), ['Open in New Browser Session (disabled)', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
+  await menu(rightClick(1), ['Open in New Browser (disabled)', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link']);
   await copied(osc);
   assert.deepEqual(errors, []);
   console.log('Choosing a closed session reports an error, a closed first session falls back to the remaining one, and a disconnected terminal still offers its links for existing sessions and copying.');
@@ -598,7 +598,7 @@ await withDirectory('links', async (directory, cleanup) => {
   await api('browser', tools, 'close', tabs[1].id);
   await toolsState(tabs => tabs.length === 1);
   await expect.poll(() => visible(contents => contents?.getURL())).toBe(`${origin}/cookie`);
-  await menu(rightClickPage, ['Open Link in New Tab', 'Open in New Browser Session', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link', '-', 'Inspect Element']);
+  await menu(rightClickPage, ['Open Link in New Tab', 'Open in New Browser', 'Open in Browser', 'Open in External Browser', '-', 'Copy Link', '-', 'Inspect Element']);
   await choose('Open Link in New Tab');
   tabs = await toolsState(tabs => tabs.length === 2 && tabs[1].url === pageLink);
   assert.equal((await app.state()).workspaces.find(w => w.id === tools).activeTab, b.id);

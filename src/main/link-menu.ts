@@ -163,7 +163,7 @@ export class LinkMenus {
     const current = sessions.find(entry => entry.info.id === currentId);
     const items: MenuItem[] = [
       ...current ? [{ label: 'Open Link in New Tab', click: () => run(() => current.open({ url: target, background: true })) }] : [],
-      { label: 'Open in New Browser Session', icon: 'window', enabled: connected, click: () => this.open(connectionId, target, 'new') },
+      { label: 'Open in New Browser', icon: 'window', enabled: connected, click: () => this.open(connectionId, target, 'new') },
       ...sessions.filter(e => e.info.id !== currentId).map(entry => ({ label: `Open in ${browserSessionName(entry.info)}`, icon: 'window', color: entry.info.color, click: () => this.open(connectionId, target, entry.info.id) })),
     ];
     if (externalBrowserAvailable()) items.push({ label: 'Open in External Browser', icon: 'external', click: () => run(() => shell.openExternal(target)) });

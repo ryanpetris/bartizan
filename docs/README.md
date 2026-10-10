@@ -1,10 +1,10 @@
 # Documentation
 
-Bartizan keeps SSH terminals and browser sessions together in one desktop window on Linux or macOS. Each connection shares one SSH transport; its browser traffic and DNS lookups go through that connection.
+Bartizan keeps SSH terminals and browsers together in one desktop window on Linux or macOS. Each connection shares one SSH transport; its browser traffic and DNS lookups go through that connection.
 
 - [Installation](installation.md): packages, requirements and your first connection.
 - [Browser Server](installation.md#browser-server): SSH terminals, profiles, settings and errors in an ordinary browser.
-- [Using Bartizan](usage.md): terminals, browser sessions, shortcuts and appearance.
+- [Using Bartizan](usage.md): terminals, browsers, shortcuts and appearance.
 - [Configuration](configuration.md): YAML reference, authentication and host keys.
 - [Development](development.md): building, testing and packaging.
 - [Architecture](architecture.md): processes, SSH transport and browser isolation.

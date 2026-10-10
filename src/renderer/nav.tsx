@@ -388,7 +388,7 @@ function Session({ workspace }: { workspace: Workspace }) {
             key="close"
             icon="close"
             label={`Close ${browserSessionName(workspace)}`}
-            tooltip="Close Browser Session"
+            tooltip="Close Browser"
             className="row-close"
             onClick={() =>
               void run('browser', api.browser(workspace.id, 'close-workspace'), workspace.connectionId)
@@ -426,7 +426,7 @@ export function ConnectionTools({ connection }: { connection: Group['connection'
         onClick={(event) => embeddedBrowser ?
           openMenu(event.currentTarget, [
             { label: 'Terminal', icon: 'terminal', action: () => void openTerminal(id) },
-            { label: 'Browser Session', icon: 'window', action: () => void openBrowser(id) },
+            { label: 'Browser', icon: 'window', action: () => void openBrowser(id) },
             { separator: true },
             ...(connection.installed?.includes('t3') ? [{ label: 'T3 Code', icon: applicationIcon('t3'), action: () => void openApplication(id, 't3') }] : []),
             { label: 'Visual Studio Code', icon: applicationIcon('vscode'), action: () => void openApplication(id, 'vscode') },
@@ -527,7 +527,7 @@ export function ConnectionChips({ current }: { current?: string }) {
             data-status={connection.status}
             {...orderable('connections', id, [
               { label: 'New Terminal', icon: 'terminal', disabled: !connected, action: () => void openTerminal(id) },
-              ...(store.state.capabilities.embeddedBrowser ? [{ label: 'New Browser Session', icon: 'window' as const, disabled: !connected, action: () => void openBrowser(id) }] : []),
+              ...(store.state.capabilities.embeddedBrowser ? [{ label: 'New Browser', icon: 'window' as const, disabled: !connected, action: () => void openBrowser(id) }] : []),
               { separator: true },
               closed
                 ? { label: 'Reconnect', icon: 'reload', action: () => void reconnect(id) }

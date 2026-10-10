@@ -28,13 +28,13 @@ Debian packages support Debian 13, Ubuntu 24.04 and Ubuntu 26.04. Their filename
 1. Open Bartizan, choose **New Connection**, then **New Profile**.
 2. Enter the host, username and authentication details. Connect once, or save a profile to use again.
 3. Check the host key fingerprint when prompted, then accept it if it matches the server's key.
-4. Use the connection's add menu to open more terminals or a browser session.
+4. Use the connection's add menu to open more terminals or a browser.
 
 You can also type a hostname or `user@host` into the search in Connect for a one-off connection using your configured defaults. Append `:port` for a custom port, with brackets around IPv6 addresses, such as `user@[2001:db8::1]:222`. Saved profiles appear in the same search.
 
 Bartizan uses its own SSH settings and trust store. It does not read your existing SSH configuration. Add connection details in the app or in the [configuration file](configuration.md).
 
-For terminal controls, browser sessions and shortcuts, see [Using Bartizan](usage.md).
+For terminal controls, browsers and shortcuts, see [Using Bartizan](usage.md).
 
 ## Browser Server
 
@@ -61,6 +61,6 @@ There is no application authentication. Binding to a non-loopback address prints
 
 The server runs SSH and reads configuration, keys and credential files on its own machine. File-path fields refer to that machine; native file-picker buttons are unavailable. `BARTIZAN_DATA_DIR` selects its data directory; otherwise it uses `bartizan` under `XDG_CONFIG_HOME` or the user's `.config` directory. `--config` changes only the configuration file.
 
-Embedded browser sessions are unavailable. Terminal links open in ordinary browser tabs using the client's network, without Bartizan's SSH routing. Browser clipboard permissions apply. Closing a tab leaves SSH connections running on the server; stopping the server closes them. A page that loses its WebSocket connection shows an error and reconnects by itself, waiting longer between attempts up to ten seconds. Terminal output is streamed live and is not stored for replay: a page that opens or reconnects receives output from then on, and its terminals keep what they already show. A program waits for the fastest open page to take its output; a page that falls far behind it is disconnected and reconnects, missing the output in between. A page that stops answering pings is disconnected too, between 30 and 60 seconds after its last answer. A profile form left open keeps its changes through a reconnect within ten minutes.
+Embedded browsers are unavailable. Terminal links open in ordinary browser tabs using the client's network, without Bartizan's SSH routing. Browser clipboard permissions apply. Closing a tab leaves SSH connections running on the server; stopping the server closes them. A page that loses its WebSocket connection shows an error and reconnects by itself, waiting longer between attempts up to ten seconds. Terminal output is streamed live and is not stored for replay: a page that opens or reconnects receives output from then on, and its terminals keep what they already show. A program waits for the fastest open page to take its output; a page that falls far behind it is disconnected and reconnects, missing the output in between. A page that stops answering pings is disconnected too, between 30 and 60 seconds after its last answer. A profile form left open keeps its changes through a reconnect within ten minutes.
 
 The web endpoint checks WebSocket origins against the HTTP Host. A loopback-only server also accepts only loopback Host names. A reverse proxy must preserve a matching public Host and Origin when forwarding to a server explicitly configured for remote access.

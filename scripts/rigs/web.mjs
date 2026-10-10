@@ -220,7 +220,7 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
     await expect(page.getByRole('menu')).toHaveCount(0);
     await page.locator('.connection-chip').click({ button: 'right' });
     await expect(page.getByRole('menuitem', { name: 'New Terminal', exact: true })).toBeVisible();
-    await expect(page.getByRole('menuitem', { name: 'New Browser Session', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('menuitem', { name: 'New Browser', exact: true })).toHaveCount(0);
     await page.keyboard.press('Escape');
     const backgrounds = {};
     for (const appearance of ['light', 'dark', 'system']) {

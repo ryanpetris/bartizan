@@ -37,7 +37,7 @@ await withDirectory('order', async (directory, cleanup) => {
   await expect.poll(connectionOrder).toEqual([one, two]);
   await drag(titles(two), titles(one));
   await expect.poll(connectionOrder).toEqual([two, one]);
-  const connectionCommands = ['New Terminal', 'New Browser Session', '-', 'Disconnect', 'Remove (disabled)', 'Connection Details', '-'];
+  const connectionCommands = ['New Terminal', 'New Browser', '-', 'Disconnect', 'Remove (disabled)', 'Connection Details', '-'];
   await menu(rightClick(titles(one)), [...connectionCommands, 'Move Up', 'Move Down (disabled)']);
   await choose('Move Up');
   await expect.poll(connectionOrder).toEqual([one, two]);
@@ -58,9 +58,9 @@ await withDirectory('order', async (directory, cleanup) => {
 
   await titles(one).click();
   const add = page.locator('.rail-panel .connection-add');
-  const addItems = ['Terminal', 'Browser Session', '-', 'Visual Studio Code'];
+  const addItems = ['Terminal', 'Browser', '-', 'Visual Studio Code'];
   await menu(() => add.click(), addItems);
-  assert.deepEqual(await app.menu.icons(), { Terminal: 'terminal', 'Browser Session': 'window', 'Visual Studio Code': 'code' });
+  assert.deepEqual(await app.menu.icons(), { Terminal: 'terminal', Browser: 'window', 'Visual Studio Code': 'code' });
   await expect(add).toHaveAttribute('aria-expanded', 'true');
   assert.equal(await focusedItem(), 'menu');
   // A press on the button that opened the menu closes it.
@@ -74,7 +74,7 @@ await withDirectory('order', async (directory, cleanup) => {
   await add.focus();
   await page.keyboard.press('Enter');
   await expect.poll(focusedItem).toBe('menu');
-  for (const [key, expected] of [['ArrowDown', 'Terminal'], ['ArrowDown', 'Browser Session'], ['ArrowDown', 'Visual Studio Code'], ['ArrowDown', 'Terminal'], ['ArrowUp', 'Visual Studio Code'], ['Home', 'Terminal'], ['v', 'Visual Studio Code'], ['b', 'Browser Session']]) {
+  for (const [key, expected] of [['ArrowDown', 'Terminal'], ['ArrowDown', 'Browser'], ['ArrowDown', 'Visual Studio Code'], ['ArrowDown', 'Terminal'], ['ArrowUp', 'Visual Studio Code'], ['Home', 'Terminal'], ['v', 'Visual Studio Code'], ['b', 'Browser']]) {
     await popup.keyboard.press(key);
     assert.equal(await focusedItem(), expected, key);
   }
@@ -89,7 +89,7 @@ await withDirectory('order', async (directory, cleanup) => {
   await popup.keyboard.press('Enter');
   await waitState(s => s.terminals.filter(t => t.connectionId === one).length === 2, 'second terminal');
   await menu(() => add.click(), addItems);
-  await choose('Browser Session');
+  await choose('Browser');
   const state = await waitState(s => s.workspaces[0]?.tabs.length === 1, 'browser session');
   const [t1, t2] = state.terminals.filter(t => t.connectionId === one).map(t => `terminal:${t.id}`);
   const sessionId = state.workspaces[0].id, session = `session:${sessionId}`;

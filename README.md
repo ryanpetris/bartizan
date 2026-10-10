@@ -9,13 +9,13 @@
   <a href="docs/development.md">Development</a>
 </p>
 
-![Bartizan in its Rail, Tabs and Console themes in turn, each showing a synthetic development workspace with four SSH terminals and two browser sessions](docs/images/bartizan.png)
+![Bartizan in its Rail, Tabs and Console themes in turn, each showing a synthetic development workspace with four SSH terminals and two browsers](docs/images/bartizan.png)
 
 Keep a shell, build output, logs and browser tabs together for each remote connection. Bartizan is an open source desktop app for Linux and macOS built on your installed OpenSSH client.
 
 - Open several terminals over one SSH connection.
 - Browse through the connection's SOCKS forward, including DNS lookups. If SSH drops, browser traffic stops until you reconnect.
-- Keep separate browser sessions with their own in-memory cookies and site storage.
+- Keep separate browsers, each with its own in-memory cookies and site storage.
 - Save connection profiles, search by tags and arrange your connections to match your work.
 - Choose your fonts and theme, with terminal ligatures and JetBrains Mono bundled.
 
@@ -39,11 +39,11 @@ OpenSSH is required. See the [installation guide](docs/installation.md) for macO
 
 ## Get Connected
 
-Open **New Connection**, choose **New Profile**, enter your SSH details and connect. Use the connection's add menu for more terminals or a browser session. Each browser session can hold several tabs, and its traffic goes through that connection.
+Open **New Connection**, choose **New Profile**, enter your SSH details and connect. Use the connection's add menu for more terminals or a browser. Each browser can hold several tabs, and its traffic goes through that connection.
 
 Save a profile to connect again from Connect. Profiles can also inherit shared defaults in a [YAML configuration file](docs/configuration.md).
 
-See [Using Bartizan](docs/usage.md) for browser sessions, terminal controls and keyboard shortcuts.
+See [Using Bartizan](docs/usage.md) for browsers, terminal controls and keyboard shortcuts.
 
 ## Develop
 

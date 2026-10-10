@@ -20,7 +20,7 @@ export class Browsers {
   async open(url?: string, session?: string, fallback = false, application?: Pick<Workspace, 'name' | 'application'>) {
     const named = session ? this.entries.get(session) : undefined;
     const usable = named && !named.info.application ? named : undefined;
-    if (session && session !== 'new' && !usable && !fallback) throw new Error('Browser session is closed');
+    if (session && session !== 'new' && !usable && !fallback) throw new Error('Browser is closed');
     const existing = session === 'new' ? undefined : usable ?? this.sessions()[0];
     const entry = existing ?? await this.create(application);
     try { await entry.action('new', undefined, url, true, application?.name); }

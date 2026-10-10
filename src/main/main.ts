@@ -217,7 +217,7 @@ else void app.whenReady().then(async () => {
     return serialize(async () => {
       const entry = browsers.entries.get(workspaceId);
       if (!entry && (operation === 'close' || operation === 'close-workspace')) return;
-      if (!entry) throw new Error('Browser session is closed');
+      if (!entry) throw new Error('Browser is closed');
       await browsers.action(workspaceId, operation, tabId, z.string().max(8192).optional().parse(url), true);
     });
   });

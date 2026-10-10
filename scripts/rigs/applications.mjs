@@ -265,7 +265,7 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await page.locator('.application-status').getByRole('button', { name: 'Cancel', exact: true }).click();
   await waitState(s => !s.workspaces.some(w => w.id === cancelled), 'cancelled launch');
   await api('browser', cancelled, 'close', cancelledTab);
-  await assert.rejects(api('browser', cancelled, 'reload', cancelledTab), /Browser session is closed/);
+  await assert.rejects(api('browser', cancelled, 'reload', cancelledTab), /Browser is closed/);
   await expect.poll(() => { try { process.kill(cancelledPid, 0); return false; } catch { return true; } }).toBe(true);
   await api('browser', second, 'close-workspace');
   // A tab can close while its first navigation waits for network cleanup after reconnect.
@@ -335,8 +335,8 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await reconnect();
   // The connection looks for T3 Code again each time it connects.
   await waitState(s => s.connections[0].installed?.includes('t3'), 'T3 Code found');
-  assert.deepEqual(await addMenu(), ['Terminal', 'Browser Session', '-', 'T3 Code', 'Visual Studio Code']);
-  assert.deepEqual(await app.menu.icons(), { Terminal: 'terminal', 'Browser Session': 'window', 'Visual Studio Code': 'code', 'T3 Code': 'agent' });
+  assert.deepEqual(await addMenu(), ['Terminal', 'Browser', '-', 'T3 Code', 'Visual Studio Code']);
+  assert.deepEqual(await app.menu.icons(), { Terminal: 'terminal', Browser: 'window', 'Visual Studio Code': 'code', 'T3 Code': 'agent' });
   await chooseT3();
   let current = await t3Ready(1, 'T3 Code ready');
   const t3 = t3Sessions(current)[0];

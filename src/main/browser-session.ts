@@ -168,7 +168,7 @@ export class BrowserSession {
 
   download(action: 'cancel' | 'show' | 'clear', downloadId?: string) {
     const entry = this;
-    if (this.closed) throw new Error('Browser session is closed');
+    if (this.closed) throw new Error('Browser is closed');
     if (action === 'clear') {
       for (const item of entry.info.downloads) if (item.state !== 'progressing') entry.saved.delete(item.id);
       entry.info.downloads = entry.info.downloads.filter(item => item.state === 'progressing');
@@ -198,7 +198,7 @@ export class BrowserSession {
   /** Opens a tab once the session's network is settled. */
   async open(options: TabOptions) {
     await this.network;
-    if (this.closed) throw new Error('Browser session is closed');
+    if (this.closed) throw new Error('Browser is closed');
     if (this.info.application && this.tabs.size) throw new Error('Application tabs cannot contain browser tabs');
     new BrowserTabController(this, options);
   }
@@ -229,10 +229,10 @@ export class BrowserSession {
   async action(action: string, tabId?: string, input?: string, userInitiated = false, title?: string) {
     if (this.closed) {
       if (action === 'close' || action === 'close-workspace') return this.closing;
-      throw new Error('Browser session is closed');
+      throw new Error('Browser is closed');
     }
     if (['navigate', 'reload', 'hard-reload', 'back', 'forward'].includes(action)) await this.network;
-    if (this.closed) throw new Error('Browser session is closed');
+    if (this.closed) throw new Error('Browser is closed');
     if (action === 'close-workspace') return this.close();
     if (action === 'new') return this.open({ url: input ? this.url(input) : undefined, title });
     if (action === 'reopen') {

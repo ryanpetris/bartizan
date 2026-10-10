@@ -11,7 +11,7 @@ export async function testSessionUI(app, connectionId) {
   };
   const initial = await state();
   await connection.locator('.connection-add').click();
-  assert.deepEqual(await app.menu.shown(), ['Terminal', 'Browser Session', '-', 'Visual Studio Code']);
+  assert.deepEqual(await app.menu.shown(), ['Terminal', 'Browser', '-', 'Visual Studio Code']);
   await app.menu.choose('Terminal');
   await expect.poll(async () => (await state()).terminals.length).toBe(initial.terminals.length + 1);
   const terminal = (await state()).terminals.find(t => !initial.terminals.some(old => old.id === t.id));
@@ -34,7 +34,7 @@ export async function testSessionUI(app, connectionId) {
       setTimeout(() => { contents.send = send; for (const pending of held) send(...pending); held = undefined; }, 300);
     };
   }, initial.workspaces.map(w => w.id));
-  await add('Browser Session');
+  await add('Browser');
   await expect.poll(async () => (await state()).workspaces.length).toBe(initial.workspaces.length + 1);
   const workspace = (await state()).workspaces.find(w => !initial.workspaces.some(old => old.id === w.id));
   const single = page.locator(`[data-kind="tab"][data-workspace="${workspace.id}"]`);
