@@ -177,7 +177,7 @@ else void app.whenReady().then(async () => {
   });
   fieldMenu(window.webContents);
   const point = z.strictObject({ x: z.number().finite(), y: z.number().finite() });
-  handle('link-menu', (id: unknown, url: unknown, at: unknown) => linkMenus.show(window.webContents, terminalConnection(id), z.union([z.string().max(8192), z.array(z.string().max(8192)).max(64)]).parse(url), point.parse(at), `terminal:${id}`));
+  handle('link-menu', (id: unknown, url: unknown, at: unknown) => linkMenus.show(window.webContents, terminalConnection(id), z.union([z.string().max(8192), z.array(z.string().max(8192)).max(64)]).parse(url), point.parse(at)));
   handle('menu-chosen', (id: unknown, item: unknown) => menus.choose(z.number().int().parse(id), z.number().int().nullable().parse(item)));
   handle('open-link', (id: unknown, url: unknown) => linkMenus.open(terminalConnection(id), z.string().max(8192).parse(url), undefined, `terminal:${id}`));
   handle('order-items', (id, keys) => {

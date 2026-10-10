@@ -30,16 +30,16 @@ export class LinkMenus {
     private serialize: <T>(action: () => Promise<T>) => Promise<T>, private selected: (id: string) => void, private error: (message: string, connectionId: string, label?: string) => void) {}
 
   /**
-   * Shows the link menu of a terminal, navigation item `from`, in `origin`, the application page, at a point of it.
-   * Several links each have a submenu.
+   * Shows the link menu of a terminal in `origin`, the application page, at a point of it. Several links each have a
+   * submenu.
    */
-  show(origin: WebContents, connectionId: string, url: string | string[], at: { x: number; y: number }, from: string) {
+  show(origin: WebContents, connectionId: string, url: string | string[], at: { x: number; y: number }) {
     const urls = Array.isArray(url) ? [...new Set(url)].map(linkURL) : [linkURL(url)];
     if (!urls.length) return;
-    const items = urls.length === 1 ? this.items(connectionId, urls[0]!, { from }) : urls.map(target => ({
+    const items = urls.length === 1 ? this.items(connectionId, urls[0]!) : urls.map(target => ({
       label: target.replace(/[\u202a-\u202e\u2066-\u2069]/g, '').slice(0, 160),
       icon: 'link',
-      submenu: this.items(connectionId, target, { from }),
+      submenu: this.items(connectionId, target),
     }));
     this.menus.open(origin, items, at.x, at.y, connectionId);
   }
@@ -56,7 +56,7 @@ export class LinkMenus {
     const web = webAddress;
     const address = contents.getURL(), ordinary = !entry.info.application;
     const groups: MenuItem[][] = [];
-    if (web(params.linkURL)) groups.push(this.items(connectionId, params.linkURL, ordinary ? { current: workspaceId } : { from: `session:${workspaceId}` }));
+    if (web(params.linkURL)) groups.push(this.items(connectionId, params.linkURL, ordinary ? workspaceId : undefined));
     const system = systemLink(params.linkURL);
     if (system) groups.push([
       ...externalBrowserAvailable() ? [{ label: 'Open Link', icon: 'external', click: () => { const tab = this.browsers.tabs.get(tabId); tab?.allowPrompts(); tab?.handOff(params.linkURL); } }] : [],
@@ -150,8 +150,8 @@ export class LinkMenus {
       child.unref();
     }
   }
-  /** The items for a link in the page of ordinary session `current`, or else in navigation item `from`. */
-  private items(connectionId: string, url: string, { current: currentId, from }: { current?: string; from?: string }): MenuItem[] {
+  /** The items for a link in a terminal, or in a page of ordinary session `currentId` or of an application. */
+  private items(connectionId: string, url: string, currentId?: string): MenuItem[] {
     const target = linkURL(url);
     const connection = this.sessions.entries.get(connectionId);
     if (!connection) return [];
@@ -162,7 +162,6 @@ export class LinkMenus {
     const run = (action: () => Promise<unknown>) => { void action().catch(error => this.error(String(error), connectionId, label)); };
     const current = sessions.find(entry => entry.info.id === currentId);
     const items: MenuItem[] = [
-      { label: 'Open Link', enabled: Boolean(currentId) || sessions.length > 0 || connected, click: () => this.open(connectionId, target, currentId, from) },
       ...current ? [{ label: 'Open Link in New Tab', click: () => run(() => current.open({ url: target, background: true })) }] : [],
       { label: 'Open in New Browser Session', icon: 'window', enabled: connected, click: () => this.open(connectionId, target, 'new') },
       ...sessions.filter(e => e.info.id !== currentId).map(entry => ({ label: `Open in ${browserSessionName(entry.info)}`, icon: 'window', color: entry.info.color, click: () => this.open(connectionId, target, entry.info.id) })),
