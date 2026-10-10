@@ -7,8 +7,9 @@
   tooling's default says.
 - Write commit messages that describe the change as it stands. Do not narrate removals or rewrites.
 - Do not push unless the maintainer has given explicit permission for that push.
-- Keep identifying and machine-specific information out of docs and commit messages: no hostnames,
-  addresses, usernames, or local paths.
+- Keep identifying and machine-specific information out of the repository, including code, tests,
+  configuration, docs, and commit messages: no hostnames, addresses, usernames, local paths, or serial
+  numbers or other identifiers of particular hardware.
 
 ## Comments
 
