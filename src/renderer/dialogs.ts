@@ -1,4 +1,5 @@
 import { api, dialogHost, dialogOpen } from './store';
+import { popupOpen } from './popup';
 
 let sync: () => void = () => {};
 let refocusView: () => void = () => {};
@@ -13,8 +14,18 @@ export function holdPage() {
 const managed = new WeakSet<HTMLDialogElement>();
 const restore = new WeakMap<HTMLDialogElement, Element | null>();
 const dismissals = new WeakMap<HTMLDialogElement, () => void>();
-// Where a select's list is drawn in the page, a press outside it closes the list and nothing more.
-const openList = CSS.supports('selector(:open)') ? 'select:open' : undefined;
+/** Open modals, the most recently opened last. */
+const modals: HTMLDialogElement[] = [];
+/** The modal on top, which the popup layers of this page are drawn in so that they stay above it. */
+export const topModal = () => [...modals].reverse().find((dialog) => dialog.open && dialog.isConnected);
+function forget(dialog: HTMLDialogElement) {
+  const at = modals.indexOf(dialog);
+  if (at >= 0) modals.splice(at, 1);
+}
+// A press outside a menu or other popup that takes input closes it and nothing more. The popup goes as the press begins,
+// so whether one was open is noted before then, in each window that holds dialogs.
+let pressClosesPopup = false;
+const watched = new WeakSet<Window>();
 /**
  * How long before a press the window may have come to the front for the press to count as the one that brought it there;
  * it also allows for the time the question takes to reach the main process.
@@ -28,11 +39,16 @@ function onBackdrop(dialog: HTMLDialogElement, { target, clientX: x, clientY: y 
 /**
  * Opens a modal above the native page view and returns focus to where it was once no modal remains. A click that starts
  * and ends on the backdrop calls `dismiss`, or closes the dialog when none is given, unless it brings the window to the
- * front, closes a select's list, or continues a run of clicks that did not start on the backdrop.
+ * front, closes a popup, or continues a run of clicks that did not start on the backdrop.
  */
 export function openModal(dialog: HTMLDialogElement, focus?: HTMLElement, dismiss?: () => void) {
   if (!managed.has(dialog)) {
     managed.add(dialog);
+    const view = dialog.ownerDocument.defaultView!;
+    if (!watched.has(view)) {
+      watched.add(view);
+      view.addEventListener('pointerdown', () => { pressClosesPopup = popupOpen(); }, true);
+    }
     // A press on the backdrop leaves focus where it is. `pressed` is when it happened, by the clock of the dialog's document,
     // and `count` is the click count of the run of backdrop presses it continues.
     let pressed: number | undefined,
@@ -50,7 +66,7 @@ export function openModal(dialog: HTMLDialogElement, focus?: HTMLElement, dismis
       event.preventDefault();
       if (!continues) return;
       count = event.detail;
-      if (!(openList && dialog.querySelector(openList))) pressed = event.timeStamp;
+      if (!pressClosesPopup) pressed = event.timeStamp;
     });
     dialog.addEventListener('click', (event) => {
       if (pressed === undefined || !onBackdrop(dialog, event)) return;
@@ -64,6 +80,8 @@ export function openModal(dialog: HTMLDialogElement, focus?: HTMLElement, dismis
   dismissals.set(dialog, dismiss ?? (() => dialog.close()));
   if (!dialog.open) {
     if (!restore.has(dialog)) restore.set(dialog, document.activeElement);
+    forget(dialog);
+    modals.push(dialog);
     dialog.showModal();
     holdPage();
     sync();
@@ -71,6 +89,7 @@ export function openModal(dialog: HTMLDialogElement, focus?: HTMLElement, dismis
   focus?.focus();
 }
 function closed(dialog: HTMLDialogElement) {
+  if (!dialog.open) forget(dialog);
   holdPage();
   sync();
   if (dialog.open) return;

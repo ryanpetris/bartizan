@@ -64,7 +64,7 @@ test('a connection retains its controller and terminal ownership across transpor
   t.mock.method(SshConnection.prototype, 'stop', async function (this: SshConnection) { (this as unknown as { finish(): void }).finish(); });
   const sessions = new Sessions(directory, {} as Askpass, '', () => {}, () => {}, () => {}, config);
   try {
-    const id = await sessions.create({}, 'inherit', undefined, false);
+    const id = await sessions.create({}, 'inherit', { initialTerminal: false });
     const controller = sessions.get(id);
     const terminal = new TerminalController(controller, () => {});
     controller.terminals.set(terminal.info.id, terminal); sessions.terminals.set(terminal.info.id, terminal);
@@ -81,5 +81,30 @@ test('a connection retains its controller and terminal ownership across transpor
     assert.equal(sessions.entries.size, 0);
     assert.equal(sessions.terminals.size, 0);
     assert.equal(config.listenerCount('changed'), 0);
+  } finally { await sessions.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('a destination has one connection entry, compared by its effective host, username and port', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'bartizan-destination-'));
+  const config = new Configuration({ ...catalog(), defaults: { host: 'example.invalid', port: 2222, username: 'admin' } });
+  t.mock.method(SshConnection.prototype, 'start', async () => {});
+  t.mock.method(SshConnection.prototype, 'stop', async function (this: SshConnection) { (this as unknown as { finish(): void }).finish(); });
+  const sessions = new Sessions(directory, {} as Askpass, '', () => {}, () => {}, () => {}, config);
+  const options = { initialTerminal: false, destination: true };
+  try {
+    const id = await sessions.create({ host: '[::1]' }, undefined, options);
+    for (const target of [{ host: '0:0:0:0:0:0:0:1' }, { host: '::1', username: 'admin', port: 2222 }]) assert.equal(await sessions.create(target, undefined, options), id);
+    const others = [{ host: '::1', port: 22 }, { host: '::1', username: 'root' }];
+    for (const target of others) assert.notEqual(await sessions.create(target, undefined, options), id);
+    assert.equal(await sessions.create({ host: 'Example.Invalid' }, undefined, options), await sessions.create({ host: 'example.invalid' }, undefined, options));
+    assert.notEqual(await sessions.create({}, 'inherit', { initialTerminal: false }), await sessions.create({ host: 'example.invalid', username: 'admin', port: 2222 }, undefined, options));
+    await sessions.get(id).disconnect();
+    assert.equal(await sessions.create({ host: '::1' }, undefined, options), id);
+    assert.equal(sessions.get(id).info.status, 'connecting');
+    // A connection made otherwise, such as from the form, is not one a destination finds.
+    assert.notEqual(await sessions.create({ host: '::1' }, undefined, { initialTerminal: false }), id);
+    await sessions.get(id).disconnect();
+    assert.equal(await sessions.create({ host: '::1' }, undefined, options), id);
+    assert.equal(sessions.entries.size, 6);
   } finally { await sessions.close(); rmSync(directory, { recursive: true, force: true }); }
 });

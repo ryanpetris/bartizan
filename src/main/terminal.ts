@@ -7,6 +7,8 @@ import type { SshConnection } from './ssh-connection';
 
 // Return to normal output and reset input modes without clearing scrollback.
 const freshOutput = '\x1b[?1049l\x1b[!p\x1b[?1000;1006;1016l\x1b[999;1H\r\n';
+/** Output a client has received but not yet processed, in string length: the PTY pauses above `pause` and resumes at `resume`. */
+export const flowLimits = { pause: 256 * 1024, resume: 64 * 1024 };
 
 /** One terminal tab, including its PTY and optional remote-session association. */
 export class TerminalController {
@@ -18,6 +20,10 @@ export class TerminalController {
   reconnectOnConnect = false;
   private command?: string;
   private attempted = false;
+  /** Output sent to each attached client that it has not yet processed. */
+  readonly unprocessed = new Map<string, number>();
+  private paused = false;
+  private watch?: ReturnType<typeof setInterval>;
   constructor(readonly connection: ConnectionController, private data: (id: string, chunk: string) => void, remoteSession?: TerminalSession['remoteSession']) {
     this.info = { id: randomUUID(), connectionId: connection.info.id, status: 'connecting', remoteSession };
   }
@@ -29,12 +35,14 @@ export class TerminalController {
     this.info.exitCode = undefined;
     try {
       const child = this.process = pty.spawn('ssh', [...channelArgs(transport.socket, transport.spec), '-tt', '-e', 'none', '--', transport.spec.host!, ...(this.command ? [this.command] : [])], { name: 'xterm-256color', cols: this.cols, rows: this.rows, env: { ...process.env, LC_ALL: 'C', TERM: 'xterm-256color' } });
+      if (this.paused) this.hold(true);
       this.info.status = 'connected';
       let output = '';
       child.onData(chunk => { if (this.process !== child) return; output = (output + chunk).slice(-4096); this.data(this.info.id, chunk); });
       child.onExit(({ exitCode }) => {
         if (this.process !== child) return;
         clearTimeout(this.repaint); this.repaint = undefined;
+        clearInterval(this.watch); this.watch = undefined;
         this.info.status = 'closed'; this.info.exitCode = exitCode; this.process = undefined;
         this.reconnectOnConnect = false;
         this.connection.terminalEnded(this);
@@ -59,6 +67,32 @@ export class TerminalController {
     this.connection.changed();
   }
   input(data: string) { this.process?.write(data); }
+  /** Pauses the PTY while every attached client is too far behind, so output keeps pace with the fastest client. */
+  pace() {
+    const paused = this.unprocessed.size > 0 && Math.min(...this.unprocessed.values()) > (this.paused ? flowLimits.resume : flowLimits.pause);
+    if (paused === this.paused) return;
+    this.paused = paused;
+    this.hold(paused);
+  }
+  /**
+   * Pauses or resumes the PTY. node-pty discards unread output shortly after its child exits, so a paused PTY reads on
+   * once the child has gone, keeping the child's last output.
+   */
+  private hold(paused: boolean) {
+    clearInterval(this.watch); this.watch = undefined;
+    const child = this.process;
+    if (!child) return;
+    if (!paused) { child.resume(); return; }
+    child.pause();
+    this.watch = setInterval(() => {
+      try { process.kill(child.pid, 0); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ESRCH') return;
+        clearInterval(this.watch); this.watch = undefined;
+        child.resume();
+      }
+    }, 50);
+  }
   resize(cols: number, rows: number, repaint = false) {
     this.cols = cols; this.rows = rows;
     if (this.repaint || !this.process) return;
@@ -77,6 +111,7 @@ export class TerminalController {
   stop(interrupted = false) {
     if (this.info.status === 'connected') this.reconnectOnConnect = interrupted;
     clearTimeout(this.repaint); this.repaint = undefined;
+    clearInterval(this.watch); this.watch = undefined;
     const process = this.process; this.process = undefined;
     this.info.status = 'closed'; process?.kill();
     this.connection.terminalEnded(this);

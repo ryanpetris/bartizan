@@ -100,7 +100,7 @@ function ConnectPage() {
           <IconButton
             icon="sliders"
             label={`Edit ${profileName(profile)}`}
-            title="Edit"
+            tooltip="Edit"
             className="profile-edit"
             tabIndex={tabIndex}
             onClick={() => openConnection(profile.id)}

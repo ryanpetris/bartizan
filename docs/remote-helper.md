@@ -48,7 +48,7 @@ npm run rigs -- --docker sessions
 
 Electron application tabs use the same helper even when session discovery is disabled. `sessions.configure` with an `enabled` boolean controls discovery independently. Downloads and application processes run in worker threads so session snapshots and requests continue during a launch.
 
-The client sends `applications.launch` with `launchId`, `application`, and optional adapter-validated `options`. Application IDs select built-in adapters; requests do not contain executable commands or download URLs. Visual Studio Code accepts an optional absolute `folder` path. `applications.stop` with the same `launchId` cancels work or stops the running process group.
+The client sends `applications.launch` with `launchId` and `application`. Application IDs select built-in adapters; requests do not contain executable commands, download URLs or other options. `applications.stop` with the same `launchId` cancels work or stops the running process group.
 
 Every application event includes `launchId`:
 

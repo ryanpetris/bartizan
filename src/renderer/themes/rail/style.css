@@ -72,7 +72,6 @@
   --preview-accent: var(--accent);
   --shadow: 0 28px 70px rgba(16, 26, 60, 0.24), 0 2px 10px rgba(16, 26, 60, 0.08);
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2352566a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
-  --spinner: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' fill='none' stroke='%2352566a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 9.5 3-3 3 3M5 14.5l3 3 3-3'/%3E%3C/svg%3E");
   --menu-shadow: 0 12px 32px rgba(16, 26, 60, 0.16), 0 1px 3px rgba(16, 26, 60, 0.1);
   --toast-shadow: 0 6px 12px -6px rgba(16, 26, 60, 0.3), 0 1px 2px rgba(16, 26, 60, 0.08);
   --session-0: #2b63d9;
@@ -141,7 +140,6 @@
     --scroll-thumb-hover: rgba(216, 228, 255, 0.3);
     --shadow: 0 28px 70px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.35);
     --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23a3a7b6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
-    --spinner: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='24' fill='none' stroke='%23a3a7b6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 9.5 3-3 3 3M5 14.5l3 3 3-3'/%3E%3C/svg%3E");
     --menu-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.35);
     --toast-shadow: 0 6px 12px -6px rgba(0, 0, 0, 0.7), 0 1px 2px rgba(0, 0, 0, 0.4);
     --session-0: #7aa7f7;
@@ -274,7 +272,7 @@
 :root[data-theme="rail"] .rail-panel-scroll::after { bottom: -12px; margin: -2px 0 -12px -9px; background: linear-gradient(transparent, var(--bg-panel) 85%); }
 @container scroll-state(scrollable: top) { :root[data-theme="rail"] .rail-panel-scroll::before { opacity: 1; } }
 @container scroll-state(scrollable: bottom) { :root[data-theme="rail"] .rail-panel-scroll::after { opacity: 1; } }
-/* A thin panel: the button that widens it over a column of its items' icons, each named in its title. */
+/* A thin panel: the button that widens it over a column of its items' icons, each named in its tooltip. */
 :root[data-theme="rail"] .rail-panel.thin :is(.rail-panel-title .connection-name, .nav-label, .nav-meta) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 :root[data-theme="rail"] .rail-panel.thin :is(.connection-tools, .row-actions) { display: none; }
 :root[data-theme="rail"] .rail-panel.thin .rail-panel-title { padding-right: 0; }
@@ -348,10 +346,8 @@
 
 /* Controls */
 :root[data-theme="rail"] .icon-button:disabled { opacity: 1; color: color-mix(in srgb, var(--text-faint) 65%, transparent); }
-/* A number field's steppers are drawn in the theme's ink. */
-:root[data-theme="rail"] input[type="number"].input::-webkit-inner-spin-button { appearance: none; align-self: stretch; width: 16px; margin-right: -3px; background: var(--spinner) center no-repeat; opacity: 0.75; cursor: pointer; }
-:root[data-theme="rail"] input[type="number"].input::-webkit-inner-spin-button:hover { opacity: 1; }
-:root[data-theme="rail"] select.input::picker(select) { border-radius: 10px; }
+:root[data-theme="rail"] .menu { border-radius: 10px; }
+:root[data-theme="rail"] .menu-item { border-radius: 6px; }
 :root[data-theme="rail"] .tag { border-radius: 8px; }
 
 /* Browser */

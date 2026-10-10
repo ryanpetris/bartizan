@@ -49,6 +49,76 @@ export async function modalOf(page) {
   }, 'the modal overlay');
 }
 
+/** The popup overlay beside `page`, where menus draw over the pages; the newest is the page's, as with `modalOf`. */
+export async function popupOf(page) {
+  await page.locator('.main').waitFor({ state: 'attached' });
+  return waitFor(async () => {
+    for (const candidate of page.context().pages().reverse())
+      if (candidate !== page && !candidate.isClosed() && await candidate.evaluate(() => document.documentElement.classList.contains('overlay-popup')).catch(() => false)) return candidate;
+  }, 'the popup overlay');
+}
+/** The tooltip overlay beside `page`, where tooltips draw over the pages; the newest is the page's, as with `modalOf`. */
+export async function tooltipOf(page) {
+  await page.locator('.main').waitFor({ state: 'attached' });
+  return waitFor(async () => {
+    for (const candidate of page.context().pages().reverse())
+      if (candidate !== page && !candidate.isClosed() && await candidate.evaluate(() => document.documentElement.classList.contains('overlay-tooltip')).catch(() => false)) return candidate;
+  }, 'the tooltip overlay');
+}
+/**
+ * Reads and chooses the items of the menu open in `popup()`'s document. `level` is the submenu's depth. Items read as
+ * their labels, `-` for a separator, with ` (disabled)` after a disabled one.
+ */
+export function menuHelpers(popup) {
+  const read = async (level = 0) => (await popup()).evaluate(level => {
+    const menu = document.querySelectorAll('.menu')[level];
+    return menu && [...menu.children].map(item => item.getAttribute('role') === 'separator' ? '-' : `${item.querySelector('.menu-label').textContent}${item.getAttribute('aria-disabled') === 'true' ? ' (disabled)' : ''}`);
+  }, level).catch(() => undefined);
+  const item = async (label, level = 0) => {
+    const document = await popup();
+    return document.locator('.menu').nth(level).locator(':scope > [role^="menuitem"]').filter({ has: document.locator('.menu-label').getByText(label, { exact: true }) });
+  };
+  return {
+    /** The open menu's items, or nothing while none is open. */
+    labels: read,
+    /** Waits for a menu to open and returns its items. */
+    shown: (level = 0) => waitFor(() => read(level), 'a menu'),
+    /** Whether a menu is open. */
+    open: async () => Boolean(await read()),
+    item,
+    /** Closes the open menu with Escape, if one is open. */
+    close: async () => {
+      if (!await read()) return;
+      await (await popup()).keyboard.press('Escape');
+      await waitFor(async () => !await read(), 'the menu to close');
+    },
+    /** Clicks an item of the open menu. */
+    choose: async (label, level = 0) => (await item(label, level)).click(),
+    /** The icon each item of the open menu shows, by label. */
+    icons: async (level = 0) => (await popup()).evaluate(level => Object.fromEntries([...document.querySelectorAll('.menu')[level].querySelectorAll('[role^="menuitem"]')].map(item => [item.querySelector('.menu-label').textContent, item.querySelector('.menu-icon')?.dataset.icon ?? ''])), level),
+  };
+}
+
+/** The option list a select has open: in the popup overlay, or in the select's page where it draws its popups itself. */
+export async function selectList(select) {
+  const owner = select.page();
+  return waitFor(async () => {
+    for (const candidate of [owner, ...owner.context().pages().reverse()]) {
+      const list = candidate.locator('.select-list[role="listbox"]');
+      if (!candidate.isClosed() && await list.count().catch(() => 0)) return list;
+    }
+  }, 'a select list');
+}
+/** An option of an open list by its value, or by its label as `{ label }`. */
+export const optionOf = (list, option) => typeof option === 'string' ? list.locator(`[role="option"][data-value=${JSON.stringify(option)}]`) : list.getByRole('option', { name: option.label, exact: true });
+/** Opens a select with the pointer and clicks an option, by its value or by its label as `{ label }`, as `selectOption` takes them. */
+export async function chooseOption(select, option) {
+  await select.click();
+  const list = await selectList(select);
+  await optionOf(list, option).click();
+  await waitFor(async () => !await list.count().catch(() => 0), 'the select list to close');
+}
+
 export const sshdBinary = () => (process.env.PATH ?? '').split(delimiter).concat('/usr/sbin').map(directory => join(directory, 'sshd')).find(existsSync);
 
 /**
@@ -115,5 +185,6 @@ export async function launch(directory, config, { args = [], env = {}, colorSche
   const output = id => page.evaluate(id => window.rigOutputs[id] ?? '', id);
   /** Chooses a connection on the rail, which brings its items into view; a connection made through the API is not chosen by itself. */
   const chooseConnection = id => page.locator(`.connection-chip[data-id="${id}"] .connection-titles`).click();
-  return { application, page, errors, state, api, waitState, recordOutput, output, chooseConnection, modal: () => modalOf(page), close: () => application.close() };
+  const popup = () => popupOf(page);
+  return { application, page, errors, state, api, waitState, recordOutput, output, chooseConnection, modal: () => modalOf(page), popup, menu: menuHelpers(popup), tooltip: () => tooltipOf(page), close: () => application.close() };
 }

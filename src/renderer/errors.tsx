@@ -3,6 +3,7 @@ import { Toaster, toast } from 'sonner';
 import type { ErrorEntry, ErrorLog } from '../shared';
 import { Errors as ErrorStore, newestErrorFirst } from '../core/errors';
 import { Button, Icon } from './ui';
+import { Select } from './select';
 import { api, render, run, activeManifest, dialogOpen, store } from './store';
 import { Overlay } from './overlay';
 import { openModal } from './dialogs';
@@ -38,14 +39,15 @@ let keys = 0;
 let seen: Map<number, string> | undefined;
 const signature = (entry: ErrorEntry) => `${entry.count}\n${entry.message}`;
 
+/** The page's lost link to the backend is a current problem until it reconnects. */
+export function transportError(message: string | undefined) {
+  localErrors.setCurrent('transport', message ? { source: 'transport', label: 'App', message } : undefined);
+}
 /**
  * Applies a log snapshot. A problem that is no longer current leaves the toasts, and one that resolved before its
  * snapshot arrived stays in history only. Once the initial snapshot has been applied, any other entry that is new or
- * whose count or message changed arrives as a toast.
+ * whose count or message changed arrives as a toast, including in the snapshot a reconnected page receives.
  */
-export function transportError(message: string) {
-  localErrors.report({ source: 'transport', label: 'App', message });
-}
 export function receive(next: ErrorLog, initial = false) {
   remoteLog = next;
   applyLog(initial);
@@ -66,7 +68,7 @@ function applyLog(initial = false) {
   const entries = new Map<number, ErrorEntry>();
   for (const entry of [...next.history, ...next.current]) entries.set(entry.id, entry);
   const arrivals =
-    seen && !initial
+    seen
       ? [...entries.values()].filter((entry) => live(entry) && seen!.get(entry.id) !== signature(entry))
       : [];
   if (seen || initial) seen = new Map([...entries.values()].map((entry) => [entry.id, signature(entry)]));
@@ -272,7 +274,7 @@ export function ErrorsButton() {
       type="button"
       className="icon-button errors-button"
       aria-label="Errors"
-      title="Errors"
+      data-tooltip="Errors"
       aria-haspopup="dialog"
       aria-describedby={count ? 'error-count' : undefined}
       onClick={openErrors}
@@ -332,7 +334,7 @@ export function Errors() {
 function ErrorsDialog() {
   const [scope, setScope] = useState('all');
   const dialog = useRef<HTMLDialogElement>(null),
-    filter = useRef<HTMLSelectElement>(null),
+    filter = useRef<HTMLButtonElement>(null),
     clear = useRef<HTMLButtonElement>(null);
   const connections = new Map<string, string>();
   for (const entry of [...log.current, ...log.history].sort(newestErrorFirst))
@@ -369,21 +371,19 @@ function ErrorsDialog() {
           <div className="dialog-titles">
             <h2 id="errors-title">Errors</h2>
           </div>
-          <select
+          <Select
             ref={filter}
-            className="input"
             aria-label="Filter"
             value={selected}
-            onChange={(event) => setScope(event.target.value)}
-          >
-            <option value="all">All</option>
-            <option value="app">App</option>
-            {[...connections].map(([id, label]) => (
-              <option key={id} value={id}>
-                {label}
-              </option>
-            ))}
-          </select>
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'app', label: 'App' },
+              ...[...connections]
+                .map(([id, label]) => ({ value: id, label }))
+                .sort((a, b) => a.label.localeCompare(b.label)),
+            ]}
+            onChange={setScope}
+          />
         </header>
         <div className="errors-body">
           <ErrorList entries={current} kind="current" title="Current" />

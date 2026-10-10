@@ -3,7 +3,7 @@ import '@xterm/xterm/css/xterm.css';
 import { Component, useInsertionEffect, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
-import { browserShortcut, type State } from '../shared';
+import { browserShortcut, type BrowserShortcut, type State } from '../shared';
 import {
   api,
   groups,
@@ -23,9 +23,13 @@ import {
   sameRow,
   selectedRow,
   activateTab,
+  activeTab,
+  sessionTabs,
   renumber,
   tabIntents,
+  selectedIntents,
 } from './store';
+import { recordVisits } from './browser-suggestions';
 import * as terminals from './terminals';
 import * as browser from './browser';
 import * as tabState from './tab-state';
@@ -38,10 +42,13 @@ import { ModalLayer, Modal } from './overlay';
 import { Connect } from './connect';
 import { Details } from './details';
 import { Quit, openQuit } from './quit';
+import { Questions, ask, withdraw } from './question';
 import { KillSession } from './kill-session';
 import { Home } from './home';
 import { Icon } from './ui';
-import { chooseMenuItem } from './menu';
+import { Menus, showMenu } from './menu';
+import { PopupLayer, dismissPopups } from './popup';
+import { Tooltip } from './tooltip';
 import { ConnectionForm } from './connection-form';
 import { onDialogChange, onRefocusView } from './dialogs';
 // With nothing selected, Home is current and takes the focus.
@@ -53,6 +60,7 @@ const refocus = () => {
 onDialogChange(render);
 onRefocusView(refocus);
 let loaded = false;
+const tabShortcuts = new Set<BrowserShortcut>(['new-tab', 'close-tab', 'reopen-tab', 'next-tab', 'previous-tab']);
 let startupError: string | undefined;
 /** State comes only from state events, which arrive in order; the main process sends one whenever the page loads. */
 function applyState(state: State) {
@@ -61,23 +69,39 @@ function applyState(state: State) {
   const shown = selection && selectedRow(earlier, selection);
   const connection = currentConnection();
   const connectionOrder = groups().map(group => group.connection.id);
+  // A session whose active tab closed shows the tab beside it in navigation order: the one after it, or else the one before.
+  const neighbours = new Map<string, string>();
+  for (const workspace of earlier.workspaces) {
+    const active = activeTab(workspace), now = state.workspaces.find((w) => w.id === workspace.id);
+    if (!active || !now || now.tabs.some((t) => t.id === active.id)) continue;
+    const order = sessionTabs(workspace), index = order.indexOf(active);
+    const next = [...order.slice(index + 1), ...order.slice(0, index).reverse()].find((t) => now.tabs.some((n) => n.id === t.id));
+    if (next) neighbours.set(workspace.id, next.id);
+  }
   store.state = state;
   renumber();
   tabState.prune(state);
+  recordVisits(state);
+  // A chosen tab gives way once state shows it, or shortly after the main process answered, in case it chose otherwise since.
   for (const [workspaceId, tabId] of tabIntents) {
-    const workspace = state.workspaces.find((w) => w.id === workspaceId);
-    if (!workspace?.tabs.some((t) => t.id === tabId) || workspace.activeTab === tabId) tabIntents.delete(workspaceId);
+    const workspace = state.workspaces.find((w) => w.id === workspaceId), answered = selectedIntents.get(workspaceId);
+    if (!workspace?.tabs.some((t) => t.id === tabId) || workspace.activeTab === tabId || answered !== undefined && performance.now() - answered > 1000) {
+      tabIntents.delete(workspaceId);
+      selectedIntents.delete(workspaceId);
+    }
   }
+  for (const [workspaceId, tabId] of neighbours) activateTab(workspaceId, tabId);
   const after = rows(state);
+  const shownSession = shown?.kind === 'browser' && state.workspaces.find((w) => w.id === shown.id)?.tabs.length;
   if (connection && !state.connections.some(item => item.id === connection)) {
     const index = connectionOrder.indexOf(connection);
     const next = [...connectionOrder.slice(index + 1), ...connectionOrder.slice(0, index).reverse()]
       .find(id => state.connections.some(item => item.id === id));
     if (next) revisit(next, false);
     else store.selection = undefined;
-  } else if (shown && !after.some((row) => sameRow(row, shown))) {
-    // The shown row, or a browser session's active tab, went away: show the row that took its place in navigation order, or
-    // the one before it, within the same connection. Connection pages are selected explicitly.
+  } else if (shown && !shownSession && !after.some((row) => sameRow(row, shown))) {
+    // The shown row went away, or the browser session it belongs to has no tabs left: show the row that took its place in
+    // navigation order, or the one before it, within the same connection. Connection pages are selected explicitly.
     const before = rows(earlier);
     const index = before.findIndex((row) => sameRow(row, shown));
     const candidates = [...before.slice(index + 1), ...before.slice(0, index).reverse()];
@@ -172,9 +196,14 @@ function App() {
           render();
           if (event.mode === 'content') focusView();
           break;
-        case 'transport-error':
-          if (!loaded) { startupError = event.message; render(); }
-          else errors.transportError(event.message);
+        case 'transport':
+          // A menu offers what the backend could do as it opened.
+          if (event.error) {
+            dismissPopups();
+            terminals.detached();
+          } else terminals.reattached();
+          if (!loaded) { startupError = event.error; render(); }
+          else errors.transportError(event.error);
           break;
         case 'state':
           applyState(event.state);
@@ -183,7 +212,10 @@ function App() {
           terminals.write(event.id, event.data);
           break;
         case 'menu':
-          chooseMenuItem(event.index);
+          showMenu(event);
+          break;
+        case 'close-popup':
+          dismissPopups();
           break;
         case 'errors':
           errors.receive(event.log, event.initial);
@@ -197,8 +229,17 @@ function App() {
           if (event.action === 'new-connection') showConnect();
           else browser.shortcut(event.action);
           break;
+        case 'paste-and-go':
+          if (store.selection?.kind === 'browser' && !dialogOpen()) browser.go(event.text);
+          break;
         case 'confirm-quit':
           openQuit();
+          break;
+        case 'question':
+          ask(event.id, event.question);
+          break;
+        case 'question-withdrawn':
+          withdraw(event.id);
           break;
         case 'favicon':
         case 'found':
@@ -210,15 +251,17 @@ function App() {
 
     const keydown = (event: KeyboardEvent) => {
       const { key, code, ctrlKey: control, metaKey: meta, altKey: alt, shiftKey: shift } = event;
-      const shortcut = browserShortcut({ key, code, control, meta, alt, shift });
+      const shortcut = browserShortcut({ key, code, control, meta, alt, shift }), selection = store.selection;
       if (shortcut === 'new-connection') {
         event.preventDefault();
         event.stopPropagation();
         if (!dialogOpen()) showConnect();
-      } else if (shortcut && store.selection?.kind === 'browser' && !dialogOpen()) {
+      } else if (shortcut && selection?.kind === 'browser' && !dialogOpen()) {
+        // An application's session keeps the keys that manage tabs.
+        if (tabShortcuts.has(shortcut) && store.state.workspaces.find((w) => w.id === selection.id)?.application) return;
         event.preventDefault();
         event.stopPropagation();
-        if (!event.repeat) browser.shortcut(shortcut);
+        if (!event.repeat || shortcut === 'next-tab' || shortcut === 'previous-tab') browser.shortcut(shortcut);
       }
     };
     window.addEventListener('keydown', keydown, true);
@@ -255,8 +298,12 @@ function App() {
           <Settings />
           <errors.Errors />
           <Quit />
+          <Questions />
           <KillSession />
         </Modal>
+        <PopupLayer />
+        <Menus />
+        <Tooltip />
       </FocusRecovery>
     </ModalLayer>
   );

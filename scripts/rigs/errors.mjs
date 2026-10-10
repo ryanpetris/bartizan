@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { withDirectory, launch } from './lib/harness.mjs';
+import { withDirectory, launch, chooseOption } from './lib/harness.mjs';
 
 await withDirectory('errors', async (directory, cleanup) => {
   const config = join(directory, 'config.yaml');
@@ -34,7 +34,7 @@ await withDirectory('errors', async (directory, cleanup) => {
   await expect(panel()).toBeFocused();
   assert.equal(await panel().evaluate(node => getComputedStyle(node).outlineStyle), 'none', 'The panel holds focus without a ring');
   await dialogs.keyboard.press('Tab');
-  await expect(dialogs.getByRole('combobox', { name: 'Filter', exact: true })).toBeFocused();
+  await expect(dialogs.getByRole('button', { name: 'Filter', exact: true })).toBeFocused();
   await expect(current()).toContainText('Invalid YAML');
   const activeClass = await button().getAttribute('class');
   await dialogs.keyboard.press('Escape');
@@ -116,7 +116,9 @@ await withDirectory('errors', async (directory, cleanup) => {
   await expect(history()).toContainText('failure one');
   await expect(history()).toContainText('Fixture');
   await expect(history()).toContainText('repeated failure');
-  await dialogs.getByRole('combobox', { name: 'Filter', exact: true }).selectOption({ label: 'Fixture' });
+  const filter = dialogs.getByRole('button', { name: 'Filter', exact: true });
+  await chooseOption(filter, { label: 'Fixture' });
+  await expect(filter).toHaveText('Fixture');
   await expect(history()).toContainText('failure one');
   await expect(history()).not.toContainText('failure two');
   await dialogs.keyboard.press('Escape');

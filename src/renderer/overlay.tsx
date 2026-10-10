@@ -4,8 +4,16 @@ import type { Bounds, OverlayName } from '../shared';
 import { api, store, render, dialogOpen, dialogHost } from './store';
 import { holdPage } from './dialogs';
 
+/** Where each overlay's document is in this window while it shows. */
+export const documentOrigins = new WeakMap<Document, { x: number; y: number }>();
 /** Each overlay's document once its styles have loaded, or nothing when the overlay could not open. */
 const documents = new Map<OverlayName, Promise<Document | undefined>>();
+const watchers = new Set<(target: Document) => void>();
+/** Calls `watch` with each overlay's document as it becomes ready, and with those already open. */
+export function watchOverlays(watch: (target: Document) => void) {
+  watchers.add(watch);
+  for (const ready of documents.values()) void ready.then((target) => target && watch(target));
+}
 /**
  * An overlay is a blank child window that the main process shows as a transparent view above the pages. It shares this
  * window's process, so this window styles it and renders into it.
@@ -14,7 +22,12 @@ function open(name: OverlayName) {
   let ready = documents.get(name);
   if (!ready) {
     const child = window.open('about:blank', `overlay-${name}`);
-    ready = child ? prepare(child.document, name) : Promise.resolve(undefined);
+    ready = child
+      ? prepare(child.document, name).then((target) => {
+          for (const watch of watchers) watch(target);
+          return target;
+        })
+      : Promise.resolve(undefined);
     documents.set(name, ready);
   }
   return ready;
@@ -50,18 +63,20 @@ async function prepare(target: Document, name: OverlayName) {
 /**
  * Draws its children above the pages. `place` turns the children's size into a place in this window; its top left
  * corner should stay put while the size changes, because a view that moves as it resizes shows a frame out of place.
- * Without a place, and while a dialog is open, the overlay is hidden. `onLeave` is called when focus is neither in
- * this window nor in the overlay.
+ * Without a place, and while a dialog is open unless `overDialogs`, the overlay is hidden. `onLeave` is called when
+ * focus is neither in this window nor in the overlay.
  */
 export function Overlay({
   name,
   place,
   onLeave,
+  overDialogs = false,
   children,
 }: {
   name: OverlayName;
   place: (size: { width: number; height: number }) => Bounds | undefined;
   onLeave?: () => void;
+  overDialogs?: boolean;
   children: ReactNode;
 }) {
   const [target, setTarget] = useState<Document>();
@@ -69,10 +84,11 @@ export function Overlay({
     shown = useRef('null');
   const sync = () => {
     const node = surface.current;
-    const bounds = node && node.offsetWidth && node.offsetHeight && !dialogOpen() ? place({ width: node.offsetWidth, height: node.offsetHeight }) : undefined;
+    const bounds = node && node.offsetWidth && node.offsetHeight && (overDialogs || !dialogOpen()) ? place({ width: node.offsetWidth, height: node.offsetHeight }) : undefined;
     const rounded = bounds
       ? { x: Math.max(0, Math.round(bounds.x)), y: Math.max(0, Math.round(bounds.y)), width: Math.ceil(bounds.width), height: Math.ceil(bounds.height) }
       : null;
+    if (rounded && target) documentOrigins.set(target, rounded);
     const key = JSON.stringify(rounded);
     if (key === shown.current) return;
     shown.current = key;
@@ -153,6 +169,7 @@ export function ModalLayer({ children }: { children: ReactNode }) {
     holdPage();
     const top = Math.round(probe.current?.getBoundingClientRect().height ?? 0);
     const bounds = modalDocument?.querySelector('dialog[open]') ? { x: 0, y: top, width: innerWidth, height: innerHeight - top } : null;
+    if (modalDocument) documentOrigins.set(modalDocument, { x: 0, y: top });
     const key = JSON.stringify(bounds);
     if (key === shown.current) return;
     shown.current = key;

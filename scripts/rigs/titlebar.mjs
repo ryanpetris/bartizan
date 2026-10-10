@@ -29,12 +29,25 @@ await withDirectory('titlebar', async (directory, cleanup) => {
     return { x, width, height, innerWidth, visible: navigator.windowControlsOverlay.visible };
   });
   await expect.poll(async () => (await overlay()).visible).toBe(true);
+  const contentWidth = async () => (await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getContentBounds())).width;
+  // The page's width, and then its overlay area, follow a change of window size later than the window; the area has
+  // settled once the page has the window's width and two reads of the area agree.
+  let start;
+  await expect.poll(async () => {
+    const previous = start;
+    start = await overlay();
+    return start.innerWidth === await contentWidth() && previous?.width === start.width;
+  }).toBe(true);
+  assert.equal(start.x, 0);
+  const controls = start.innerWidth - start.width;
+  assert.ok(controls > 60);
   /** Clicks a native control: 0 minimizes, 1 maximizes or restores, 2 closes. */
   const nativeButton = async index => {
-    const area = await overlay();
-    assert.equal(area.x, 0);
-    const controls = area.innerWidth - area.width;
-    assert.ok(controls > 60);
+    let area;
+    await expect.poll(async () => {
+      area = await overlay();
+      return area.innerWidth === await contentWidth() && area.innerWidth - area.width === controls;
+    }).toBe(true);
     pointer('mousemove', '--window', windowId, Math.round(area.width + controls * (index + 0.5) / 3), Math.round(area.height / 2), 'click', 1);
   };
   /** Presses at a window position and moves the pointer in steps. */
@@ -108,7 +121,11 @@ await withDirectory('titlebar', async (directory, cleanup) => {
   const panel = dialogs.locator('#errors-dialog');
   const errorsButton = page.locator('.rail').getByRole('button', { name: 'Errors', exact: true });
   const presses = () => dialogs.evaluate(() => window.rigPresses.splice(0));
-  await dialogs.evaluate(() => { window.rigPresses = []; document.addEventListener('mousedown', event => window.rigPresses.push(event.detail), true); });
+  // Each press records its click count and whether the panel was open when it arrived.
+  await dialogs.evaluate(() => {
+    window.rigPresses = [];
+    addEventListener('mousedown', event => window.rigPresses.push([event.detail, document.getElementById('errors-dialog').open]), true);
+  });
   await errorsButton.click();
   await expect(panel).toBeVisible();
   const main = await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].id);
@@ -117,21 +134,19 @@ await withDirectory('titlebar', async (directory, cleanup) => {
     return { id: other.id, handle: other.getNativeWindowHandle().readUInt32LE(0) };
   });
   pointer('windowactivate', '--sync', other.handle);
-  pointer('mousemove', '--window', windowId, 30, 300, 'click', 1);
+  // One xdotool run times both clicks, so the second continues the run of the first within the double-click interval,
+  // and comes late enough not to count as the click that brought the window to the front.
+  pointer('mousemove', '--window', windowId, 30, 300, 'click', 1, 'sleep', 0.3, 'click', 1);
   await expect.poll(() => application.evaluate(({ BrowserWindow }) => BrowserWindow.getFocusedWindow()?.id)).toBe(main);
-  await page.waitForTimeout(150);
-  await expect(panel).toBeVisible();
-  assert.deepEqual(await presses(), [1]);
-  pointer('click', 1);
   await expect(panel).toBeHidden();
-  assert.deepEqual(await presses(), [2]);
+  assert.deepEqual(await presses(), [[1, true], [2, true]]);
   await application.evaluate(({ BrowserWindow }, id) => BrowserWindow.fromId(id).destroy(), other.id);
   const place = await errorsButton.boundingBox();
   pointer('mousemove', '--window', windowId, Math.round(place.x + place.width / 2), Math.round(place.y + place.height / 2), 'click', '--repeat', 3, '--delay', 120, 1);
   await expect(panel).toBeVisible();
   await page.waitForTimeout(300);
   await expect(panel).toBeVisible();
-  assert.deepEqual(await presses(), [2, 3]);
+  assert.deepEqual(await presses(), [[2, true], [3, true]]);
   await dialogs.keyboard.press('Escape');
   await expect(panel).toBeHidden();
   console.log('The click that brings the window to the front, and a triple click that opens a dialog, leave the dialog open; an immediate second click dismisses it.');

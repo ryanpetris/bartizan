@@ -43,7 +43,7 @@ const narrow = (group: Group) => thin && !group.entries.some(({ workspace }) => 
 /**
  * A rail down the window's left edge of Home and every connection, a panel beside it for the connection in view, and a
  * slim bar over the view that names what it shows. The home page has no panel. A thin panel shows each of the
- * connection's items by its icon alone.
+ * connection's items by its icon alone. The rail's tooltips, and a thin panel's, show beside their controls.
  */
 function Chrome() {
   const current = shownGroup();
@@ -52,7 +52,7 @@ function Chrome() {
     panel = useReveal('.rail-panel-scroll [aria-current="page"]');
   return (
     <>
-      <nav ref={rail} className="rail" aria-label="Connections">
+      <nav ref={rail} className="rail" aria-label="Connections" data-tooltip-side="">
         <NavGroup name="rail" className="rail-nav">
           <div className="rail-brand">
             <HomeButton />
@@ -70,7 +70,7 @@ function Chrome() {
         </div>
       </nav>
       {current && connection && (
-        <nav ref={panel} className={narrow(current) ? 'rail-panel thin' : 'rail-panel'} aria-label="Current Connection">
+        <nav ref={panel} className={narrow(current) ? 'rail-panel thin' : 'rail-panel'} aria-label="Current Connection" data-tooltip-side={narrow(current) ? '' : undefined}>
           <NavGroup name="panel" className="rail-panel-nav">
             <header className="rail-panel-head" data-status={connection.status}>
               <div className="rail-panel-title">

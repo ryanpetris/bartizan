@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { browserShortcut, formatBytes, pageShortcuts, shortcutKey, stepZoom, type KeyPress } from '../src/shared';
+import { browserShortcut, formatBytes, pageShortcuts, shortcutKey, shortcutLabel, stepZoom, type KeyPress } from '../src/shared';
 
 test('shortcuts retain Latin layout meanings and fall back to physical keys on non-Latin layouts', () => {
   assert.equal(shortcutKey({ key: 'д', code: 'KeyL' }), 'l');
@@ -26,6 +26,20 @@ test('the application takes its own shortcuts before a page and leaves the rest 
   for (const key of ['f', 'r', 'p', '=', '-', '0']) assert.equal(press(key, { control: true }), undefined);
   assert.equal(press('R', { control: true, shift: true }), undefined);
   assert.equal(press('F5'), undefined);
+  assert.equal(press('t', { control: true }), 'new-tab');
+  assert.equal(press('t', { meta: true }), 'new-tab');
+  assert.equal(press('T', { control: true, shift: true }), 'reopen-tab');
+  assert.equal(press('w', { control: true }), 'close-tab');
+  assert.equal(press('W', { control: true, shift: true }), undefined);
+  assert.equal(press('w', { control: true, alt: true }), undefined);
+  assert.equal(press('Tab', { control: true }), 'next-tab');
+  assert.equal(press('Tab', { control: true, shift: true }), 'previous-tab');
+  assert.equal(press('PageDown', { control: true }), 'next-tab');
+  assert.equal(press('PageUp', { control: true }), 'previous-tab');
+  assert.equal(press('PageDown', { control: true, shift: true }), undefined);
+  assert.equal(press('Tab', { meta: true }), undefined);
+  assert.equal(press('Tab'), undefined);
+  assert.equal(press('ArrowLeft', { alt: true }), undefined);
 });
 
 test('every page shortcut has an accelerator, and none is shared', () => {
@@ -50,4 +64,14 @@ test('byte sizes use the largest unit that fits', () => {
   assert.equal(formatBytes(2048), '2.0 KB');
   assert.equal(formatBytes(15_300_000), '15 MB');
   assert.equal(formatBytes(2_500_000_000), '2.5 GB');
+});
+
+test('menus show a page shortcut in the platform\'s notation', () => {
+  assert.equal(shortcutLabel('find', false), 'Ctrl+F');
+  assert.equal(shortcutLabel('find', true), '⌘F');
+  assert.equal(shortcutLabel('back', false), 'Alt+Left');
+  assert.equal(shortcutLabel('back', true), '⌘[');
+  assert.equal(shortcutLabel('hard-reload', false), 'Ctrl+Shift+R');
+  assert.equal(shortcutLabel('hard-reload', true), '⌘⇧R');
+  assert.equal(shortcutLabel('zoom-in', false), 'Ctrl+=');
 });

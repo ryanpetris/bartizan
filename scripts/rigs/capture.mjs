@@ -55,14 +55,12 @@ await withDirectory('capture', async (directory, cleanup) => {
   execFileSync('xdotool', ['key', 'F11']);
   await expect.poll(fullscreen).toBe(false);
   await expect(page.locator('.browser-toolbar')).toBeVisible();
-  await application.evaluate(({ Menu }) => { globalThis.originalPopup = Menu.prototype.popup; Menu.prototype.popup = function () { globalThis.fullscreenMenu = this; }; });
   const chooseMode = async label => {
-    await expect.poll(() => application.evaluate((_electron, label) => globalThis.fullscreenMenu?.items.some(item => item.label === label), label)).toBe(true);
-    assert.equal(await application.evaluate((_electron, label) => globalThis.fullscreenMenu.items.find(item => item.label === label).enabled, label), true);
-    await application.evaluate((_electron, label) => globalThis.fullscreenMenu.items.find(item => item.label === label).click(), label);
+    await expect.poll(async () => (await app.menu.labels())?.includes(label)).toBe(true);
+    await app.menu.choose(label);
   };
   const openModeMenu = async button => {
-    await application.evaluate(() => { globalThis.fullscreenMenu = undefined; });
+    await app.menu.close();
     await button.click({ button: 'right' });
   };
   const hint = () => waitFor(async () => {
@@ -82,9 +80,9 @@ await withDirectory('capture', async (directory, cleanup) => {
     const button = page.getByRole('button', { name: 'Toggle Fullscreen' });
     const position = await button.boundingBox();
     assert.ok(position.y < 100 && position.x > (await page.evaluate(() => innerWidth)) / 2);
-    const details = await page.getByRole('button', { name: 'Connection Details', exact: true }).boundingBox();
-    const terminal = await (theme === 'tabs' ? button.locator('..').locator('.connection-add') : button.locator('..').getByRole('button', { name: 'New Terminal', exact: true })).boundingBox();
-    assert.ok(details.x < position.x && position.x < terminal.x);
+    const details = await button.locator('..').getByRole('button', { name: 'Connection Details', exact: true }).boundingBox();
+    assert.ok(details.x < position.x);
+    if (theme === 'tabs') assert.ok(position.x < (await button.locator('..').locator('.connection-add').boundingBox()).x);
     await openModeMenu(button);
     await chooseMode('Fullscreen Window');
     await expect.poll(fullscreen).toBe(true);
@@ -189,7 +187,6 @@ await withDirectory('capture', async (directory, cleanup) => {
   await capture();
   await evaluate('document.exitPointerLock(); navigator.keyboard.unlock();');
   await api('setFullscreen', 'window');
-  await application.evaluate(({ Menu }) => { Menu.prototype.popup = globalThis.originalPopup; });
   await expect.poll(() => evaluate('!!document.fullscreenElement')).toBe(false);
   assert.equal(await fullscreen(), true);
   await expect(page.locator('.browser-toolbar')).toBeVisible();
@@ -210,6 +207,8 @@ await withDirectory('capture', async (directory, cleanup) => {
   await evaluate('document.exitFullscreen()');
   await expect.poll(() => evaluate('!!document.pointerLockElement || !!document.fullscreenElement')).toBe(false);
   assert.equal(await fullscreen(), true);
+  // Chromium briefly blocks pointer reacquisition after a fullscreen exit.
+  await page.waitForTimeout(2000);
   await capture();
   await api('browser', workspace, 'new');
   await expect.poll(() => evaluate('!!document.pointerLockElement || !!document.fullscreenElement')).toBe(false);

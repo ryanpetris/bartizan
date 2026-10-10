@@ -1,17 +1,20 @@
-import { Menu, clipboard, shell, type BrowserWindow, type ContextMenuParams, type MenuItemConstructorOptions } from 'electron';
+import { clipboard, shell, type ContextMenuParams, type WebContents } from 'electron';
+import { spawn } from 'node:child_process';
 import { accessSync, constants } from 'node:fs';
 import { delimiter, join } from 'node:path';
-import { browserSessionName } from '../shared';
+import { browserSessionName, shortcutLabel, systemLink, type PageShortcut } from '../shared';
 import type { BrowserWindowController } from './browser-window';
+import type { Menus, MenuItem } from './menus';
 import type { Sessions } from './sessions';
 
+const onPath = (program: string) => (process.env.PATH ?? '').split(delimiter).some(directory => {
+  try { accessSync(join(directory, program), constants.X_OK); return true; } catch { return false; }
+});
 /** macOS opens links through Launch Services; Linux needs `xdg-open` on PATH. */
 export function externalBrowserAvailable() {
-  if (process.platform === 'darwin') return true;
-  return (process.env.PATH ?? '').split(delimiter).some(directory => {
-    try { accessSync(join(directory, 'xdg-open'), constants.X_OK); return true; } catch { return false; }
-  });
+  return process.platform === 'darwin' || onPath('xdg-open');
 }
+
 export function linkURL(input: string) {
   if (input.length > 8192 || /[\u0000-\u0020\u007f]/.test(input)) throw new Error('Invalid link');
   const url = new URL(input);
@@ -19,22 +22,26 @@ export function linkURL(input: string) {
   return input;
 }
 
+/** Whether an address is one a link may open: HTTP or HTTPS, without credentials. */
+export const webAddress = (url: string) => { try { linkURL(url); return true; } catch { return false; } };
+
 export class LinkMenus {
-  constructor(private window: BrowserWindow, private sessions: Sessions, private browsers: BrowserWindowController,
+  constructor(private menus: Menus, private sessions: Sessions, private browsers: BrowserWindowController,
     private serialize: <T>(action: () => Promise<T>) => Promise<T>, private selected: (id: string) => void, private error: (message: string, connectionId: string, label?: string) => void) {}
 
   /**
-   * Shows the link menu for a page in the `current` session, or for a terminal, where Open Link uses the `first`
-   * session in the navigation.
+   * Shows the link menu of a terminal in `origin`, the application page, at a point of it; Open Link uses the `first`
+   * session in the navigation. Several links each have a submenu.
    */
-  show(connectionId: string, url: string | string[], sessions: { current?: string; first?: string }) {
+  show(origin: WebContents, connectionId: string, url: string | string[], sessions: { first?: string }, at: { x: number; y: number }) {
     const urls = Array.isArray(url) ? [...new Set(url)].map(linkURL) : [linkURL(url)];
     if (!urls.length) return;
     const items = urls.length === 1 ? this.items(connectionId, urls[0]!, sessions) : urls.map(target => ({
-      label: target.replace(/[\u202a-\u202e\u2066-\u2069]/g, '').slice(0, 160).replace(/&/g, '&&'),
+      label: target.replace(/[\u202a-\u202e\u2066-\u2069]/g, '').slice(0, 160),
+      icon: 'link',
       submenu: this.items(connectionId, target, sessions),
     }));
-    if (items.length) Menu.buildFromTemplate(items).popup({ window: this.window });
+    this.menus.open(origin, items, at.x, at.y, connectionId);
   }
   /**
    * Shows a page's context menu: the items for the link, image, editable field or selection under the pointer, or else
@@ -46,9 +53,15 @@ export class LinkMenus {
     const connectionId = entry.info.connectionId, label = this.sessions.entries.get(connectionId)?.info.label;
     const run = (action: () => unknown) => () => { void Promise.resolve().then(action).catch(error => this.error(String(error), connectionId, label)); };
     const act = (action: 'back' | 'forward' | 'reload' | 'print' | 'pdf') => run(() => this.browsers.action(workspaceId, action, tabId, undefined, true));
-    const web = (url: string) => { try { linkURL(url); return true; } catch { return false; } };
-    const groups: MenuItemConstructorOptions[][] = [];
+    const web = webAddress;
+    const address = contents.getURL(), ordinary = !entry.info.application;
+    const groups: MenuItem[][] = [];
     if (web(params.linkURL)) groups.push(this.items(connectionId, params.linkURL, { current: workspaceId }));
+    const system = systemLink(params.linkURL);
+    if (system) groups.push([
+      ...externalBrowserAvailable() ? [{ label: 'Open Link', icon: 'external', click: () => { const tab = this.browsers.tabs.get(tabId); tab?.allowPrompts(); tab?.handOff(params.linkURL); } }] : [],
+      { label: 'Copy Link', icon: 'link', click: run(() => clipboard.writeText(params.linkURL)) },
+    ]);
     if (params.mediaType === 'image') groups.push([
       { label: 'Open Image in New Tab', enabled: web(params.srcURL), click: run(() => this.open(connectionId, params.srcURL, workspaceId)) },
       { label: 'Save Image As…', enabled: web(params.srcURL), click: run(() => { this.browsers.allowPrompts(tabId); contents.downloadURL(params.srcURL); }) },
@@ -66,17 +79,44 @@ export class LinkMenus {
       { label: 'Select All', enabled: flags.canSelectAll, click: run(() => contents.selectAll()) },
     ]);
     else if (params.selectionText.trim()) groups.push([{ label: 'Copy', click: run(() => contents.copy()) }]);
-    if (!groups.some(group => group.length)) groups.push([
-      { label: 'Back', enabled: contents.navigationHistory.canGoBack(), click: act('back') },
-      { label: 'Forward', enabled: contents.navigationHistory.canGoForward(), click: act('forward') },
-      { label: 'Reload', click: act('reload') },
-    ], [
+    const own = !groups.some(group => group.length);
+    const shortcut = (name: PageShortcut) => shortcutLabel(name, process.platform === 'darwin');
+    if (own) groups.push([
+      { label: 'Back', icon: 'back', shortcut: shortcut('back'), enabled: contents.navigationHistory.canGoBack(), click: act('back') },
+      { label: 'Forward', icon: 'forward', shortcut: shortcut('forward'), enabled: contents.navigationHistory.canGoForward(), click: act('forward') },
+      { label: 'Reload', icon: 'reload', shortcut: shortcut('reload'), click: act('reload') },
+    ], ordinary ? [
+      { label: 'Copy Page Address', icon: 'link', enabled: Boolean(address) && address !== 'about:blank', click: run(() => clipboard.writeText(address)) },
+      ...web(address) && externalBrowserAvailable() ? [{ label: 'Open Page in External Browser', icon: 'external', click: run(() => shell.openExternal(address)) }] : [],
+    ] : [], [
       { label: 'Save as PDF…', click: act('pdf') },
-      { label: 'Print…', click: act('print') },
+      { label: 'Print…', shortcut: shortcut('print'), click: act('print') },
     ]);
-    groups.push([{ label: 'Inspect Element', click: run(() => this.browsers.inspect(workspaceId, tabId, params.x, params.y)) }]);
-    const items = groups.filter(group => group.length).flatMap((group, index): MenuItemConstructorOptions[] => index ? [{ type: 'separator' }, ...group] : group);
-    Menu.buildFromTemplate(items).popup({ window: this.window });
+    groups.push([
+      ...own && ordinary ? [{ label: 'View Page Source', enabled: web(address), click: run(() => entry.open({ url: `view-source:${address}` })) }] : [],
+      { label: 'Inspect Element', icon: 'code', click: run(() => this.browsers.inspect(workspaceId, tabId, params.x, params.y)) },
+    ]);
+    const items = groups.filter(group => group.length).flatMap((group, index): MenuItem[] => index ? [{ type: 'separator' }, ...group] : group);
+    this.menus.show(contents, items, params.x, params.y, connectionId);
+  }
+  /** Shows a text field's menu in the application; the address field's adds Paste and Go and copies the address it shows. */
+  async field(contents: WebContents, params: ContextMenuParams, address?: { url: string; go(text: string): void }) {
+    const flags = params.editFlags, pasted = async () => (await clipboard.readText()).trim();
+    const pasteable = address && Boolean(await pasted());
+    const items: MenuItem[] = [
+      { label: 'Undo', enabled: flags.canUndo, click: () => contents.undo() },
+      { label: 'Redo', enabled: flags.canRedo, click: () => contents.redo() },
+      { type: 'separator' },
+      { label: 'Cut', enabled: flags.canCut, click: () => contents.cut() },
+      { label: 'Copy', enabled: flags.canCopy, click: () => contents.copy() },
+      { label: 'Paste', enabled: flags.canPaste, click: () => contents.paste() },
+      ...address ? [{ label: 'Paste and Go', enabled: pasteable, click: () => void pasted().then(text => { if (text) address.go(text); }) }] : [],
+      { label: 'Delete', enabled: flags.canDelete, click: () => contents.delete() },
+      { type: 'separator' },
+      { label: 'Select All', enabled: flags.canSelectAll, click: () => contents.selectAll() },
+      ...address ? [{ type: 'separator' as const }, { label: 'Copy Address', icon: 'link', enabled: Boolean(address.url), click: () => void clipboard.writeText(address.url) }] : [],
+    ];
+    this.menus.show(contents, items, params.x, params.y);
   }
   /** Opens a link in a browser session of the connection and shows it; see `Browsers.open` for `session` and `fallback`. */
   open(connectionId: string, url: string, session?: string, fallback = false) {
@@ -89,7 +129,25 @@ export class LinkMenus {
       this.selected(await this.browsers.open(connection, target, session, fallback));
     }).catch(error => this.error(String(error), connectionId, label));
   }
-  private items(connectionId: string, url: string, { current: currentId, first }: { current?: string; first?: string }): MenuItemConstructorOptions[] {
+  /**
+   * Opens an address `systemLink` gave with the system's default application for its scheme: through Launch Services on
+   * macOS, and elsewhere `xdg-open`, which runs apart from Bartizan and fails when nothing opens it.
+   */
+  external(connectionId: string, target: string) {
+    const label = this.sessions.entries.get(connectionId)?.info.label;
+    let reported = false;
+    const failed = () => { if (!reported) this.error(`No application opens ${new URL(target).protocol} links`, connectionId, label); reported = true; };
+    if (process.platform === 'darwin') shell.openExternal(target).catch(failed);
+    else if (!onPath('xdg-open')) failed();
+    else {
+      const child = spawn('xdg-open', [target], { stdio: 'ignore', detached: true, env: { ...process.env, MM_NOTTTY: '1' } });
+      // xdg-open reports a missing handler at once; a handler it runs itself may exit with any status much later.
+      const started = Date.now();
+      child.on('error', failed).on('exit', code => { if (code !== 0 && Date.now() - started < 5000) failed(); });
+      child.unref();
+    }
+  }
+  private items(connectionId: string, url: string, { current: currentId, first }: { current?: string; first?: string }): MenuItem[] {
     const target = linkURL(url);
     const connection = this.sessions.entries.get(connectionId);
     if (!connection) return [];
@@ -97,14 +155,16 @@ export class LinkMenus {
     const label = connection.info.label;
     const sessions = [...connection.browsers?.entries.values() ?? []].filter(e => !e.info.application);
     const connected = connection.info.status === 'connected';
-    const items: MenuItemConstructorOptions[] = [
-      { label: 'Open Link', enabled: Boolean(currentId) || sessions.length > 0 || connected, click: () => this.open(connectionId, target, currentId ?? first, !currentId) },
-      { label: 'Open in New Browser Session', enabled: connected, click: () => this.open(connectionId, target, 'new') },
-      ...sessions.filter(e => e.info.id !== currentId).map(entry => ({ label: `Open in ${browserSessionName(entry.info).replace(/&/g, '&&')}`, click: () => this.open(connectionId, target, entry.info.id) })),
-    ];
     const run = (action: () => Promise<unknown>) => { void action().catch(error => this.error(String(error), connectionId, label)); };
-    if (externalBrowserAvailable()) items.push({ label: 'Open in External Browser', click: () => run(() => shell.openExternal(target)) });
-    items.push({ type: 'separator' }, { label: 'Copy Link', click: () => run(async () => { await clipboard.writeText(target); }) });
+    const current = sessions.find(entry => entry.info.id === currentId);
+    const items: MenuItem[] = [
+      { label: 'Open Link', enabled: Boolean(currentId) || sessions.length > 0 || connected, click: () => this.open(connectionId, target, currentId ?? first, !currentId) },
+      ...current ? [{ label: 'Open Link in New Tab', click: () => run(() => current.open({ url: target, background: true })) }] : [],
+      { label: 'Open in New Browser Session', icon: 'window', enabled: connected, click: () => this.open(connectionId, target, 'new') },
+      ...sessions.filter(e => e.info.id !== currentId).map(entry => ({ label: `Open in ${browserSessionName(entry.info)}`, click: () => this.open(connectionId, target, entry.info.id) })),
+    ];
+    if (externalBrowserAvailable()) items.push({ label: 'Open in External Browser', icon: 'external', click: () => run(() => shell.openExternal(target)) });
+    items.push({ type: 'separator' }, { label: 'Copy Link', icon: 'link', click: () => run(async () => { await clipboard.writeText(target); }) });
     return items;
   }
 }

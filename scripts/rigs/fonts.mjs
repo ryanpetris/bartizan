@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { withDirectory, startSshd, sshProfile, launch, waitFor } from './lib/harness.mjs';
+import { withDirectory, startSshd, sshProfile, launch, waitFor, chooseOption, selectList } from './lib/harness.mjs';
 import { openSettings, showSection } from './lib/settings.mjs';
 import { checkFontLoading } from './lib/font-loading.mjs';
 
@@ -79,9 +79,27 @@ await withDirectory('fonts', async (directory, cleanup) => {
 
   const settings = await openSettings(page);
   await showSection(settings, 'Terminal');
-  await settings.getByRole('combobox', { name: 'Terminal Font', exact: true }).selectOption({ label: 'System Default' });
+  // Each font in the lists is named in its own typeface.
+  const typefaces = async select => {
+    await select.click();
+    const list = await selectList(select);
+    const faces = await list.evaluate(node => Object.fromEntries([...node.querySelectorAll('[role="option"]')].map(option => [option.textContent, option.querySelector('.menu-label').style.fontFamily])));
+    await list.page().keyboard.press('Escape');
+    await expect(list).toHaveCount(0);
+    return faces;
+  };
+  const terminalFont = settings.getByRole('button', { name: 'Terminal Font', exact: true }),
+    interfaceFont = settings.getByRole('button', { name: 'Interface Font', exact: true });
+  const terminalFaces = await typefaces(terminalFont);
+  assert.equal(terminalFaces['JetBrains Mono'], '"Bartizan JetBrains Mono", monospace');
+  assert.equal(terminalFaces['System Default'], 'monospace');
+  assert.equal(terminalFaces.Custom, '');
+  await chooseOption(terminalFont, { label: 'System Default' });
   await showSection(settings, 'Appearance');
-  await settings.getByRole('combobox', { name: 'Interface Font', exact: true }).selectOption({ label: 'Inter' });
+  const interfaceFaces = await typefaces(interfaceFont);
+  assert.equal(interfaceFaces.Inter, '"Bartizan Inter", system-ui, sans-serif');
+  assert.equal(interfaceFaces['System Default'], 'system-ui, sans-serif');
+  await chooseOption(interfaceFont, { label: 'Inter' });
   await waitState(s => s.settings.terminalFont === '' && s.settings.interfaceFont === 'Inter', 'saved fonts');
   await settings.getByRole('button', { name: 'Close', exact: true }).click();
   await expect.poll(() => page.locator('body').evaluate(e => getComputedStyle(e).fontFamily)).toMatch(/Bartizan Inter/);
@@ -91,7 +109,7 @@ await withDirectory('fonts', async (directory, cleanup) => {
   await page.locator('.connect .profile-row[data-id="alpha"] .profile-edit').click();
   const form = dialogs.locator('#connection-dialog');
   await form.getByRole('tab', { name: /^Terminal/ }).click();
-  await expect(form.locator('[name="terminal.font"] option:checked')).toHaveText('System Default');
+  await expect(form.locator('[name="terminal.font"]')).toHaveText('System Default');
   await expect(form.locator('[name="terminal.font_size"]')).toHaveValue('20');
   await form.getByRole('button', { name: 'Reset Font', exact: true }).click();
   await form.getByRole('button', { name: 'Reset Font Size', exact: true }).click();

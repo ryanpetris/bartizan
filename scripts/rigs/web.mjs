@@ -28,12 +28,13 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   const url = await waitFor(() => /Bartizan listening on (http:\/\/\S+)/.exec(log)?.[1], 'web server');
   assert.equal((await fetch(url + '/server.cjs')).status, 404);
   assert.equal(await new Promise((resolve, reject) => { get(url, { headers: { host: 'attacker.test' } }, response => { response.resume(); resolve(response.statusCode); }).on('error', reject); }), 403);
-  const foreign = new WebSocket(url.replace('http:', 'ws:') + '/socket', { origin: 'http://attacker.test' });
+  const socketURL = url.replace('http:', 'ws:') + '/socket?client=' + '0'.repeat(32);
+  const foreign = new WebSocket(socketURL, { origin: 'http://attacker.test' });
   await new Promise(resolve => foreign.on('error', resolve));
   const browser = await chromium.launch({ executablePath: process.env.BARTIZAN_CHROMIUM ?? '/usr/bin/chromium', headless: true, chromiumSandbox: true });
   cleanup(() => browser.close());
   const failedPage = await browser.newPage();
-  await failedPage.routeWebSocket('**/socket', socket => socket.close());
+  await failedPage.routeWebSocket(/\/socket\?/, socket => socket.close());
   await failedPage.goto(url);
   await expect(failedPage.getByRole('alert')).toHaveText('Connection to Bartizan server closed.');
   await failedPage.close();
@@ -61,12 +62,28 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   await expect(fixture).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(connectSearch).toBeFocused();
+  // Tooltips draw in a layer of the page that lets the pointer through; they name a control once the pointer rests on it,
+  // beside the rail's, or the keyboard reaches it, and go as the pointer leaves or with Escape.
+  const tip = page.locator('.tooltip-layer .tooltip'), search = await connectSearch.boundingBox();
+  await page.mouse.move(search.x + search.width / 2, search.y + search.height / 2);
+  await start.hover();
+  await expect(tip).toHaveText('New Connection');
+  const control = await start.boundingBox(), shown = await tip.boundingBox();
+  assert.ok(shown.x >= control.x + control.width, 'A rail tooltip shows beside its control');
+  assert.equal(await page.evaluate(({ x, y }) => Boolean(document.elementFromPoint(x, y)?.closest('.tooltip')), { x: shown.x + shown.width / 2, y: shown.y + shown.height / 2 }), false, 'The pointer passes through a tooltip');
+  await page.mouse.move(search.x + search.width / 2, search.y + search.height / 2);
+  await expect(tip).toHaveCount(0);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Reload Configuration', exact: true })).toBeFocused();
+  await expect(tip).toHaveText('Reload Configuration');
+  await page.keyboard.press('Escape');
+  await expect(tip).toHaveCount(0);
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await expect(page.locator('.connect')).toBeHidden();
   const api = (name, ...args) => page.evaluate(({ name, args }) => window.bartizan[name](...args), { name, args });
-  assert.deepEqual(await api('capabilities'), { embeddedBrowser: false, nativeFilePicker: false });
+  assert.deepEqual(await api('capabilities'), { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false });
   await assert.rejects(api('newBrowser', 'missing'), /Unsupported operation/);
-  await page.evaluate(() => { window.rigOutput = ''; window.bartizan.onEvent(event => { if (event.type === 'state') window.rigState = event.state; if (event.type === 'data') window.rigOutput += event.data; }); });
+  await page.evaluate(() => { window.rigOutput = ''; window.bartizan.onEvent(event => { if (event.type === 'state') window.rigState = event.state; if (event.type === 'data') window.rigOutput = (window.rigOutput + event.data).slice(-65536); }); });
   await page.evaluate(async () => {
     const clipboard = navigator.clipboard;
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
@@ -87,8 +104,60 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   await api('resize', terminal, 91, 37);
   await api('input', terminal, 'stty size\n');
   await page.waitForFunction(() => window.rigOutput.includes('37 91'));
-  await expect(page.getByRole('button', { name: 'New Browser Tab', exact: true })).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Visual Studio Code', exact: true })).toBeHidden();
+  // Output keeps pace with the page, so Ctrl+C during a flood of output returns the prompt promptly.
+  const rows = page.locator('.terminal-surface:not([hidden]) .xterm-rows');
+  await api('input', terminal, "PS1='WEB''_PROMPT$ '\n");
+  await expect(rows).toContainText('WEB_PROMPT$');
+  await api('input', terminal, 'yes\n');
+  await expect(rows).not.toContainText('WEB_PROMPT$');
+  await page.waitForTimeout(2000);
+  const interrupted = Date.now();
+  await api('input', terminal, '\x03');
+  await expect(rows).toContainText('WEB_PROMPT$', { timeout: 5000 });
+  console.log(`${runtime}: Ctrl+C during a flood of output returns the prompt in ${Date.now() - interrupted} ms.`);
+  // A client that never acknowledges output does not hold the terminal back, and is disconnected once far behind.
+  const lagging = new WebSocket(socketURL, { origin: url });
+  cleanup(() => lagging.terminate());
+  const laggingClosed = new Promise(resolve => lagging.once('close', resolve));
+  await new Promise((resolve, reject) => { lagging.once('open', resolve); lagging.once('error', reject); });
+  await api('input', terminal, 'seq 1 1500000; echo SEQ_$((6*7))\n');
+  assert.equal(await Promise.race([laggingClosed, new Promise(resolve => setTimeout(resolve, 60000, 'open'))]), 1013);
+  await page.waitForFunction(() => window.rigOutput.includes('SEQ_42'), undefined, { timeout: 60000 });
+  // A page whose socket drops reconnects, applies the state it missed, keeps its terminals' contents and continues with
+  // live output. Sockets opened while `held` reach no server and stay open until released.
+  const routed = await browser.newPage();
+  routed.on('pageerror', error => errors.push(error.message));
+  const servers = [], held = [];
+  let holding = false;
+  await routed.routeWebSocket(/\/socket\?/, socket => { if (holding) held.push(socket); else servers.push(socket.connectToServer()); });
+  await routed.goto(url);
+  await routed.locator(`.connection-chip[data-id="${connection}"] .connection-titles`).click();
+  await routed.locator(`[data-kind="terminal"][data-id="${terminal}"]`).click();
+  const routedRows = routed.locator('.terminal-surface:not([hidden]) .xterm-rows');
+  await api('input', terminal, "printf 'BEFORE_%s\\n' DROP\n");
+  await expect(routedRows).toContainText('BEFORE_DROP');
+  const routedDraft = await routed.evaluate(() => window.bartizan.profileDraft());
+  const lost = routed.getByText('Connection to Bartizan server closed.', { exact: true });
+  holding = true;
+  await servers[0].close();
+  await expect(lost).toBeVisible();
+  await waitFor(() => held.length, 'a held reconnection');
+  const missed = await api('newTerminal', connection);
+  await api('input', terminal, "printf 'MISSED_%s\\n' OUTPUT\n");
+  await page.waitForFunction(() => window.rigOutput.includes('MISSED_OUTPUT'));
+  holding = false;
+  for (const socket of held) await socket.close();
+  await expect(routed.locator(`[data-kind="terminal"][data-id="${missed}"]`)).toBeVisible();
+  await expect(lost).toBeHidden();
+  assert.equal(servers.length, 2);
+  assert.ok((await routed.evaluate(token => window.bartizan.profilePreview({ token, values: { host: '127.0.0.1' }, reset: [] }), routedDraft.token)).includes('127.0.0.1'), 'A profile draft survives reconnection');
+  await routed.locator(`[data-kind="terminal"][data-id="${terminal}"]`).click();
+  await routed.evaluate(id => window.bartizan.input(id, "printf 'AFTER_%s\\n' DROP\n"), terminal);
+  await expect(routedRows).toContainText('AFTER_DROP');
+  await expect(routedRows).toContainText('BEFORE_DROP');
+  await expect(routedRows).not.toContainText('MISSED_OUTPUT');
+  await routed.close();
+  await api('closeTerminal', missed);
   await page.locator('.connection-add').click();
   await page.waitForFunction(() => window.rigState.terminals.length === 2);
   await expect(page.getByRole('menu')).toHaveCount(0);
@@ -98,6 +167,27 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   const popupEvent = page.waitForEvent('popup');
   await page.evaluate(() => window.bartizan.openLink('', 'https://example.com/'));
   const popup = await popupEvent; await popup.close();
+  // A terminal's link menu is drawn in the page at the pointer, and opens the chosen link.
+  await page.evaluate(id => window.bartizan.linkMenu(id, ['https://example.com/one', 'https://example.com/two'], { x: 120, y: 140 }), terminal);
+  const linkMenu = page.getByRole('menu');
+  await expect(linkMenu.getByRole('menuitem')).toHaveText(['https://example.com/one', 'https://example.com/two']);
+  assert.deepEqual(await linkMenu.evaluate(node => { const box = node.getBoundingClientRect(); return [box.x, box.y]; }), [120, 140]);
+  const linkPopup = page.waitForEvent('popup');
+  await linkMenu.getByRole('menuitem', { name: 'https://example.com/two', exact: true }).click();
+  await (await linkPopup).close();
+  await expect(linkMenu).toHaveCount(0);
+  // Keys move through it, and Escape returns focus to where it was.
+  const row = page.locator(`[data-kind="terminal"][data-id="${terminal}"]`);
+  await row.focus();
+  await page.evaluate(id => window.bartizan.linkMenu(id, ['https://example.com/one', 'https://example.com/two'], { x: 120, y: 140 }), terminal);
+  await expect(linkMenu).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(linkMenu.getByRole('menuitem', { name: 'https://example.com/two', exact: true })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(linkMenu.getByRole('menuitem', { name: 'https://example.com/one', exact: true })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(linkMenu).toHaveCount(0);
+  await expect(row).toBeFocused();
   for (const theme of ['rail', 'tabs', 'console']) {
     await api('settings', { theme });
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
@@ -124,8 +214,6 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
     assert.equal(await page.evaluate(() => !!document.fullscreenElement), false);
 
 
-    await expect(page.getByRole('button', { name: 'New Browser Tab', exact: true })).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Visual Studio Code', exact: true })).toBeHidden();
     const count = await page.evaluate(() => window.rigState.terminals.length);
     await page.locator('.connection-add').click();
     await page.waitForFunction(count => window.rigState.terminals.length === count + 1, count);
@@ -163,5 +251,5 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-appearance', await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
   assert.deepEqual(errors, []);
-  console.log(`${runtime}: web terminals, capabilities, direct terminal creation, context menus, external links, settings, error dialogs and independent profile drafts work without a desktop window.`);
+  console.log(`${runtime}: web terminals, flow control, reconnection, capabilities, direct terminal creation, context menus, tooltips, external links, settings, error dialogs and independent profile drafts work without a desktop window.`);
 });

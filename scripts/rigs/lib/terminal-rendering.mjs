@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 import { chooseAppearance, openSettings, closeSettings, showSection } from './settings.mjs';
+import { chooseOption } from './harness.mjs';
 
 export async function testTerminalRendering(app, first, second) {
   const { application, page, api, state } = app;
@@ -35,32 +36,39 @@ export async function testTerminalRendering(app, first, second) {
   assert.equal(await page.locator('.rail-panel').evaluate(e => getComputedStyle(e).backgroundColor), 'rgb(21, 23, 29)');
   await select(first);
 
-  const draw = async () => {
-    await page.evaluate(id => window.bartizan.input(id, "printf '\\033[2J\\033[H\\033[?25l\\033[38;2;231;37;53m┌────────┐\\n│        │\\n│        │\\n└────────┘\\033[0m\\n\\033[41m          \\033[0m\\n\\033[48;5;196m          \\033[0m\\n\\033[48;2;12;200;34m          \\033[0m\\n'\n"), first);
-    await page.waitForTimeout(350);
-    const pixels = await application.evaluate(async ({ BrowserWindow }) => {
-      const image = await BrowserWindow.getAllWindows()[0].capturePage();
-      const { width, height } = image.getSize(); const data = image.toBitmap();
-      const rows = new Set(); let minX = width, maxX = 0, minY = height, maxY = 0, horizontal = 0, horizontalSpan = 0;
-      let ansi = 0, indexed = 0, rgb = 0;
-      for (let y = 0; y < height; y++) {
-        let count = 0, firstX = width, lastX = 0;
-        for (let x = 0; x < width; x++) {
-          const i = (y * width + x) * 4, b = data[i], g = data[i + 1], r = data[i + 2];
-          if (r === 231 && g === 37 && b === 53) { count++; firstX = Math.min(firstX, x); lastX = x; rows.add(y); minX = Math.min(x, minX); maxX = Math.max(x, maxX); minY = Math.min(y, minY); maxY = Math.max(y, maxY); }
-          if (r === 240 && g === 113 && b === 122) ansi++;
-          if (r === 255 && g === 0 && b === 0) indexed++;
-          if (r === 12 && g === 200 && b === 34) rgb++;
-        }
-        if (count > horizontal) { horizontal = count; horizontalSpan = lastX - firstX + 1; }
+  /** Measures the box and the backgrounds `draw` prints, as the window shows them. */
+  const capture = () => application.evaluate(async ({ BrowserWindow }) => {
+    const image = await BrowserWindow.getAllWindows()[0].capturePage();
+    const { width, height } = image.getSize(); const data = image.toBitmap();
+    const rows = new Set(); let minX = width, maxX = 0, minY = height, maxY = 0, horizontal = 0, horizontalSpan = 0;
+    let ansi = 0, indexed = 0, rgb = 0;
+    for (let y = 0; y < height; y++) {
+      let count = 0, firstX = width, lastX = 0;
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4, b = data[i], g = data[i + 1], r = data[i + 2];
+        if (r === 231 && g === 37 && b === 53) { count++; firstX = Math.min(firstX, x); lastX = x; rows.add(y); minX = Math.min(x, minX); maxX = Math.max(x, maxX); minY = Math.min(y, minY); maxY = Math.max(y, maxY); }
+        if (r === 240 && g === 113 && b === 122) ansi++;
+        if (r === 255 && g === 0 && b === 0) indexed++;
+        if (r === 12 && g === 200 && b === 34) rgb++;
       }
-      return { width: maxX - minX + 1, height: maxY - minY + 1, rows: rows.size, horizontal, horizontalSpan, ansi, indexed, rgb };
-    });
-    assert.ok(pixels.width > 50 && pixels.height > 30, JSON.stringify(pixels));
+      if (count > horizontal) { horizontal = count; horizontalSpan = lastX - firstX + 1; }
+    }
+    return { width: maxX - minX + 1, height: maxY - minY + 1, rows: rows.size, horizontal, horizontalSpan, ansi, indexed, rgb };
+  });
+  const draw = async () => {
+    // The screen is cleared first, so the box measured is one drawn after it with the current settings.
+    await page.evaluate(id => window.bartizan.input(id, "printf '\\033[2J\\033[H'\n"), first);
+    await expect.poll(async () => (await capture()).rows).toBe(0);
+    await page.evaluate(id => window.bartizan.input(id, "printf '\\033[2J\\033[H\\033[?25l\\033[38;2;231;37;53m┌────────┐\\n│        │\\n│        │\\n└────────┘\\033[0m\\n\\033[41m          \\033[0m\\n\\033[48;5;196m          \\033[0m\\n\\033[48;2;12;200;34m          \\033[0m\\n'\n"), first);
+    // The output reaches the screen once the shell has run the command and the terminal has drawn a frame.
+    let pixels;
+    await expect.poll(async () => {
+      pixels = await capture();
+      return { box: pixels.width > 50 && pixels.height > 30, ansi: pixels.ansi > 100, indexed: pixels.indexed > 100, rgb: pixels.rgb > 100 };
+    }).toEqual({ box: true, ansi: true, indexed: true, rgb: true });
     assert.equal(pixels.rows, pixels.height, 'Vertical box borders have no empty pixel rows');
     assert.ok(pixels.horizontal > pixels.width * 0.8);
     assert.equal(pixels.horizontal, pixels.horizontalSpan, 'Horizontal box borders have no empty pixel columns');
-    assert.ok(pixels.ansi > 100 && pixels.indexed > 100 && pixels.rgb > 100, JSON.stringify(pixels));
   };
   await draw();
   const terminalSize = async () => {
@@ -73,7 +81,7 @@ export async function testTerminalRendering(app, first, second) {
   await dialog.getByRole('spinbutton', { name: 'Terminal Font Size', exact: true }).fill('18');
   await dialog.getByRole('spinbutton', { name: 'Terminal Font Size', exact: true }).press('Enter');
   await expect.poll(async () => (await settings()).terminalFontSize).toBe(18);
-  await dialog.getByRole('combobox', { name: 'Terminal Font', exact: true }).selectOption({ label: 'Custom' });
+  await chooseOption(dialog.getByRole('button', { name: 'Terminal Font', exact: true }), { label: 'Custom' });
   await dialog.getByRole('textbox', { name: 'Terminal Font Family', exact: true }).fill('Bartizan Missing Font');
   await dialog.getByRole('textbox', { name: 'Terminal Font Family', exact: true }).press('Enter');
   await expect.poll(async () => (await settings()).terminalFont).toBe('Bartizan Missing Font');
@@ -84,7 +92,7 @@ export async function testTerminalRendering(app, first, second) {
   await page.evaluate(id => window.bartizan.input(id, "printf 'FONT_%s\\n' KEPT\n"), first);
   await page.waitForFunction(() => window.rigOutput.includes('FONT_KEPT'));
   dialog = await showSection(await openSettings(page), 'Terminal');
-  await dialog.getByRole('combobox', { name: 'Terminal Font', exact: true }).selectOption('JetBrains Mono');
+  await chooseOption(dialog.getByRole('button', { name: 'Terminal Font', exact: true }), 'JetBrains Mono');
   await dialog.getByRole('spinbutton', { name: 'Terminal Font Size', exact: true }).fill('13');
   await closeSettings(page);
   await expect.poll(settings).toEqual({ appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalLigatures: true, terminalWebgl: true, terminalFont: 'JetBrains Mono', terminalFontSize: 13, remoteSessionIntegration: true });
@@ -108,7 +116,7 @@ export async function testTerminalRendering(app, first, second) {
     return Boolean(row) && document.querySelector('.titlebar-heading .titlebar-item')?.textContent === row && document.title.includes(` · ${row} — `);
   })).toBe(true);
   const topButtons = await titlebar.getByRole('button').evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-label')));
-  for (const name of ['New Terminal', 'New Browser Tab', 'Visual Studio Code', 'Connection Details']) assert.ok(topButtons.includes(name), name);
+  for (const name of ['Connection Details', 'Toggle Fullscreen']) assert.ok(topButtons.includes(name), name);
   await expect(page.locator('.rail-panel .connection-disconnect')).toBeVisible();
   const detailsButton = titlebar.getByRole('button', { name: 'Connection Details', exact: true });
   await detailsButton.click();
@@ -116,10 +124,10 @@ export async function testTerminalRendering(app, first, second) {
   await expect(details).toBeVisible();
   await expect(details.locator('.details-status')).toHaveText('Connected');
   await select(first);
-  assert.equal(await chromeFits(), true);
+  await expect.poll(chromeFits).toBe(true);
   await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1.25));
   await page.waitForTimeout(200);
-  assert.equal(await chromeFits(), true);
+  await expect.poll(chromeFits).toBe(true);
   await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1));
   await page.waitForTimeout(200);
   console.log('The title bar shows terminal context and connection actions without overlap at minimum width and zoom.');
@@ -159,7 +167,7 @@ export async function testTerminalRendering(app, first, second) {
   await page.reload();
   await app.chooseConnection((await state()).terminals.find(t => t.id === first).connectionId);
   await select(first);
-  await expect((await openSettings(page)).getByRole('combobox', { name: 'Appearance', exact: true })).toHaveValue('light');
+  await expect((await openSettings(page)).getByRole('button', { name: 'Appearance', exact: true })).toHaveAttribute('value', 'light');
   await closeSettings(page);
   await select(first);
   await waitBackground('rgb(252, 252, 253)');

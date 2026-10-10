@@ -40,7 +40,6 @@ await withDirectory('sessions', async (directory, cleanup) => {
   await writeFile(config, `version: 1\nprofiles:\n  test:\n${sshProfile(sshd)}  other:\n${sshProfile(sshd)}`);
   const app = await launch(directory, config); cleanup(app.close);
   const { api, page, waitState, chooseConnection, application, errors } = app;
-  await application.evaluate(({ Menu }) => { globalThis.rigMenus = []; Menu.prototype.popup = function () { globalThis.rigMenus.push(this); }; });
   await page.evaluate(() => {
     window.snapshotsA = []; window.snapshotsB = [];
     window.bartizan.onHelperMessage('sessions.snapshot', event => window.snapshotsA.push(event));
@@ -131,8 +130,8 @@ await withDirectory('sessions', async (directory, cleanup) => {
   await assert.rejects(api('reconnect', second), /Unknown profile/);
   await api('removeConnection', second); await chooseConnection(id); await tab().click();
   await item('scratch').click({ button: 'right' });
-  await expect.poll(() => application.evaluate(() => globalThis.rigMenus.at(-1)?.items.at(-1)?.label)).toBe('Kill Session');
-  await application.evaluate(() => globalThis.rigMenus.at(-1).items.at(-1).click());
+  await expect.poll(async () => (await app.menu.labels())?.at(-1)).toBe('Kill Session');
+  await app.menu.choose('Kill Session');
   const modal = await app.modal(); await modal.getByRole('button', { name: 'Kill', exact: true }).click();
   await waitState(s => !s.connections[0].remoteSessions.sessions.some(x => x.label === 'scratch'), 'killed session reconciles');
   assert.throws(() => tmux('has-session', '-t', 'scratch'));

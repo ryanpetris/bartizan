@@ -9,6 +9,7 @@ import { terminalFontFamily, loadFontStyles } from './fonts';
 import { operatorJoiner } from './ligatures';
 import { activeTheme } from './themes';
 import { localErrors } from './errors';
+import { openMenu, connectionChanges } from './menu';
 
 /**
  * `link` is the web link under the pointer; `recentLinks` holds recent OSC 8 hyperlink targets, oldest first. `font` is the
@@ -33,10 +34,69 @@ type Entry = {
   /** The registered ligature joiner while ligatures are on for an opened terminal. */
   joiner?: number;
   repaint?: boolean;
+  /** Output was dropped, which may have ended inside an escape sequence; the next output written first cancels it. */
+  discarded?: boolean;
+  /** Output written to xterm that it has yet to parse. */
+  unparsed: number;
 };
 const entries = new Map<string, Entry>();
 const retired = new Set<string>();
 const pending = new Map<string, string[]>();
+/**
+ * Output processed since the last acknowledgement, by terminal. The backend pauses a terminal while this page is too far
+ * behind, so every chunk received is acknowledged once xterm has parsed it, or when it is dropped; hidden terminals parse
+ * output too. Acknowledgements go in batches, smaller than the backlog at which a paused terminal resumes.
+ */
+const processed = new Map<string, number>();
+const acknowledgeEvery = 16 * 1024;
+/** Advances when the page loses the backend, which counts this page's output afresh once it reconnects. */
+let flowEpoch = 0;
+/** A hidden page parses output rarely, so it acknowledges output on arrival while less than this awaits parsing. */
+const hiddenAllowance = 4 * 1024 * 1024;
+/** Output arriving while this much awaits parsing is dropped, short of the backlog at which xterm's own write throws. */
+const discardAbove = 32 * 1024 * 1024;
+function acknowledge(id: string, size: number) {
+  const total = (processed.get(id) ?? 0) + size;
+  if (total < acknowledgeEvery) processed.set(id, total);
+  else {
+    processed.delete(id);
+    api.acknowledge(id, total);
+  }
+}
+/** Writes output to a terminal, acknowledging it once parsed, or on arrival while the page is hidden. */
+function writeOutput(entry: Entry, data: string) {
+  if (entry.unparsed + data.length > discardAbove) {
+    entry.discarded = true;
+    acknowledge(entry.session.id, data.length);
+    return;
+  }
+  const epoch = flowEpoch, early = document.hidden && entry.unparsed + data.length <= hiddenAllowance;
+  entry.unparsed += data.length;
+  if (early) acknowledge(entry.session.id, data.length);
+  entry.terminal.write(entry.discarded ? `\x18${data}` : data, () => {
+    entry.unparsed -= data.length;
+    if (!early && epoch === flowEpoch) acknowledge(entry.session.id, data.length);
+  });
+  entry.discarded = false;
+}
+export function detached() {
+  flowEpoch++;
+  processed.clear();
+  // Output during the gap is never replayed, so what follows it is a gap too.
+  for (const entry of entries.values()) entry.discarded = true;
+}
+/**
+ * Once the page reaches the backend again, each fitted terminal sends its size with a repaint, which redraws full-screen
+ * programs: the visible one now, the others when next shown.
+ */
+export function reattached() {
+  for (const entry of entries.values())
+    if (entry.element.dataset.sized) {
+      delete entry.element.dataset.sized;
+      entry.repaint = true;
+    }
+  fitVisible();
+}
 /** The pattern the web links addon underlines. */
 const urlPattern = /(https?|HTTPS?):[/]{2}[^\s"'!*(){}|\\\^<>`]*[^\s"':,.!?{}|\\\^~\[\]`()<>]/g;
 /** A link the browser can open: an HTTP or HTTPS URL of at most 8192 characters with a host, and no whitespace, control characters or credentials. */
@@ -52,6 +112,7 @@ function webLink(value: string | undefined): value is string {
   }
 }
 const linkLimit = 64;
+const mac = /^Mac/.test(navigator.platform);
 
 /** Links offered from the keyboard: the hovered link, web links in the visible rows, then recent hyperlinks, newest first. */
 function keyboardLinks(entry: Entry): string[] {
@@ -273,6 +334,7 @@ function create(session: TerminalSession): Entry {
     fontRequest: 0,
     fontReady: false,
     repaint: true,
+    unparsed: 0,
   };
   /** The link a right press landed on, until its context menu opens or output or scrolling moves it. */
   let pressedLink: string | undefined;
@@ -291,23 +353,31 @@ function create(session: TerminalSession): Entry {
     }
     return false;
   });
-  // A right press on a link opens its menu; neither the press nor its release reaches the application's mouse reporting.
+  const tracking = () => terminal.modes.mouseTrackingMode !== 'none';
+  const copy = (text: string) => run('clipboard', api.copy(text), session.connectionId);
+  // A right press on a link, or a Shift+right press, opens a menu; neither the press nor its release reaches the
+  // application's mouse reporting.
   let rightTaken = false;
   element.addEventListener(
     'mousedown',
     (event) => {
-      if (event.button === 0 && event.shiftKey && event.isTrusted && terminal.modes.mouseTrackingMode === 'none') {
-        // Without mouse reporting, Shift+drag selects like a plain drag instead of extending from the last click.
+      if (event.button === 0 && event.shiftKey && event.isTrusted && (!tracking() || mac)) {
+        // Shift+drag selects like a plain drag instead of extending from the last click. With mouse reporting on, xterm
+        // forces a selection for Shift itself, except on macOS, where only an Option press can force one, so the
+        // replacement press holds Option while forcing is on.
         event.preventDefault();
         event.stopPropagation();
+        const force = tracking();
         const { view, detail, screenX, screenY, clientX, clientY, ctrlKey, altKey, metaKey, buttons } = event;
-        const init = { view, detail, screenX, screenY, clientX, clientY, ctrlKey, altKey, metaKey, buttons };
+        const init = { view, detail, screenX, screenY, clientX, clientY, ctrlKey, altKey: altKey || force, metaKey, buttons };
+        terminal.options.macOptionClickForcesSelection = force;
         event.target?.dispatchEvent(new MouseEvent('mousedown', { ...init, bubbles: true, cancelable: true, composed: true }));
+        terminal.options.macOptionClickForcesSelection = false;
         return;
       }
       if (event.button !== 2) return;
       pressedLink = entry.link;
-      rightTaken = Boolean(pressedLink);
+      rightTaken = Boolean(pressedLink) || (event.shiftKey && tracking());
       if (rightTaken) {
         event.preventDefault();
         event.stopPropagation();
@@ -328,16 +398,31 @@ function create(session: TerminalSession): Entry {
   element.addEventListener(
     'contextmenu',
     (event) => {
-      const url = event.button === 2 ? (pressedLink ?? entry.link) : undefined;
+      const pointer = event.button === 2,
+        url = pointer ? (pressedLink ?? entry.link) : undefined;
       pressedLink = undefined;
-      if (!url) return;
+      if (!pointer || (!url && tracking() && !event.shiftKey)) return;
       event.preventDefault();
       event.stopPropagation();
-      void run('browser', api.linkMenu(session.id, url, firstSession(session.connectionId)?.id), session.connectionId);
+      if (url) {
+        void run('browser', api.linkMenu(session.id, url, { x: event.clientX, y: event.clientY }, firstSession(session.connectionId)?.id), session.connectionId);
+        return;
+      }
+      terminal.focus();
+      const copySelection = () => {
+        const text = terminal.getSelection();
+        terminal.clearSelection();
+        if (text) void copy(text);
+      };
+      const paste = () => run('clipboard', api.readClipboard().then((text) => terminal.paste(text)), session.connectionId);
+      openMenu({ x: event.clientX, y: event.clientY }, [
+        { label: 'Copy', disabled: !terminal.hasSelection(), action: copySelection },
+        { label: 'Paste', disabled: entry.session.status !== 'connected', action: () => void paste() },
+        { label: 'Select All', action: () => terminal.selectAll() },
+      ], { stale: connectionChanges(session.connectionId) });
     },
     true,
   );
-  const copy = (text: string) => run('clipboard', api.copy(text), session.connectionId);
   terminal.parser.registerOscHandler(52, async (data) => {
     const separator = data.indexOf(';');
     const selection = data.slice(0, separator);
@@ -373,9 +458,11 @@ function create(session: TerminalSession): Entry {
         menuKey = links.length > 0;
         if (menuKey) {
           event.preventDefault();
+          // The menu opens at the cursor, where the terminal keeps its input.
+          const cursor = terminal.textarea?.getBoundingClientRect();
           void run(
             'browser',
-            api.linkMenu(session.id, links.length === 1 ? links[0] : links, firstSession(session.connectionId)?.id),
+            api.linkMenu(session.id, links.length === 1 ? links[0] : links, { x: cursor?.left ?? 0, y: cursor?.bottom ?? 0 }, firstSession(session.connectionId)?.id),
             session.connectionId,
           );
         }
@@ -387,7 +474,7 @@ function create(session: TerminalSession): Entry {
   terminal.onData((data) => api.input(session.id, data));
   terminal.onResize(({ cols, rows }) => api.resize(session.id, cols, rows));
   terminal.onTitleChange((title) => setTerminalTitle(session.id, title));
-  for (const chunk of pending.get(session.id) ?? []) terminal.write(chunk);
+  for (const chunk of pending.get(session.id) ?? []) writeOutput(entry, chunk);
   pending.delete(session.id);
   entries.set(session.id, entry);
   return entry;
@@ -396,13 +483,13 @@ function create(session: TerminalSession): Entry {
 export function write(id: string, data: string) {
   const entry = entries.get(id);
   if (entry) {
-    entry.terminal.write(data);
+    writeOutput(entry, data);
     return;
   }
   if (retired.has(id)) return;
   const chunks = pending.get(id) ?? [];
   chunks.push(data);
-  if (chunks.length > 512) chunks.shift();
+  if (chunks.length > 512) acknowledge(id, chunks.shift()!.length);
   pending.set(id, chunks);
 }
 
@@ -471,9 +558,11 @@ onFocusRequest(() => {
 });
 
 // Selecting text copies it, unless it is blank, and clears the selection. xterm finishes a selection in its document
-// mouseup listener, which runs before this one.
+// mouseup listener, which runs before this one. A press outside the terminals, as in a menu, leaves a selection alone.
+let pressedInTerminal = false;
+window.addEventListener('mousedown', (event) => { pressedInTerminal = event.button === 0 && host.contains(event.target as Node); }, true);
 window.addEventListener('mouseup', (event) => {
-  if (event.button !== 0) return;
+  if (event.button !== 0 || !pressedInTerminal) return;
   for (const { terminal, session } of entries.values()) {
     if (!terminal.hasSelection()) continue;
     const text = terminal.getSelection();
@@ -494,6 +583,7 @@ function update() {
       entries.delete(id);
       retired.add(id);
       pending.delete(id);
+      processed.delete(id);
     }
   for (const id of pending.keys()) if (retired.has(id)) pending.delete(id);
   for (const session of store.state.terminals) {

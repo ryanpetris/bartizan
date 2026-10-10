@@ -6,7 +6,7 @@ export type RemoteSession = {
 export type SessionFailure = { source?: string; message: string };
 export type ApplicationPhase = 'checking' | 'downloading' | 'extracting' | 'starting' | 'loading';
 export type ApplicationRequest =
-  | { type: 'applications.launch'; launchId: string; application: string; options?: Record<string, unknown> }
+  | { type: 'applications.launch'; launchId: string; application: string }
   | { type: 'applications.respond'; launchId: string; consentId: string; accepted: boolean }
   | { type: 'applications.stop'; launchId: string };
 export type ApplicationMessage =

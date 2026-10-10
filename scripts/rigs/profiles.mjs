@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { withDirectory, startSshd, launch } from './lib/harness.mjs';
+import { withDirectory, startSshd, launch, chooseOption } from './lib/harness.mjs';
 import { tabToResults } from './lib/profile-launch.mjs';
 
 await withDirectory('profiles', async (directory, cleanup) => {
@@ -203,13 +203,14 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await expect(form.locator('[name="username"]')).toHaveValue('');
   await expect(form.locator('[name="port"]')).toHaveAttribute('placeholder', String(sshd.port));
   await section('Terminal');
-  const webgl = form.getByRole('combobox', { name: 'WebGL Rendering', exact: true });
-  await expect(webgl).toHaveValue('');
-  await expect(webgl.locator('option:checked')).toHaveText('Inherit (Disabled)');
-  await webgl.selectOption('false');
-  await webgl.selectOption('');
+  const webgl = form.getByRole('button', { name: 'WebGL Rendering', exact: true });
+  await expect(webgl).toHaveAttribute('value', '');
+  await expect(webgl).toHaveText('Inherit (Disabled)');
+  await chooseOption(webgl, 'false');
+  await expect(webgl).toHaveText('Disabled');
+  await chooseOption(webgl, '');
   await section('Authentication');
-  await expect(form.locator('select[name="auth.password"]')).toHaveValue('literal');
+  await expect(form.locator('[name="auth.password"]')).toHaveAttribute('value', 'literal');
   await expect(form.locator('[name="auth.password.value"]')).toHaveAttribute('placeholder', '••••••••');
   await application.evaluate(electron => {
     globalThis.rigBrowsed = 0;
@@ -358,12 +359,26 @@ ${incomplete ? '  incomplete:\n    label: Template\n    username: template-user\
   await port.press('e');
   await button('Connect').click();
   await expect(port).toHaveAttribute('aria-invalid', 'true');
+  // Up and Down, and the buttons beside the field, step it within its range.
+  const portStep = name => form.locator('[data-path="port"]').getByRole('button', { name, exact: true });
+  await port.fill('');
+  await port.press('ArrowUp');
+  await expect(port).toHaveValue('1');
+  await port.press('ArrowDown');
+  await expect(port).toHaveValue('1');
+  await expect(portStep('Decrease')).toHaveAttribute('aria-disabled', 'true');
+  await portStep('Decrease').click({ force: true });
+  await expect(port).toHaveValue('1');
+  await expect(port).toBeFocused();
+  await portStep('Increase').click();
+  await expect(port).toHaveValue('2');
+  await expect(port).toBeFocused();
   await port.fill('');
   await button('Connect').click();
   await expect(form).toBeHidden();
   await waitState(s => s.connections.filter(c => !c.profileId && c.status === 'connected').length === 2, 'second unsaved connection');
   assert.equal(await readFile(config, 'utf8'), saved);
-  console.log('A connection request finishing after Cancel leaves the next form open, an incomplete number blocks Connect until cleared, and unsaved connections use the defaults without writing the file.');
+  console.log('A connection request finishing after Cancel leaves the next form open, a number field steps within its range, an incomplete number blocks Connect until cleared, and unsaved connections use the defaults without writing the file.');
 
   await writeFile(config, 'version: 1\n');
   await api('reloadConfig');

@@ -41,7 +41,7 @@ export function DownloadsButton({ workspace }: { workspace: Workspace }) {
       type="button"
       className="icon-button downloads-button"
       aria-label="Downloads"
-      title="Downloads"
+      data-tooltip="Downloads"
       aria-haspopup="dialog"
       aria-expanded={shown === workspace.id}
       hidden={!workspace.downloads.length}
@@ -89,7 +89,7 @@ export function DownloadsPopover({ workspace }: { workspace: Workspace }) {
             {workspace.downloads.map((item) => (
               <li key={item.id} className="download" data-state={item.state}>
                 <div className="download-titles">
-                  <span className="download-name" title={item.name}>
+                  <span className="download-name" data-tooltip={item.name}>
                     {item.name}
                   </span>
                   <span className="download-status">{status(item)}</span>
@@ -98,10 +98,10 @@ export function DownloadsPopover({ workspace }: { workspace: Workspace }) {
                   )}
                 </div>
                 {item.state === 'progressing' && (
-                  <IconButton icon="close" label={`Cancel ${item.name}`} title="Cancel" onClick={() => act('cancel', item.id)} />
+                  <IconButton icon="close" label={`Cancel ${item.name}`} tooltip="Cancel" onClick={() => act('cancel', item.id)} />
                 )}
                 {item.state === 'completed' && (
-                  <IconButton icon="folder" label={`Show ${item.name} in Folder`} title="Show in Folder" onClick={() => act('show', item.id)} />
+                  <IconButton icon="folder" label={`Show ${item.name} in Folder`} tooltip="Show in Folder" onClick={() => act('show', item.id)} />
                 )}
               </li>
             ))}

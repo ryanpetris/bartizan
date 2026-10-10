@@ -59,7 +59,6 @@ class Launch:
         self.manager = manager
         self.id = request["launchId"]
         self.application = request["application"]
-        self.options = request.get("options", {})
         self.cancel = threading.Event()
         self.answer = threading.Event()
         self.consent_id = None
@@ -279,16 +278,18 @@ class Launch:
             # URLs and subprocess output may contain authentication tokens.
             error = dict(code="launch_failed", message=str(failure)[:2048] if isinstance(failure, ValueError) else "Application launch failed: " + type(failure).__name__)
         finally:
-            self.stop_process()
-            self.resources.close()
-            fields = dict(reason=reason)
-            if error:
-                fields["error"] = error
-            if exit_code is not None:
-                fields["exitCode"] = exit_code
-            self.emit("ended", **fields)
-            with self.manager.lock:
-                self.manager.launches.pop(self.id, None)
+            try:
+                self.stop_process()
+                self.resources.close()
+            finally:
+                fields = dict(reason=reason)
+                if error:
+                    fields["error"] = error
+                if exit_code is not None:
+                    fields["exitCode"] = exit_code
+                self.emit("ended", **fields)
+                with self.manager.lock:
+                    self.manager.launches.pop(self.id, None)
 
 
 class Applications:

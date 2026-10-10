@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 import { join, resolve, sep, extname } from 'node:path';
 import { homedir } from 'node:os';
 import { isIP } from 'node:net';
-import { randomUUID } from 'node:crypto';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createBackend } from '../backend/app';
 import { dispatch } from '../transport';
@@ -16,14 +15,17 @@ export async function serve(args: string[], dataDirectory?: string) {
   await confirmRemote(options.host, address, options.allowRemote);
   const directory = dataDirectory ?? process.env.BARTIZAN_DATA_DIR ?? join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'bartizan');
   const clients = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024, perMessageDeflate: false });
+  const owners = new WeakMap<WebSocket, string>();
+  const limit = 8 * 1024 * 1024;
+  // A client far behind, on output still to be sent or output it has yet to process, reconnects to the live output.
   const send = (socket: WebSocket, message: unknown) => {
     if (socket.readyState !== WebSocket.OPEN) return;
-    if (socket.bufferedAmount > 8 * 1024 * 1024) { socket.close(1013, 'Client is too slow'); return; }
+    if (socket.bufferedAmount > limit || backend.behind(owners.get(socket)!, limit)) { socket.close(1013, 'Client is too slow'); return; }
     socket.send(JSON.stringify(message));
   };
   const backend = await createBackend({
     file: resolve(options.config ?? join(directory, 'config.yaml')), directory, helper: join(__dirname, 'askpass.cjs'),
-    capabilities: { embeddedBrowser: false, nativeFilePicker: false },
+    capabilities: { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false },
     send: event => { for (const socket of clients.clients) send(socket, { event }); },
   });
   const allowedHost = (host: string | undefined) => {
@@ -50,11 +52,29 @@ export async function serve(args: string[], dataDirectory?: string) {
     // Same-origin checks prevent other websites from driving a local server; they are not authentication.
     let origin: URL;
     try { origin = new URL(request.headers.origin ?? ''); } catch { socket.destroy(); return; }
-    if (!allowedHost(request.headers.host) || request.url !== '/socket' || !['http:', 'https:'].includes(origin.protocol) || origin.host !== request.headers.host) { socket.destroy(); return; }
-    clients.handleUpgrade(request, socket, head, client => clients.emit('connection', client));
+    // A page names itself, so its profile draft survives a reconnect.
+    const id = /^\/socket\?client=([0-9a-f]{32})$/.exec(request.url ?? '')?.[1];
+    if (!id || !allowedHost(request.headers.host) || !['http:', 'https:'].includes(origin.protocol) || origin.host !== request.headers.host) { socket.destroy(); return; }
+    clients.handleUpgrade(request, socket, head, client => clients.emit('connection', client, id));
   });
-  clients.on('connection', socket => {
-    const id = randomUUID();
+  // A client that stops answering pings has gone without closing its socket; dropping it lets terminals it held back run.
+  const alive = new WeakSet<WebSocket>();
+  const heartbeat = setInterval(() => {
+    for (const socket of clients.clients) {
+      if (!alive.delete(socket)) socket.terminate();
+      else socket.ping();
+    }
+  }, 30000).unref();
+  /** Open sockets of each page. A page whose last socket closes keeps its profile draft for a while, in case it reconnects. */
+  const sockets = new Map<string, number>();
+  const releases = new Map<string, NodeJS.Timeout>();
+  clients.on('connection', (socket: WebSocket, id: string) => {
+    owners.set(socket, id);
+    sockets.set(id, (sockets.get(id) ?? 0) + 1);
+    clearTimeout(releases.get(id)); releases.delete(id);
+    alive.add(socket);
+    socket.on('pong', () => alive.add(socket));
+    backend.attach(id);
     for (const event of backend.snapshot()) send(socket, { event });
     socket.on('message', (data, binary) => {
       if (binary) { socket.close(1003, 'Expected JSON'); return; }
@@ -66,7 +86,14 @@ export async function serve(args: string[], dataDirectory?: string) {
       })();
     });
     socket.on('error', () => {});
-    socket.on('close', () => backend.release(id));
+    socket.on('close', () => {
+      const open = sockets.get(id)! - 1;
+      if (open) sockets.set(id, open);
+      else {
+        sockets.delete(id); backend.detach(id);
+        releases.set(id, setTimeout(() => { releases.delete(id); backend.release(id); }, 10 * 60 * 1000).unref());
+      }
+    });
   });
   let stopped = false;
   let finished!: () => void;
@@ -74,6 +101,7 @@ export async function serve(args: string[], dataDirectory?: string) {
   const stop = async () => {
     if (stopped) return;
     stopped = true;
+    clearInterval(heartbeat);
     for (const socket of clients.clients) socket.terminate();
     clients.close(); server.close();
     try { await backend.close(); } finally { finished(); }

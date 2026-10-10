@@ -4,7 +4,7 @@ import { parseHelperMessage, applicationRequest } from '../src/main/remote-helpe
 import { namedByAddress } from '../src/shared';
 
 test('application wire messages validate endpoints and correlate consent without application-specific types', () => {
-  assert.equal(applicationRequest.parse({ type: 'applications.launch', launchId: 'launch-1', application: 'another-editor', options: { project: 'one' } }).type, 'applications.launch');
+  assert.equal(applicationRequest.parse({ type: 'applications.launch', launchId: 'launch-1', application: 'another-editor' }).type, 'applications.launch');
   assert.equal(parseHelperMessage(JSON.stringify({ type: 'applications.consent', launchId: 'launch-1', consentId: 'notice-1', content: { text: 'Remote notice\nhttps://example.com/terms' } })).type, 'applications.consent');
   const ready = (url: string) => JSON.stringify({ type: 'applications.ready', launchId: 'launch-1', view: { kind: 'browser', url } });
   assert.equal(parseHelperMessage(ready('http://127.0.0.1:12345/?tkn=secret')).type, 'applications.ready');

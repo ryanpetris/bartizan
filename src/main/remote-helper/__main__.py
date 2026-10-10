@@ -13,6 +13,9 @@ try:
 except (BrokenPipeError, KeyboardInterrupt):
     pass
 finally:
-    for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
-        signal.signal(signum, signal.SIG_IGN)
-    applications.close()
+    # A signal handled while these are being ignored ends the helper, after the applications have closed.
+    try:
+        for signum in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+            signal.signal(signum, signal.SIG_IGN)
+    finally:
+        applications.close()

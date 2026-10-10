@@ -6,6 +6,7 @@ import pwd
 import select
 import shlex
 import shutil
+import signal
 import socket
 import stat
 import struct
@@ -226,6 +227,10 @@ def monitor(applications):
     configured = False
     next_scan = next_snapshot = 0.0
     pending = bytearray()
+    # A signal that arrives just before select would otherwise wait for its handler until stdin is readable.
+    wakeup, signalled = os.pipe()
+    os.set_blocking(signalled, False)
+    signal.set_wakeup_fd(signalled)
     while True:
         now = time.monotonic()
         if configured and now >= next_scan:
@@ -276,7 +281,10 @@ def monitor(applications):
                         del known[path]
                         previous.pop(source, None)
             next_scan = time.monotonic() + INTERVAL
-        if select.select([sys.stdin], [], [], max(0, next_scan - time.monotonic()) if configured else None)[0]:
+        ready = select.select([sys.stdin, wakeup], [], [], max(0, next_scan - time.monotonic()) if configured else None)[0]
+        if wakeup in ready:
+            os.read(wakeup, 4096)
+        if sys.stdin in ready:
             chunk = os.read(sys.stdin.fileno(), 4096)
             if not chunk:
                 return

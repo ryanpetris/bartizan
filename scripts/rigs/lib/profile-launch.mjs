@@ -2,6 +2,7 @@ import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { userInfo } from 'node:os';
 import { readFile, writeFile } from 'node:fs/promises';
+import { chooseOption, optionOf, selectList } from './harness.mjs';
 export const connectSearch = view => view.getByRole('combobox', { name: 'Profile or Host', exact: true });
 /** Shows the Connect page, and returns it. */
 export async function openConnect(page) {
@@ -15,6 +16,8 @@ export async function openConnect(page) {
 }
 /** Moves focus from the search to the results, past the controls over them. */
 export async function tabToResults(page) {
+  // A page takes focus in the frame after it is shown; once that frame has passed it cannot take focus back from the keys.
+  await page.evaluate(() => new Promise(requestAnimationFrame));
   for (const _ of [0, 1, 2]) await page.keyboard.press('Tab');
   await expect(page.locator('.picker-list :focus')).toHaveCount(1);
 }
@@ -105,10 +108,18 @@ export async function testProfileLaunch(app, config, url) {
     await connect.press('Enter');
     await expect(dialogs.locator('#connection-dialog')).toBeVisible();
     await expect(dialogs.locator('[data-path="auth.identity_files"] .field-error')).toBeVisible();
-    const noIdentityFiles = dialogs.locator('select[name="auth.identity_files"] option[value="none"]');
-    await expect(noIdentityFiles).toHaveText('None');
-    await dialogs.locator('select[name="auth.method"]').selectOption('auto');
-    await expect(noIdentityFiles).toHaveText('OpenSSH Default');
+    const identityFiles = dialogs.locator('[name="auth.identity_files"]');
+    const noIdentityFiles = async () => {
+      await identityFiles.click();
+      const list = await selectList(identityFiles);
+      const label = await optionOf(list, 'none').textContent();
+      await list.page().keyboard.press('Escape');
+      await expect(list).toHaveCount(0);
+      return label;
+    };
+    assert.equal(await noIdentityFiles(), 'None');
+    await chooseOption(dialogs.locator('[name="auth.method"]'), 'auto');
+    assert.equal(await noIdentityFiles(), 'OpenSSH Default');
     assert.equal((await state()).connections.length, 0);
     await dialogs.getByRole('button', { name: 'Cancel', exact: true }).click();
 

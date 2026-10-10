@@ -13,6 +13,8 @@ await withDirectory('details', async (directory, cleanup) => {
   const id = await api('connect', { profileId: 'test' });
   await waitState(s => s.connections[0]?.status === 'connected');
   await app.chooseConnection(id);
+  // The SSH section needs a client with `-O conninfo`.
+  const security = !!(await api('details', id)).kex;
   const tab = page.locator('.nav-item[data-kind="details"]');
   const details = page.locator('.connection-details');
   for (const theme of ['rail', 'tabs', 'console']) {
@@ -24,7 +26,8 @@ await withDirectory('details', async (directory, cleanup) => {
     await expect(details).toBeVisible();
     await expect(details).toBeFocused();
     await expect(details.locator('.details-status')).toHaveText('Connected');
-    await expect(details.locator('.process-row')).toHaveCount(0);
+    // Once started, the helper keeps running until disconnection.
+    await expect(details.locator('.process-row')).toHaveCount(theme === 'rail' ? 0 : 1);
     await expect(details.getByRole('button')).toHaveCount(0);
     await expect(page).toHaveTitle('test · Connection Details — Bartizan');
     const separator = await page.locator('.details-entry').evaluate(node => {
@@ -35,7 +38,7 @@ await withDirectory('details', async (directory, cleanup) => {
     await api('settings', { remoteSessionIntegration: true });
     await expect(details.locator('.process-status')).toHaveText(['Running']);
     await expect(details.locator('.process-pid')).toHaveText(/^PID \d+$/);
-    await expect(details.locator('[aria-labelledby="security-title"]')).toBeVisible();
+    await expect(details.locator('[aria-labelledby="security-title"]')).toHaveCount(security ? 1 : 0);
     if (theme === 'rail') {
       const processId = (await app.state()).connections[0].processes[0].id;
       await page.reload();
@@ -47,16 +50,16 @@ await withDirectory('details', async (directory, cleanup) => {
       await application.evaluate(({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0].setSize(width, 820), width);
       await expect.poll(() => details.evaluate(node => {
         const connection = node.querySelector('[aria-labelledby="connection-title"]').getBoundingClientRect();
-        const ssh = node.querySelector('[aria-labelledby="security-title"]').getBoundingClientRect();
+        const ssh = node.querySelector('[aria-labelledby="security-title"]')?.getBoundingClientRect();
         const processes = node.querySelector('.details-processes').getBoundingClientRect();
         const style = getComputedStyle(node);
         const wide = node.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) >= 840;
-        return (wide ? Math.abs(connection.top - ssh.top) < 1 && ssh.left > connection.right : ssh.top >= connection.bottom) && processes.top >= Math.max(connection.bottom, ssh.bottom) && node.scrollWidth <= node.clientWidth;
+        return (!ssh || (wide ? Math.abs(connection.top - ssh.top) < 1 && ssh.left > connection.right : ssh.top >= connection.bottom)) && processes.top >= Math.max(connection.bottom, ssh?.bottom ?? 0) && node.scrollWidth <= node.clientWidth;
       })).toBe(true);
     }
     if (process.env.BARTIZAN_DETAILS_SCREENSHOTS) await page.screenshot({ path: join(process.env.BARTIZAN_DETAILS_SCREENSHOTS, `details-${theme}.png`) });
     await api('settings', { remoteSessionIntegration: false });
-    await expect(details.locator('.process-row')).toHaveCount(0);
+    await expect(details.locator('.process-status')).toHaveText(['Running']);
   }
   const terminal = (await app.state()).terminals[0].id;
   await api('closeTerminal', terminal);

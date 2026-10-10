@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { openSettings, closeSettings, chooseAppearance } from './settings.mjs';
+import { chooseOption } from './harness.mjs';
 
 export async function testBrowserInteractions(app, httpPort, first) {
   const { application, page, state, api } = app;
@@ -79,7 +80,7 @@ export async function testBrowserInteractions(app, httpPort, first) {
       return shown.length === 2 && shown[0].url.startsWith('http:') && modal.url === 'about:blank' && modal.focused
         && modal.x === 0 && modal.y === top && modal.width === content.width && modal.height === content.height - top;
     }, 'Settings draws over the page from the foot of the title bar').toBe(true);
-    await expect(settings.getByRole('combobox', { name: 'Appearance', exact: true })).toBeFocused();
+    await expect(settings.getByRole('button', { name: 'Appearance', exact: true })).toBeFocused();
     if (mode === 'dark') {
       // The application page takes native focus when the window is activated or its title bar clicked, and hands it back.
       await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.focus());
@@ -102,7 +103,7 @@ export async function testBrowserInteractions(app, httpPort, first) {
         return modal.url === 'about:blank' && modal.y === top && modal.width === content.width && modal.height === content.height - top;
       }).toBe(true);
     }
-    await settings.getByRole('combobox', { name: 'Appearance', exact: true }).selectOption(mode);
+    await chooseOption(settings.getByRole('button', { name: 'Appearance', exact: true }), mode);
     await expect.poll(async () => (await state()).settings.appearance).toBe(mode);
     await closeSettings(page);
     await expect.poll(pageViews).toBe(1);
@@ -256,17 +257,19 @@ export async function testBrowserInteractions(app, httpPort, first) {
   await firstTabRow.click();
   console.log('Zoom and modal focus work; UI reload hides browser views and recovers pending authentication.');
   const originalTab = (await state()).workspaces[0].activeTab;
-  await application.evaluate(async ({ webContents }) => {
+  // Popups open at most once a second, so a flood of them opens a tab for each second it lasts.
+  const flood = await application.evaluate(async ({ webContents }) => {
     const browser = webContents.getAllWebContents().find(w => w.getURL().startsWith('http://localhost:'));
+    const started = performance.now();
     await browser.executeJavaScript('for(let i=0;i<400;i++) window.open(location.origin + "/popup")');
+    return Math.ceil((performance.now() - started) / 1000);
   });
-  assert.equal((await state()).workspaces[0].tabs.length, 2);
-  await page.evaluate(async id => {
-    for (let i = 0; i < 30; i++) await window.bartizan.browser(id, 'new');
-  }, workspaceId);
-  await assert.rejects(page.evaluate(id => window.bartizan.browser(id, 'new'), workspaceId), /Tab limit reached/);
+  await expect.poll(async () => (await state()).workspaces[0].tabs.length).toBeGreaterThan(1);
+  await page.waitForTimeout(300);
+  const popups = (await state()).workspaces[0].tabs.length - 1;
+  assert.ok(popups >= 1 && popups <= flood, `${popups} popups in ${flood} seconds`);
   for (const tab of (await state()).workspaces[0].tabs) if (tab.id !== originalTab) await api('browser', workspaceId, 'close', tab.id);
-  console.log('New-window links open within their session; popup floods and total tabs are bounded.');
+  console.log('New-window links open within their session, and popup floods are bounded.');
 
   await page.evaluate(({id, port}) => window.bartizan.browser(id, 'navigate', undefined, `http://localhost:${port}/second`), {id:workspaceId, port:httpPort});
   await waitState(page, s => s.workspaces[0]?.tabs[0]?.url.endsWith('/second') && !s.workspaces[0]?.tabs[0]?.loading);

@@ -10,7 +10,8 @@ const frameName = (name: OverlayName) => `overlay-${name}`;
  */
 export class Overlays {
   private views = new Map<OverlayName, WebContentsView>();
-  constructor(private window: BrowserWindow) {
+  /** `created` is told of each overlay's document as it opens. */
+  constructor(private window: BrowserWindow, private created?: (contents: Electron.WebContents) => void) {
     // While a dialog is open over the pages the keyboard is its own: the application page takes focus when the window is
     // activated or clicked, and hands it back once that focus change has finished.
     window.webContents.on('focus', () => setImmediate(() => {
@@ -20,7 +21,15 @@ export class Overlays {
   }
   /** Whether a dialog is open over the pages. */
   holdsModal() {
-    return Boolean(this.views.get('modal')?.getVisible());
+    return this.visible('modal');
+  }
+  visible(name: OverlayName) {
+    return Boolean(this.views.get(name)?.getVisible());
+  }
+  /** The overlay's document, while it is open. */
+  contents(name: OverlayName) {
+    const contents = this.views.get(name)?.webContents;
+    return contents && !contents.isDestroyed() ? contents : undefined;
   }
 
   /** Answers the application renderer's `window.open`: a blank overlay that is not open yet becomes a view, and anything else is denied. */
@@ -40,6 +49,7 @@ export class Overlays {
         view.webContents.once('destroyed', () => { if (this.views.get(name) === view) this.views.delete(name); });
         this.views.set(name, view);
         this.window.contentView.addChildView(view);
+        this.created?.(view.webContents);
         return view.webContents;
       },
     };
@@ -60,12 +70,15 @@ export class Overlays {
     view.setVisible(true);
     this.raise();
     // The modal overlay holds a modal dialog, which takes the keyboard as it appears in the active window; in another, it
-    // takes the keyboard once the window is activated.
-    if (name === 'modal' && appearing && this.window.isFocused()) view.webContents.focus();
+    // takes the keyboard once the window is activated. A popup, such as a menu, takes it as it appears.
+    if ((name === 'modal' || name === 'popup') && appearing && this.window.isFocused()) view.webContents.focus();
   }
-  /** Keeps the visible overlays above a view added after them. */
+  /** Keeps the visible overlays above a view added after them, in the order of `overlayNames`. */
   raise() {
-    for (const view of this.views.values()) if (view.getVisible()) this.window.contentView.addChildView(view);
+    for (const name of overlayNames) {
+      const view = this.views.get(name);
+      if (view?.getVisible()) this.window.contentView.addChildView(view);
+    }
   }
   /** Closes every overlay, handing focus back to the application page; a reloaded application page opens its own. */
   close() {

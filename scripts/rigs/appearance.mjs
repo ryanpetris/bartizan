@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { withDirectory, launch } from './lib/harness.mjs';
-import { openSettings, closeSettings, chooseAppearance, pickerBackground, showSection } from './lib/settings.mjs';
+import { withDirectory, launch, chooseOption, selectList } from './lib/harness.mjs';
+import { openSettings, closeSettings, chooseAppearance, listBackground, showSection } from './lib/settings.mjs';
 
 const defaults = { appearance: 'dark', theme: 'rail', interfaceFont: 'Inter', terminalFont: 'JetBrains Mono', terminalFontSize: 13, terminalLigatures: true, terminalWebgl: false, remoteSessionIntegration: true };
 const dialogBackground = { dark: 'rgb(30, 32, 41)', light: 'rgb(255, 255, 255)' };
@@ -26,8 +26,8 @@ await withDirectory('appearance', async (directory, cleanup) => {
   const themeSource = () => app.application.evaluate(({ nativeTheme }) => nativeTheme.themeSource);
   const colorScheme = mode => app.page.waitForFunction(mode => getComputedStyle(document.documentElement).colorScheme === mode, mode);
   const settingsDialog = () => dialog;
-  const appearance = () => settingsDialog().getByRole('combobox', { name: 'Appearance', exact: true });
-  const fontChoice = () => settingsDialog().getByRole('combobox', { name: 'Terminal Font', exact: true });
+  const appearance = () => settingsDialog().getByRole('button', { name: 'Appearance', exact: true });
+  const fontChoice = () => settingsDialog().getByRole('button', { name: 'Terminal Font', exact: true });
   const family = () => settingsDialog().getByRole('textbox', { name: 'Terminal Font Family', exact: true });
   const size = () => settingsDialog().getByRole('spinbutton', { name: 'Terminal Font Size', exact: true });
   const failure = `Could not save settings ${config}`;
@@ -38,7 +38,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   assert.equal((await state()).settings.appearance, 'dark');
   let dialog = await openSettings(page);
   await expect(appearance()).toBeFocused();
-  await expect(appearance()).toHaveValue('dark');
+  await expect(appearance()).toHaveAttribute('value', 'dark');
   await closeSettings(page);
   await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
   for (const mode of ['dark', 'light']) {
@@ -50,7 +50,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
     await expect(dialog).toHaveCSS('background-color', dialogBackground[mode]);
     for (const [name, select] of [['Appearance', appearance()], ['Terminal', fontChoice()]]) {
       await section(name);
-      assert.equal(await pickerBackground(app, select), dialogBackground[mode], `Settings options follow ${mode} appearance`);
+      assert.equal(await listBackground(select), dialogBackground[mode], `Settings options follow ${mode} appearance`);
     }
     await expect(dialog).toHaveJSProperty('open', true);
     await closeSettings(page);
@@ -62,13 +62,98 @@ await withDirectory('appearance', async (directory, cleanup) => {
     const form = (await app.modal()).locator('#connection-dialog');
     await expect(form).toHaveCSS('background-color', dialogBackground[mode]);
     await form.getByRole('tab', { name: 'Authentication', exact: true }).click();
-    assert.equal(await pickerBackground(app, form.locator('#field-auth-method')), dialogBackground[mode], `Connection form options follow ${mode} appearance`);
+    assert.equal(await listBackground(form.locator('#field-auth-method')), dialogBackground[mode], `Connection form options follow ${mode} appearance`);
     await form.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(form).toBeHidden();
   }
   await chooseAppearance(app, 'dark');
   await colorScheme('dark');
   console.log('Appearance is chosen in Settings without connections and themes the rail, dialogs and option lists.');
+
+  // A select's list opens from the keyboard with its value checked and no option highlighted; keys and typing move
+  // through it, Up and Down from the checked option at first, Enter and Space choose, and Escape and Tab close it
+  // unchanged, each returning focus to the select.
+  dialog = await openSettings(page);
+  const keys = dialog.page().keyboard;
+  const option = (list, name) => list.getByRole('option', { name, exact: true });
+  const opened = async () => {
+    const list = await selectList(appearance());
+    await expect(list).toBeFocused();
+    await expect(list.locator('[role="option"]:focus')).toHaveCount(0);
+    return list;
+  };
+  await expect(appearance()).toBeFocused();
+  await keys.press('ArrowDown');
+  let list = await opened();
+  await expect(option(list, 'Dark')).toHaveAttribute('aria-selected', 'true');
+  await expect(list.getByRole('option', { selected: true })).toHaveCount(1);
+  await expect(list.locator('[aria-selected]')).toHaveCount(1);
+  assert.equal(await list.getAttribute('aria-label'), 'Appearance');
+  const listKeys = list.page().keyboard;
+  for (const [key, name] of [['ArrowDown', 'Light'], ['End', 'System'], ['Home', 'Dark'], ['ArrowDown', 'Light'], ['ArrowUp', 'Dark'], ['PageDown', 'System'], ['PageUp', 'Dark'], ['s', 'System']]) {
+    await listKeys.press(key);
+    await expect(option(list, name), key).toBeFocused();
+  }
+  // A press on the list's padding, above its options, keeps the keyboard in the list; Console's list has none.
+  const edge = await list.boundingBox(),
+    inset = await list.evaluate(node => { const style = getComputedStyle(node); return { border: parseFloat(style.borderTopWidth), padding: parseFloat(style.paddingTop) }; });
+  if (inset.padding >= 2) {
+    await list.page().mouse.click(edge.x + edge.width / 2, edge.y + inset.border + inset.padding / 2);
+    await expect(option(list, 'System')).toBeFocused();
+  }
+  await listKeys.press('Escape');
+  await expect(list).toHaveCount(0);
+  await expect(appearance()).toBeFocused();
+  await keys.press('Enter');
+  list = await opened();
+  // Enter with no option highlighted closes the list unchanged.
+  await listKeys.press('Enter');
+  await expect(list).toHaveCount(0);
+  await expect(appearance()).toBeFocused();
+  await keys.press('ArrowUp');
+  list = await opened();
+  await listKeys.press('ArrowUp');
+  await expect(option(list, 'Dark')).toBeFocused();
+  await listKeys.press('ArrowDown');
+  await listKeys.press('Tab');
+  await expect(list).toHaveCount(0);
+  await expect(appearance()).toBeFocused();
+  await expect(appearance()).toHaveAttribute('value', 'dark');
+  await expect(appearance()).toHaveText('Dark');
+  await expect(appearance()).toHaveAccessibleDescription('Dark');
+  // Typing on the select opens its list at the option it finds, and typing that finds none leaves it closed.
+  await keys.press('x');
+  await expect(appearance()).toHaveAttribute('aria-expanded', 'false');
+  await page.waitForTimeout(600);
+  await keys.press('l');
+  list = await selectList(appearance());
+  await expect(option(list, 'Light')).toBeFocused();
+  await listKeys.press('Enter');
+  await expect(list).toHaveCount(0);
+  await expect(appearance()).toBeFocused();
+  await expect(appearance()).toHaveText('Light');
+  await expect.poll(async () => (await state()).settings.appearance).toBe('light');
+  await keys.press(' ');
+  list = await opened();
+  await expect(option(list, 'Light')).toHaveAttribute('aria-selected', 'true');
+  // The moving pointer takes the focus to the option under it, which a click chooses.
+  await option(list, 'Dark').hover();
+  await expect(option(list, 'Dark')).toBeFocused();
+  await listKeys.press(' ');
+  await expect(list).toHaveCount(0);
+  await expect.poll(async () => (await state()).settings.appearance).toBe('dark');
+  await colorScheme('dark');
+  // A click on the select's label focuses it and leaves its list closed; a click on the select opens it.
+  await dialog.getByRole('tab', { name: 'Terminal', exact: true }).focus();
+  await dialog.locator('label[for="settings-appearance"]').click();
+  await expect(appearance()).toBeFocused();
+  await expect(appearance()).toHaveAttribute('aria-expanded', 'false');
+  await appearance().click();
+  list = await opened();
+  await listKeys.press('Escape');
+  await expect(list).toHaveCount(0);
+  await closeSettings(page);
+  console.log('A select opens from the keyboard with its value checked, and keys, typing and the pointer move through its list and choose; its label only focuses it.');
 
   for (const patch of [{ appearance: 'invalid' }, { terminalFontSize: 7 }, { terminalFontSize: 33 }, { terminalFontSize: 12.5 }, { terminalFont: 'x'.repeat(257) }, { terminalFont: 'Bad\nFont' }, { unknown: true }]) {
     await assert.rejects(api('settings', patch), undefined, JSON.stringify(patch));
@@ -78,11 +163,11 @@ await withDirectory('appearance', async (directory, cleanup) => {
   console.log('Invalid settings are rejected without changing the saved settings.');
 
   dialog = await openSettings(page);
-  await appearance().selectOption('light');
+  await chooseOption(appearance(), 'light');
   await colorScheme('light');
   await expect.poll(async () => (await saved())?.appearance).toBe('light');
   await section('Terminal');
-  await fontChoice().selectOption({ label: 'Custom' });
+  await chooseOption(fontChoice(), { label: 'Custom' });
   await expect(family()).toBeFocused();
   await family().fill('  Bartizan Rig Mono  ');
   await family().press('Enter');
@@ -95,14 +180,20 @@ await withDirectory('appearance', async (directory, cleanup) => {
   await size().fill('21');
   await size().press('Enter');
   await expect.poll(async () => (await saved())?.terminalFontSize).toBe(21);
+  // Each step saves at once.
+  await size().press('ArrowUp');
+  await expect.poll(async () => (await saved())?.terminalFontSize).toBe(22);
+  await dialog.getByRole('button', { name: 'Decrease', exact: true }).click();
+  await expect.poll(async () => (await saved())?.terminalFontSize).toBe(21);
+  await expect(size()).toBeFocused();
   await expect(dialog.locator('.font-sample')).toHaveCSS('font-size', '21px');
   assert.match(await dialog.locator('.font-sample').evaluate(e => e.style.fontFamily), /^"Bartizan Rig Mono", /);
   await closeSettings(page);
   await page.reload();
   dialog = await openSettings(page);
-  await expect(appearance()).toHaveValue('light');
+  await expect(appearance()).toHaveAttribute('value', 'light');
   await section('Terminal');
-  await expect(fontChoice().locator('option:checked')).toHaveText('Custom');
+  await expect(fontChoice()).toHaveText('Custom');
   await expect(family()).toHaveValue('Bartizan Rig Mono');
   await expect(size()).toHaveValue('21');
   await closeSettings(page);
@@ -129,10 +220,10 @@ await withDirectory('appearance', async (directory, cleanup) => {
   await rm(config);
   await mkdir(config);
   dialog = await openSettings(page);
-  await expect(appearance()).toHaveValue('system');
-  await appearance().selectOption('light');
+  await expect(appearance()).toHaveAttribute('value', 'system');
+  await chooseOption(appearance(), 'light');
   await expect(dialog.getByRole('alert')).toHaveText(failure);
-  await expect(appearance()).toHaveValue('system');
+  await expect(appearance()).toHaveAttribute('value', 'system');
   assert.equal(await themeSource(), 'system');
   // Closing the dialog confirms the typed size, so its failure arrives as the dialog goes.
   await section('Terminal');
@@ -150,7 +241,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   await section('Terminal');
   await expect(size()).toHaveValue('21');
   await section('Appearance');
-  await appearance().selectOption('dark');
+  await chooseOption(appearance(), 'dark');
   await expect.poll(async () => (await saved())?.appearance).toBe('dark');
   await expect(dialog.getByRole('alert')).toBeHidden();
   await section('Terminal');
@@ -167,7 +258,7 @@ await withDirectory('appearance', async (directory, cleanup) => {
   await dialogs.keyboard.press('Escape');
   assert.deepEqual((await state()).settings, defaults);
   dialog = await openSettings(page);
-  await expect(appearance()).toHaveValue('dark');
+  await expect(appearance()).toHaveAttribute('value', 'dark');
   await closeSettings(page);
   assert.deepEqual(app.errors, []);
   console.log('A malformed configuration is a current error and the default settings apply.');

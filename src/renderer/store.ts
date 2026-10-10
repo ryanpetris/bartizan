@@ -20,7 +20,7 @@ export type Group = { connection: Connection; entries: Entry[] };
 
 export const store = {
   state: {
-    capabilities: { embeddedBrowser: false, nativeFilePicker: false },
+    capabilities: { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false },
     settings: defaultSettings,
     profiles: [],
     defaults: {},
@@ -75,10 +75,14 @@ export function focusView() {
     for (const callback of focusRequests) callback();
   });
 }
-/** Increases with every explicit selection, so a selection waiting for state yields to a later choice. */
+/** Increases with every explicit selection and every request to open something, so a selection waiting for state yields to a later choice. */
 let choice = 0;
 export function select(selection: Selection, focus = true) {
   choice++;
+  show(selection, focus);
+}
+/** Shows a selection without counting it as a choice, as for a requested item arriving, so later requests still show theirs. */
+function show(selection: Selection, focus = true) {
   store.selection = selection;
   render();
   if (focus) focusView();
@@ -374,6 +378,8 @@ export function selectedRow(state: State, selection: NonNullable<Selection>): Ro
 
 /** Tabs the user chose whose selection the main process has not confirmed yet. */
 export const tabIntents = new Map<string, string>();
+/** When the main process answered that it selected each session's chosen tab; a state soon after shows it. */
+export const selectedIntents = new Map<string, number>();
 export const activeTab = (workspace: Workspace) =>
   workspace.tabs.find((t) => t.id === (tabIntents.get(workspace.id) ?? workspace.activeTab));
 /** Makes a tab its browser session's active tab. */
@@ -381,12 +387,18 @@ export function activateTab(workspaceId: string, tabId: string) {
   const workspace = store.state.workspaces.find((w) => w.id === workspaceId);
   if (!workspace || tabId === (tabIntents.get(workspaceId) ?? workspace.activeTab)) return;
   tabIntents.set(workspaceId, tabId);
-  void run('browser', api.browser(workspaceId, 'select', tabId), workspace.connectionId).finally(() => {
-    if (tabIntents.get(workspaceId) === tabId) {
+  selectedIntents.delete(workspaceId);
+  const failed = reporter('browser', workspace.connectionId);
+  // The reply can arrive before the state that includes the selection, so a selection made stays until that state.
+  void api.browser(workspaceId, 'select', tabId).then(
+    () => { if (tabIntents.get(workspaceId) === tabId) selectedIntents.set(workspaceId, performance.now()); },
+    (error: unknown) => {
+      failed(error);
+      if (tabIntents.get(workspaceId) !== tabId) return;
       tabIntents.delete(workspaceId);
       render();
-    }
-  });
+    },
+  );
 }
 export function selectTab(workspaceId: string, tabId?: string) {
   if (tabId) activateTab(workspaceId, tabId);
@@ -394,13 +406,12 @@ export function selectTab(workspaceId: string, tabId?: string) {
 }
 
 /**
- * Runs an action once state events include what it needs. The main process sends the state containing a new item before
- * replying, but the reply can arrive first; state events are the only ordered source, so the renderer never applies
- * fetched state over them.
+ * Runs an action once state events include what it needs, unless another selection is made after `token`, by default
+ * now. The main process sends the state containing a new item before replying, but the reply can arrive first; state
+ * events are the only ordered source, so the renderer never applies fetched state over them.
  */
 const waiting = new Set<() => boolean>();
-function whenPresent(ready: (state: State) => boolean, action: () => void) {
-  const token = choice;
+function whenPresent(ready: (state: State) => boolean, action: () => void, token = choice) {
   const check = () => {
     if (token !== choice) return true;
     if (!ready(store.state)) return false;
@@ -420,10 +431,11 @@ export function stateApplied() {
   for (const check of [...waiting]) if (check()) waiting.delete(check);
   if (store.selection?.kind === 'remote' && !exists(store.state, store.selection)) revisit(store.selection.id);
 }
-const selectCreated = (selection: NonNullable<Selection>) =>
+const selectCreated = (selection: NonNullable<Selection>, token = choice) =>
   whenPresent(
     (state) => exists(state, selection),
-    () => select(selection),
+    () => show(selection),
+    token,
   );
 /** Connections waiting for a requested terminal, with the selection count at the latest request. */
 const requestedTerminals = new Map<string, number>();
@@ -496,37 +508,45 @@ function showConnection(id: string) {
     },
   );
 }
-/** Opens a tab in a browser session, by default the connection's first, and shows it once state includes the tab. */
-export function openBrowserTab(connectionId: string, workspaceId = firstSession(connectionId)?.id) {
+/** Opens a tab in a browser session and shows it once state includes the tab, unless another selection is made first. */
+export function openBrowserTab(connectionId: string, workspaceId: string) {
   const known = new Set(store.state.workspaces.flatMap((workspace) => workspace.tabs.map((tab) => tab.id)));
+  const token = ++choice;
   return run(
     'browser',
     api.newBrowserTab(connectionId, workspaceId).then((id) =>
       whenPresent(
         (state) => Boolean(state.workspaces.find((w) => w.id === id)?.tabs.some((tab) => !known.has(tab.id))),
-        () => select({ kind: 'browser', id }),
+        () => show({ kind: 'browser', id }),
+        token,
       ),
     ),
     connectionId,
   );
 }
-/** Opens a new browser session for a connection and shows it once state includes its tab, so the tab's view can take focus. */
+/**
+ * Opens a new browser session for a connection and shows it once state includes its tab, so the tab's view can take
+ * focus, unless another selection is made first.
+ */
 export function openBrowser(connectionId: string) {
+  const token = ++choice;
   return run(
     'browser',
     api.newBrowser(connectionId).then((id) =>
       whenPresent(
         (state) => Boolean(state.workspaces.find((w) => w.id === id)?.tabs.length),
-        () => select({ kind: 'browser', id }),
+        () => show({ kind: 'browser', id }),
+        token,
       ),
     ),
     connectionId,
   );
 }
 export function openTerminal(connectionId: string) {
+  const token = ++choice;
   return run(
     'session',
-    api.newTerminal(connectionId).then((id) => selectCreated({ kind: 'terminal', id })),
+    api.newTerminal(connectionId).then((id) => selectCreated({ kind: 'terminal', id }, token)),
     connectionId,
   );
 }
@@ -561,7 +581,7 @@ export const remoteVisible = (connection: Connection) => Boolean(connection.remo
   (connection.remoteSessions.sessions.length || connection.remoteSessions.errors.length || remoteOpening.has(connection.id)));
 export async function resumeRemoteSessions(connectionId: string, keys: string[], takeover: boolean) {
   if (remoteOpening.has(connectionId)) return;
-  const token = choice;
+  const token = ++choice;
   remoteOpening.add(connectionId); render();
   const opened = await run('session', api.resumeRemoteSessions(connectionId, keys, takeover), connectionId);
   remoteOpening.delete(connectionId);
@@ -571,6 +591,7 @@ export async function resumeRemoteSessions(connectionId: string, keys: string[],
 }
 
 export function openApplication(connectionId: string, application: string) {
+  const token = ++choice;
   return run('application', api.newApplication(connectionId, application).then(id =>
-    whenPresent(state => state.workspaces.some(w => w.id === id && w.tabs.length), () => select({ kind: 'browser', id }))), connectionId);
+    whenPresent(state => state.workspaces.some(w => w.id === id && w.tabs.length), () => show({ kind: 'browser', id }), token)), connectionId);
 }

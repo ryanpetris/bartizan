@@ -7,8 +7,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { setTimeout as delay } from 'node:timers/promises';
 import { Askpass, type Challenge } from '../src/main/askpass';
 
+/** Waits for a challenge to be shown, failing rather than waiting for ever. */
+const within = (shown: Promise<void>) =>
+  Promise.race([shown, delay(5000, undefined, { ref: false }).then(() => { throw new Error('No challenge was shown'); })]);
 function request(socketPath: string, token: string, prompt: string, hint = ''): Promise<{ value: string | null }> {
   return new Promise((resolve, reject) => {
     const socket = connect(socketPath); let data = '';
@@ -35,18 +39,22 @@ test('askpass delivers a configured password once and keeps MFA and confirmation
 
 test('withdraws disconnected challenges and reports unreadable configured credentials', async () => {
   const prompts: Challenge[] = [], withdrawn: string[] = [], errors: { message: string; connectionId: string }[] = [];
-  const broker = new Askpass(challenge => prompts.push(challenge), id => withdrawn.push(id), (message, connectionId) => errors.push({ message, connectionId }));
+  let notified = () => {};
+  const prompted = () => new Promise<void>(resolve => { notified = resolve; });
+  const broker = new Askpass(challenge => { prompts.push(challenge); notified(); }, id => withdrawn.push(id), (message, connectionId) => errors.push({ message, connectionId }));
   await broker.start();
   try {
     const env = broker.register('connection', { auth: { method: 'password', password: { source: 'file', path: '/nonexistent/bartizan-secret' } } }, '', '');
+    let shown = prompted();
     const reply = request(env.BARTIZAN_SOCKET, env.BARTIZAN_TOKEN, "test@example.invalid's password:");
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await within(shown);
     assert.equal(errors.length, 1); assert.equal(errors[0].connectionId, 'connection'); assert.equal(prompts.length, 1);
     assert.equal(broker.answer(prompts[0].id, 'manual'), 'connection');
     assert.equal((await reply).value, 'manual'); assert.deepEqual(withdrawn, [prompts[0].id]);
+    shown = prompted();
     const pending = request(env.BARTIZAN_SOCKET, env.BARTIZAN_TOKEN, 'Touch security key', 'none');
     const rejected = assert.rejects(pending);
-    await new Promise(resolve => setTimeout(resolve, 20));
+    await within(shown);
     assert.equal(prompts[1].notification, true);
     broker.unregister('connection'); await rejected;
     assert.ok(withdrawn.includes(prompts[1].id));
@@ -55,8 +63,9 @@ test('withdraws disconnected challenges and reports unreadable configured creden
 
 test('invalid interactive responses remain pending and fragmented prompts retain Unicode', async () => {
   const withdrawn: string[] = [];
-  let prompt!: Challenge;
-  const broker = new Askpass(challenge => { prompt = challenge; }, id => withdrawn.push(id));
+  let prompt!: Challenge, notified!: () => void;
+  const shown = new Promise<void>(resolve => { notified = resolve; });
+  const broker = new Askpass(challenge => { prompt = challenge; notified(); }, id => withdrawn.push(id));
   await broker.start();
   const env = broker.register('connection', {}, '', '');
   const socket = connect(env.BARTIZAN_SOCKET);
@@ -67,7 +76,7 @@ test('invalid interactive responses remain pending and fragmented prompts retain
     socket.write(bytes.subarray(0, cut));
     await new Promise(resolve => setTimeout(resolve, 30));
     socket.write(bytes.subarray(cut));
-    for (let i = 0; !prompt && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 5));
+    await within(shown);
     assert.equal(prompt.prompt, 'λ prompt:');
     const response = 'λ'.repeat(511) + 'a';
     assert.throws(() => broker.answer(prompt.id, response + 'a'), /1023 UTF-8 bytes/);

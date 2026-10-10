@@ -11,18 +11,12 @@ await withDirectory('order', async (directory, cleanup) => {
   await writeFile(config, `version: 1\nsettings:\n  remoteSessionIntegration: false\nprofiles:\n  one:\n    label: One\n${sshProfile(sshd)}  two:\n    label: Two\n${sshProfile(sshd)}`);
   const app = await launch(directory, config);
   cleanup(app.close);
-  const { application, page, api, waitState, errors } = app;
-  // Native menus are recorded instead of shown; the rig chooses their items.
-  await application.evaluate(({ Menu }) => {
-    globalThis.rigMenus = [];
-    Menu.prototype.popup = function () { globalThis.rigMenus.push(this); };
-  });
+  const { page, api, waitState, errors } = app;
   const menu = async (open, labels) => {
-    const count = await application.evaluate(() => globalThis.rigMenus.length);
     await open();
-    await expect.poll(() => application.evaluate((_, count) => globalThis.rigMenus[count]?.items.map(item => item.enabled ? item.label : `${item.label} (disabled)`), count)).toEqual(labels);
+    await expect.poll(() => app.menu.labels()).toEqual(labels);
   };
-  const choose = label => application.evaluate((_, label) => globalThis.rigMenus.at(-1).items.find(item => item.label === label).click(), label);
+  const choose = label => app.menu.choose(label);
   const rightClick = locator => () => locator.click({ button: 'right' });
   const shiftF10 = locator => async () => { await locator.focus(); await page.keyboard.press('Shift+F10'); };
   /** Drops a unit on the top edge of another, which places it before that unit. */
@@ -43,20 +37,58 @@ await withDirectory('order', async (directory, cleanup) => {
   await expect.poll(connectionOrder).toEqual([one, two]);
   await drag(titles(two), titles(one));
   await expect.poll(connectionOrder).toEqual([two, one]);
-  const connectionCommands = ['New Terminal', 'New Browser Session', '', 'Disconnect', 'Remove (disabled)', 'Connection Details', ''];
+  const connectionCommands = ['New Terminal', 'New Browser Session', '-', 'Disconnect', 'Remove (disabled)', 'Connection Details', '-'];
   await menu(rightClick(titles(one)), [...connectionCommands, 'Move Up', 'Move Down (disabled)']);
   await choose('Move Up');
   await expect.poll(connectionOrder).toEqual([one, two]);
+  // A menu a key opens takes the keyboard with no item highlighted, and the keys move past disabled items.
+  const popup = await app.popup();
+  const focusedItem = () => popup.evaluate(() => { const focused = document.activeElement; return focused?.matches('[role^="menuitem"]') ? focused.querySelector('.menu-label').textContent : focused?.getAttribute('role'); });
   await menu(shiftF10(titles(one)), [...connectionCommands, 'Move Up (disabled)', 'Move Down']);
-  await choose('Move Down');
+  await expect.poll(focusedItem).toBe('menu');
+  await popup.keyboard.press('End');
+  assert.equal(await focusedItem(), 'Move Down');
+  await popup.keyboard.press('ArrowUp');
+  assert.equal(await focusedItem(), 'Connection Details');
+  await popup.keyboard.press('ArrowDown');
+  await popup.keyboard.press('Enter');
   await expect.poll(connectionOrder).toEqual([two, one]);
+  await expect.poll(app.menu.open).toBe(false);
   console.log('Connections reorder by dragging and from the Move Up and Move Down menu, by right click or Shift+F10, with moves past either end disabled.');
 
   await titles(one).click();
-  await menu(() => page.locator('.rail-panel .connection-add').click(), ['Terminal', 'Browser Session', 'Visual Studio Code']);
-  await choose('Terminal');
+  const add = page.locator('.rail-panel .connection-add');
+  const addItems = ['Terminal', 'Browser Session', 'Visual Studio Code'];
+  await menu(() => add.click(), addItems);
+  assert.deepEqual(await app.menu.icons(), { Terminal: 'terminal', 'Browser Session': 'window', 'Visual Studio Code': 'code' });
+  await expect(add).toHaveAttribute('aria-expanded', 'true');
+  assert.equal(await focusedItem(), 'menu');
+  // A press on the button that opened the menu closes it.
+  await add.click();
+  await expect.poll(app.menu.open).toBe(false);
+  await expect(add).toHaveAttribute('aria-expanded', 'false');
+  await page.waitForTimeout(300);
+  assert.equal(await app.menu.open(), false);
+  // From the keyboard: the arrows wrap, Home and End go to the ends, a letter goes to the next item starting with it,
+  // Escape closes the menu and returns focus to its button, and Enter chooses.
+  await add.focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(focusedItem).toBe('menu');
+  for (const [key, expected] of [['ArrowDown', 'Terminal'], ['ArrowDown', 'Browser Session'], ['End', 'Visual Studio Code'], ['ArrowDown', 'Terminal'], ['ArrowUp', 'Visual Studio Code'], ['Home', 'Terminal'], ['v', 'Visual Studio Code'], ['t', 'Terminal']]) {
+    await popup.keyboard.press(key);
+    assert.equal(await focusedItem(), expected, key);
+  }
+  await popup.keyboard.press('Escape');
+  await expect.poll(app.menu.open).toBe(false);
+  await expect(add).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect.poll(focusedItem).toBe('menu');
+  await popup.keyboard.press('Enter');
+  assert.equal(await app.menu.open(), true);
+  await popup.keyboard.press('Home');
+  await popup.keyboard.press('Enter');
   await waitState(s => s.terminals.filter(t => t.connectionId === one).length === 2, 'second terminal');
-  await menu(() => page.locator('.rail-panel .connection-add').click(), ['Terminal', 'Browser Session', 'Visual Studio Code']);
+  await menu(() => add.click(), addItems);
   await choose('Browser Session');
   const state = await waitState(s => s.workspaces[0]?.tabs.length === 1, 'browser session');
   const [t1, t2] = state.terminals.filter(t => t.connectionId === one).map(t => `terminal:${t.id}`);
@@ -64,6 +96,11 @@ await withDirectory('order', async (directory, cleanup) => {
   await expect.poll(() => itemOrder(one)).toEqual([t1, t2, session]);
   await drag(item(session), item(t1));
   await expect.poll(() => itemOrder(one)).toEqual([session, t1, t2]);
+  // Tab closes a menu, returning focus to where it opened.
+  await menu(shiftF10(item(session)), ['Rename', 'Move Up (disabled)', 'Move Down']);
+  await popup.keyboard.press('Tab');
+  await expect.poll(app.menu.open).toBe(false);
+  await expect(item(session)).toBeFocused();
   await menu(shiftF10(item(session)), ['Rename', 'Move Up (disabled)', 'Move Down']);
   await choose('Move Down');
   await expect.poll(() => itemOrder(one)).toEqual([t1, session, t2]);
@@ -71,6 +108,7 @@ await withDirectory('order', async (directory, cleanup) => {
   await choose('Move Down');
   await expect.poll(() => itemOrder(one)).toEqual([session, t1, t2]);
   console.log('Terminals and a browser session reorder within their connection by dragging and from the menu.');
+  console.log('Menus open with focus on themselves and no item highlighted, the keys move among enabled items, Escape and Tab return focus, and the Add menu has icons.');
 
   await api('browser', sessionId, 'new');
   await api('browser', sessionId, 'new');
@@ -78,7 +116,8 @@ await withDirectory('order', async (directory, cleanup) => {
   await expect.poll(() => tabOrder(sessionId)).toEqual([a, b, c]);
   await drag(tab(c), tab(a));
   await expect.poll(() => tabOrder(sessionId)).toEqual([c, a, b]);
-  await menu(rightClick(tab(c)), ['Mute Tab', 'Move Up (disabled)', 'Move Down']);
+  const external = (await app.state()).capabilities.externalBrowser ? ['Open in External Browser (disabled)'] : [];
+  await menu(rightClick(tab(c)), ['Reload (disabled)', 'Duplicate Tab (disabled)', 'Copy Address (disabled)', ...external, '-', 'Mute Tab', '-', 'Close Tab', 'Close Other Tabs', 'Close Tabs Below', 'Reopen Closed Tab (disabled)', '-', 'Move Up (disabled)', 'Move Down']);
   await choose('Move Down');
   await expect.poll(() => tabOrder(sessionId)).toEqual([a, c, b]);
   const before = await savedOrder();
@@ -108,7 +147,10 @@ await withDirectory('order', async (directory, cleanup) => {
   await page.reload();
   await page.waitForFunction(() => window.bartizan);
   await kept();
+  // A connection's menu closes as the connection disconnects, since its commands change.
+  await menu(rightClick(titles(one)), [...connectionCommands, 'Move Up', 'Move Down (disabled)']);
   await api('disconnect', one);
+  await expect.poll(app.menu.open).toBe(false);
   await waitState(s => s.connections.find(connection => connection.id === one).status === 'closed', 'disconnected');
   await kept();
   // Reconnecting from the rail while another connection is in view shows what the connection last showed.

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { BrowserWindow, ContextMenuParams } from 'electron';
-import type { Event, Workspace } from '../shared';
+import type { BrowserShortcut, Event, Workspace } from '../shared';
 import type { ConnectionController } from './connection';
 import type { BrowserWindowController } from './browser-window';
 import { BrowserSession } from './browser-session';
@@ -10,10 +10,11 @@ export class Browsers {
   readonly entries = new Map<string, BrowserSession>();
   readonly retiring = new Set<Promise<void>>();
   openPopup?: (connectionId: string, url: string) => void;
+  openExternal?: (connectionId: string, url: string) => void;
   pageMenu?: (workspaceId: string, tabId: string, params: ContextMenuParams) => void;
   added?: () => void;
   constructor(readonly connection: ConnectionController, readonly host: BrowserWindowController, readonly window: BrowserWindow,
-    readonly shortcut: (id: string, action: 'focus-address' | 'new-connection' | 'find') => void, readonly send: (event: Event) => void) {}
+    readonly shortcut: (id: string, action: Exclude<BrowserShortcut, 'devtools'> | 'find') => void, readonly send: (event: Event) => void) {}
   async open(url?: string, session?: string, fallback = false, application?: Pick<Workspace, 'name' | 'application'>) {
     const named = session ? this.entries.get(session) : undefined;
     const usable = named && !named.info.application ? named : undefined;
@@ -31,7 +32,7 @@ export class Browsers {
     const ordinal = Math.max(0, ...siblings.map(entry => entry.info.ordinal)) + 1;
     const used = new Set(siblings.map(entry => entry.info.color));
     const color = Array.from({ length: 9 }, (_, index) => index).find(index => !used.has(index)) ?? siblings.length % 9;
-    const entry = new BrowserSession(this, { id: randomUUID(), connectionId: this.connection.info.id, color, ordinal, tabs: [], downloads: [], ...application });
+    const entry = new BrowserSession(this, { id: randomUUID(), connectionId: this.connection.info.id, color, ordinal, tabs: [], downloads: [], closedTabs: 0, ...application });
     await entry.start();
     this.entries.set(entry.info.id, entry); this.host.entries.set(entry.info.id, entry);
     entry.sync();

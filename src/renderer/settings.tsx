@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { Settings as SettingsValue } from '../shared';
-import { Button, moveFocus } from './ui';
+import { Button, NumberField, moveFocus } from './ui';
+import { Select } from './select';
 import { themeIds, themes } from '../themes';
 import { registry } from './themes';
 import { api, store, render, report } from './store';
@@ -35,7 +36,7 @@ const sections: readonly (readonly [SectionId, string])[] = [
 ];
 /** Text typed into a field that is saved once confirmed. */
 type Drafts = { interfaceFont?: string; terminalFont?: string; terminalFontSize?: string };
-const validSize = (text: string) => /^\d+$/.test(text) && Number(text) >= 8 && Number(text) <= 32;
+const validSize = (text: string) => /^\s*\d+\s*$/.test(text) && Number(text) >= 8 && Number(text) <= 32;
 function SettingsDialog() {
   const dialog = useRef<HTMLDialogElement>(null),
     sizeInput = useRef<HTMLInputElement>(null);
@@ -82,8 +83,8 @@ function SettingsDialog() {
     } else if (validSize(text) && Number(text) !== saved.terminalFontSize) save({ terminalFontSize: Number(text) });
   }
   useLayoutEffect(() => {
-    openModal(dialog.current!, dialog.current!.querySelector('select')!);
-    // A number field changes on each step of its spin buttons, and when typing is confirmed.
+    openModal(dialog.current!, dialog.current!.querySelector<HTMLElement>('.select')!);
+    // The size changes on each step, and when typing is confirmed.
     const input = sizeInput.current!,
       confirm = () => commit('terminalFontSize');
     input.addEventListener('change', confirm);
@@ -110,16 +111,16 @@ function SettingsDialog() {
       return (
         <>
           <Field label="Appearance" id="settings-appearance">
-            <select
+            <Select
               id="settings-appearance"
-              className="input"
               value={settings.appearance}
-              onChange={(e) => save({ appearance: e.target.value as SettingsValue['appearance'] })}
-            >
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-              <option value="system">System</option>
-            </select>
+              options={[
+                { value: 'dark', label: 'Dark' },
+                { value: 'light', label: 'Light' },
+                { value: 'system', label: 'System' },
+              ]}
+              onChange={(appearance) => save({ appearance: appearance as SettingsValue['appearance'] })}
+            />
           </Field>
           <Field label="Theme" id="settings-theme" group>
             <div
@@ -169,19 +170,17 @@ function SettingsDialog() {
           </Field>
           <Field label="Terminal Font Size" id="settings-font-size" className={invalid ? 'invalid' : ''}>
             <div className="with-unit">
-              <input
-                ref={sizeInput}
+              <NumberField
+                inputRef={sizeInput}
                 id="settings-font-size"
-                className="input"
-                type="number"
-                min="8"
-                max="32"
-                step="1"
+                min={8}
+                max={32}
                 value={size}
                 aria-invalid={invalid || undefined}
-                onChange={(e) => {
-                  latest.current = { ...latest.current, terminalFontSize: e.target.value };
+                onValue={(text, stepped) => {
+                  latest.current = { ...latest.current, terminalFontSize: text };
                   setDrafts(latest.current);
+                  if (stepped) commit('terminalFontSize');
                 }}
               />
               <span className="unit">px</span>

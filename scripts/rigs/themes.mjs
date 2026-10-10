@@ -40,7 +40,6 @@ await withDirectory('themes', async (directory, cleanup) => {
     };
     requestAnimationFrame(sample);
   });
-  await application.evaluate(({ Menu }) => { globalThis.rigMenus = []; Menu.prototype.popup = function () { globalThis.rigMenus.push(this); }; });
   await recordOutput();
   const connection = await api('connect', { profileId: 'rig' });
   const terminal = (await waitState(s => s.terminals[0]?.status === 'connected', 'terminal')).terminals[0].id;
@@ -51,6 +50,13 @@ await withDirectory('themes', async (directory, cleanup) => {
   await waitState(s => s.workspaces[0].tabs[0].title === 'Fixture' && !s.workspaces[0].tabs[0].loading, 'page');
   const box = locator => locator.evaluate(node => { const r = node.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), width: Math.floor(r.width), height: Math.floor(r.height), right: r.right, bottom: r.bottom }; });
   const pageViews = () => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).map(view => ({ url: view.webContents.getURL(), ...view.getBounds() })));
+  /** The tooltip overlay's place, whether it shows, and how many page views lie below it. */
+  const tooltipView = () => application.evaluate(async ({ BrowserWindow }) => {
+    const children = BrowserWindow.getAllWindows()[0].contentView.children;
+    for (const [index, view] of children.entries())
+      if (view.webContents.getURL() === 'about:blank' && await view.webContents.executeJavaScript("document.documentElement.classList.contains('overlay-tooltip')"))
+        return { ...view.getBounds(), visible: view.getVisible(), above: children.slice(0, index).filter(other => other.getVisible() && /^https?:/.test(other.webContents.getURL())).length };
+  });
   const overlayWith = selector => waitFor(async () => { for (const candidate of application.windows()) if (candidate !== page && await candidate.evaluate(selector => document.documentElement.classList.contains('overlay') && document.querySelector(selector) !== null, selector).catch(() => false)) return candidate; }, `overlay with ${selector}`);
 
   for (const [iteration, id] of [...themeIds, 'rail'].entries()) {
@@ -131,9 +137,8 @@ await withDirectory('themes', async (directory, cleanup) => {
 
     // Every command is on show inside the window and clear of the native window controls.
     const overlay = await page.evaluate(() => { const area = navigator.windowControlsOverlay.getTitlebarAreaRect(); return { left: area.x + area.width, height: area.height, visible: navigator.windowControlsOverlay.visible }; });
-    // Tabs opens terminals and browser sessions from the connection's Add menu.
-    const opening = await page.getByRole('button', { name: 'New Terminal', exact: true }).first().isVisible() ? ['New Terminal', 'New Browser Tab'] : ['Add Fixture'];
-    for (const name of [...controls, ...opening]) {
+    // Terminals and browser sessions open from the connection's Add menu.
+    for (const name of [...controls, 'Add Fixture']) {
       const control = page.getByRole('button', { name, exact: true }).first();
       await expect(control, `${id}: ${name}`).toBeVisible();
       const bounds = await box(control);
@@ -143,8 +148,42 @@ await withDirectory('themes', async (directory, cleanup) => {
 
     // Lists run the way the manifest says, for the Move commands and the arrow keys.
     await page.locator(`[data-kind="terminal"][data-id="${terminal}"]`).click({ button: 'right' });
-    const labels = await application.evaluate(() => globalThis.rigMenus.at(-1).items.map(item => item.label));
+    const labels = (await app.menu.shown()).map(label => label.replace(' (disabled)', ''));
     assert.deepEqual(labels.slice(-2), theme.axis === 'horizontal' ? ['Move Left', 'Move Right'] : ['Move Up', 'Move Down'], id);
+    // The menu takes the theme's look: Console's is a ruled box in the terminal font.
+    const look = await (await app.popup()).evaluate(() => { const style = getComputedStyle(document.querySelector('.menu')); return { radius: style.borderRadius, font: style.fontFamily, background: style.backgroundColor }; });
+    assert.equal(look.radius, id === 'console' ? '0px' : '10px', `${id}: menu corners`);
+    assert.equal(look.font.includes('Mono'), id === 'console', `${id}: menu font`);
+    assert.notEqual(look.background, 'rgba(0, 0, 0, 0)', `${id}: menu background`);
+    await app.menu.close();
+    // A tooltip names a control once the pointer rests on it, clear of the control, in the theme's look in either appearance.
+    // A reload replaces the overlays.
+    const tips = await app.tooltip(), tip = tips.locator('.tooltip');
+    const settingsControl = page.getByRole('button', { name: 'Settings', exact: true });
+    const screen = await box(page.locator('.terminal-surface:not([hidden]) .xterm-screen'));
+    const tipLooks = {};
+    for (const mode of ['light', 'dark']) {
+      await api('settings', { appearance: mode });
+      await page.waitForFunction(mode => document.documentElement.dataset.appearance === mode, mode);
+      await settingsControl.hover();
+      await expect(tip).toHaveText('Settings');
+      tipLooks[mode] = await tips.evaluate(() => {
+        const style = getComputedStyle(document.querySelector('.tooltip')), probe = document.body.appendChild(document.createElement('div'));
+        probe.style.background = 'var(--bg-dialog)';
+        const dialog = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return { radius: style.borderRadius, font: style.fontFamily, background: style.backgroundColor, dialog };
+      });
+      assert.equal(tipLooks[mode].background, tipLooks[mode].dialog, `${id}: ${mode} tooltip background`);
+      await expect.poll(async () => (await tooltipView()).visible).toBe(true);
+      const control = await box(settingsControl), shown = await tooltipView();
+      assert.ok((shown.x >= control.right - 1 || shown.x + shown.width <= control.x + 1 || shown.y >= control.bottom - 1 || shown.y + shown.height <= control.y + 1), `${id}: the tooltip keeps clear of its control`);
+      await page.mouse.move(screen.x + screen.width / 2, screen.y + screen.height / 2);
+      await expect(tip).toHaveCount(0);
+    }
+    assert.notEqual(tipLooks.light.background, tipLooks.dark.background, `${id}: the tooltip follows the appearance`);
+    assert.equal(tipLooks.dark.radius === '0px', id === 'console', `${id}: tooltip corners`);
+    assert.equal(tipLooks.dark.font.includes('Mono'), id === 'console', `${id}: tooltip font`);
     await page.locator(`[data-kind="terminal"][data-id="${terminal}"]`).focus();
     await page.keyboard.press(theme.axis === 'horizontal' ? 'ArrowRight' : 'ArrowDown');
     await expect.poll(() => page.evaluate(id => { const focused = document.activeElement; return focused?.classList.contains('nav-item') && focused.dataset.id !== id; }, terminal), `${id}: arrow keys move along the list`).toBe(true);
@@ -192,8 +231,77 @@ await withDirectory('themes', async (directory, cleanup) => {
       assert.ok(Math.abs(narrow.x - (slot.x - (wide.width - thin.width))) <= 1 && Math.abs(narrow.width - (slot.width + wide.width - thin.width)) <= 1, 'The view takes the width the sidebar gives up');
       await expect.poll(pageView).toMatchObject({ x: narrow.x, y: narrow.y, width: narrow.width, height: narrow.height });
       const terminalItem = panel.locator(`[data-kind="terminal"][data-id="${terminal}"]`), terminalLabel = await terminalItem.locator('.nav-label').textContent();
-      await expect(terminalItem).toHaveAttribute('title', terminalLabel);
       await expect(panel.getByRole('button', { name: terminalLabel, exact: true })).toHaveCount(1);
+
+      // Each item is named in a tooltip beside it, over the page, once the pointer rests on it; the next is named at once.
+      const tabItem = panel.locator(`[data-kind="tab"][data-id="${tab}"]`), tabLabel = await tabItem.locator('.nav-label').textContent();
+      await page.evaluate(() => {
+        window.rigOver = [];
+        addEventListener('pointerover', event => { const anchor = event.target.closest?.('[data-tooltip]'); if (anchor) window.rigOver.push({ text: anchor.dataset.tooltip, at: Date.now() }); }, true);
+      });
+      await tips.evaluate(() => {
+        window.rigShown = [];
+        new MutationObserver(() => { const text = document.querySelector('.tooltip')?.textContent; if (text && text !== window.rigShown.at(-1)?.text) window.rigShown.push({ text, at: Date.now() }); }).observe(document.body, { subtree: true, childList: true, characterData: true });
+      });
+      /** How long a tooltip took to show after the pointer reached its control. */
+      const waited = async text => await tips.evaluate(text => window.rigShown.findLast(entry => entry.text === text).at, text) - await page.evaluate(text => window.rigOver.findLast(entry => entry.text === text).at, text);
+      await page.waitForTimeout(500);
+      await terminalItem.hover();
+      await expect(tip).toHaveText(terminalLabel);
+      assert.ok(await waited(terminalLabel) >= 450, 'A tooltip waits for the pointer to rest');
+      await expect.poll(async () => (await tooltipView()).visible).toBe(true);
+      const item = await box(terminalItem), beside = await tooltipView();
+      assert.ok(beside.x >= item.right - 1 && Math.abs(beside.y + beside.height / 2 - (item.y + item.height / 2)) <= 2, 'The tooltip shows beside the item');
+      await tabItem.hover();
+      await expect(tip).toHaveText(tabLabel);
+      assert.ok(await waited(tabLabel) < 250, 'Moving to the next item names it at once');
+      // The tab's item lies below the page's toolbar, so its tooltip lies over the page.
+      await expect.poll(async () => (await tooltipView()).y).toBeGreaterThan(beside.y);
+      const view = await pageView(), over = await tooltipView(), centre = { x: over.x + over.width / 2, y: over.y + over.height / 2 };
+      assert.ok(over.visible && over.above === 1 && centre.x > view.x && centre.y > view.y, 'The tooltip shows over the page');
+      // A press puts the tooltip away while the pointer stays.
+      await page.mouse.down();
+      await page.mouse.up();
+      await expect(tip).toHaveCount(0);
+      await page.waitForTimeout(800);
+      await expect(tip).toHaveCount(0);
+      // A scroll that moves an item from under the pointer puts its tooltip away.
+      const scrollPanel = () => panel.locator('.rail-panel-scroll').evaluate(node => node.dispatchEvent(new Event('scroll')));
+      await terminalItem.hover();
+      await expect(tip).toHaveText(terminalLabel);
+      await scrollPanel();
+      await expect(tip).toHaveCount(0);
+      await page.mouse.move(view.x + 50, view.y + 50);
+
+      // The keyboard reaching an item names it too, through a scroll that brings it into view, and Escape puts the name away.
+      await terminalItem.focus();
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('ArrowUp');
+      await expect(terminalItem).toBeFocused();
+      await expect(tip).toHaveText(terminalLabel);
+      await scrollPanel();
+      await page.waitForTimeout(300);
+      await expect(tip).toHaveText(terminalLabel);
+      await page.keyboard.press('Escape');
+      await expect(tip).toHaveCount(0);
+
+      // The tooltip takes no part in the pointer: reaching it puts it away and leaves the pointer to the page under it.
+      const windowId = await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getNativeWindowHandle().readUInt32LE(0));
+      const pointAt = (x, y) => execFileSync('xdotool', ['mousemove', '--window', String(windowId), String(Math.round(x)), String(Math.round(y))]);
+      const inPage = script => application.evaluate(({ BrowserWindow }, script) => BrowserWindow.getAllWindows()[0].contentView.children.find(view => view.getVisible() && /^https?:/.test(view.webContents.getURL())).webContents.executeJavaScript(script), script);
+      await inPage('window.rigMoves = 0; addEventListener("mousemove", () => window.rigMoves++)');
+      const tabBox = await box(tabItem);
+      pointAt(item.x + item.width / 2, item.y + item.height / 2);
+      await expect(tip).toHaveText(terminalLabel);
+      pointAt(tabBox.x + tabBox.width / 2, tabBox.y + tabBox.height / 2);
+      await expect(tip).toHaveText(tabLabel);
+      await expect.poll(tooltipView).toEqual(over);
+      pointAt(centre.x, centre.y);
+      await expect.poll(async () => (await tooltipView()).visible).toBe(false);
+      pointAt(centre.x + 3, centre.y);
+      await expect.poll(() => inPage('window.rigMoves')).toBeGreaterThan(0);
+      await expect(tip).toHaveCount(0);
+      console.log('Tooltips name controls once the pointer rests on them or the keyboard reaches them, beside a thin sidebar\'s items and over the page, and give way to the pointer.');
       for (const item of await panel.locator('.nav-item').all()) assert.ok((await box(item)).right <= thin.x + thin.width, 'Every item fits the thin sidebar');
       assert.ok((await box(page.locator('#view-title .titlebar-group'))).width > 20, 'The heading names the connection');
       await expect(page.locator('#view-title')).toContainText('Fixture');
@@ -208,11 +316,31 @@ await withDirectory('themes', async (directory, cleanup) => {
       const body = await box(page.locator('.browser-body'));
       await expect.poll(async () => (await pageViews()).some(view => view.url === 'about:blank' && view.y === body.y && view.x + view.width === body.x + body.width - 16), 'Notifications show over the page\'s corner').toBe(true);
       const closeToast = toasts.locator('[data-sonner-toast][data-removed="false"] [data-close-button]');
-      while (await closeToast.count()) await closeToast.first().click();
+      // A notification can reach the end of its six seconds and leave while it is being closed.
+      while (await closeToast.count()) await closeToast.first().click({ timeout: 2000 }).catch(() => {});
+
+      // A tooltip that keyboard focus showed goes too as the pointer reaches it, and a click there reaches the page and
+      // does not bring it back.
+      await inPage('window.rigClicks = 0; addEventListener("click", () => window.rigClicks++)');
+      pointAt(view.x + view.width / 2, view.y + view.height - 40);
+      await tabItem.focus();
+      await page.keyboard.press('ArrowUp');
+      await page.keyboard.press('ArrowDown');
+      await expect(tabItem).toBeFocused();
+      await expect(tip).toHaveText(tabLabel);
+      await expect.poll(tooltipView).toEqual(over);
+      pointAt(centre.x, centre.y);
+      await expect.poll(async () => (await tooltipView()).visible).toBe(false);
+      execFileSync('xdotool', ['click', '1']);
+      await expect.poll(() => inPage('window.rigClicks')).toBe(1);
+      await page.waitForTimeout(800);
+      await expect(tip).toHaveCount(0);
+      // The real pointer leaves the window, so that it does not contend with the rig's own pointer.
+      execFileSync('xdotool', ['mousemove', '1599', '999']);
 
       // Renaming a browser session takes the sidebar's width until the name is done.
       await panel.locator('[data-kind="browser"]').first().click({ button: 'right' });
-      await application.evaluate(() => globalThis.rigMenus.at(-1).items.find(item => item.label === 'Rename').click());
+      await app.menu.choose('Rename');
       const sessionName = panel.getByRole('textbox', { name: 'Session Name', exact: true });
       await expect(sessionName).toBeFocused();
       await expect(panel).not.toHaveClass(/\bthin\b/);
@@ -307,7 +435,10 @@ await withDirectory('themes', async (directory, cleanup) => {
       if (action === 'dismiss' || action === 'swipe') {
         if (action === 'dismiss') await notification.getByRole('button', { name: 'Dismiss', exact: true }).click();
         else {
+          // Measure the toast at rest: once the toast dismissed before it has gone and its own entry has finished.
+          await expect(owner.locator('[data-sonner-toast][data-removed="true"]')).toHaveCount(0);
           await notification.hover();
+          await expect.poll(() => notification.evaluate(node => node.getAnimations().length)).toBe(0);
           const bounds = await notification.boundingBox();
           const x = bounds.x + bounds.width - 5, y = bounds.y + bounds.height / 2;
           await owner.mouse.move(x, y);

@@ -3,29 +3,41 @@ import type { API, Event, FullscreenMode } from '../shared';
 import type { Message, Response } from '../transport';
 
 export function createWebAPI(): API {
-  const socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/socket`);
   const pending = new Map<number, { resolve(value: Response): void; reject(error: Error): void }>();
   const listeners = new Set<(event: Event) => void>();
   const queued: Event[] = [];
   const emit = (event: Event) => { if (!listeners.size) queued.push(event); else for (const listener of listeners) listener(event); };
-  const ready = new Promise<void>((resolve, reject) => { socket.addEventListener('open', () => resolve(), { once: true }); socket.addEventListener('error', () => reject(new Error('Cannot reach Bartizan server')), { once: true }); });
-  void ready.catch(() => {});
-  socket.addEventListener('message', message => {
-    const value: Message = JSON.parse(message.data);
-    if ('event' in value) emit(value.event);
-    else { pending.get(value.id)?.resolve(value); pending.delete(value.id); }
-  });
-  socket.addEventListener('close', () => {
-    const error = new Error('Connection to Bartizan server closed.');
-    for (const request of pending.values()) request.reject(error);
-    pending.clear();
-    emit({ type: 'transport-error', message: error.message });
-  });
+  // A lost socket reconnects with growing delays. The server then sends fresh state, and terminals continue from live
+  // output, keeping what they already show; output from while the page was away is not replayed.
+  let socket: WebSocket, failures = 0, lost = false, opened = false;
+  const client = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+  const connect = () => {
+    const current = socket = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/socket?client=${client}`);
+    current.addEventListener('open', () => {
+      failures = 0; opened = true;
+      if (lost) { lost = false; emit({ type: 'transport' }); }
+    });
+    current.addEventListener('message', message => {
+      const value: Message = JSON.parse(message.data);
+      if ('event' in value) emit(value.event);
+      else { pending.get(value.id)?.resolve(value); pending.delete(value.id); }
+    });
+    current.addEventListener('close', () => {
+      const error = new Error('Connection to Bartizan server closed.');
+      for (const request of pending.values()) request.reject(error);
+      pending.clear();
+      if (!lost) { lost = true; emit({ type: 'transport', error: error.message }); }
+      setTimeout(connect, Math.min(250 * 2 ** failures++, 10000));
+    });
+  };
+  connect();
   const api = createClient({
     async request(request) {
-      await ready;
-      if (socket.readyState !== WebSocket.OPEN) throw new Error('Bartizan server is disconnected');
-      return new Promise<Response>((resolve, reject) => { pending.set(request.id, { resolve, reject }); socket.send(JSON.stringify(request)); });
+      // Requests wait for the first socket; once the page has been connected, calls made while it is away fail at once.
+      const current = socket;
+      if (current.readyState === WebSocket.CONNECTING && !opened) await new Promise(resolve => { current.addEventListener('open', resolve, { once: true }); current.addEventListener('close', resolve, { once: true }); });
+      if (current.readyState !== WebSocket.OPEN) throw new Error('Bartizan server is disconnected');
+      return new Promise<Response>((resolve, reject) => { pending.set(request.id, { resolve, reject }); current.send(JSON.stringify(request)); });
     },
     onEvent(callback) {
       listeners.add(callback);
@@ -40,6 +52,8 @@ export function createWebAPI(): API {
     fullscreenChanged();
   });
   let activatedAt = -Infinity;
+  /** The open link menu's links. */
+  let linkMenu: { id: number; links: string[] } | undefined, menus = 0;
   addEventListener('focus', () => { activatedAt = performance.now(); });
   const openLink = (value: string) => {
     const url = new URL(value);
@@ -73,44 +87,27 @@ export function createWebAPI(): API {
       try { if (!document.execCommand('copy')) throw new Error('Clipboard access was denied'); }
       finally { input.remove(); previous?.focus(); }
     },
+    readClipboard: async () => {
+      if (!navigator.clipboard) throw new Error('Clipboard access was denied');
+      return navigator.clipboard.readText();
+    },
     chooseFile: async () => { throw new Error('Native file selection is unavailable'); },
     activatedWithin: async milliseconds => performance.now() - activatedAt <= milliseconds,
     openLink: async (_id, url) => openLink(url),
-    linkMenu: async (_id, urls) => {
+    linkMenu: async (_id, urls, at) => {
       const links = (Array.isArray(urls) ? urls : [urls]).filter(value => { try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password; } catch { return false; } });
-      showMenu(links.map(url => ({ label: url, enabled: true })), 20, 60, index => openLink(links[index]));
+      if (!links.length) return;
+      linkMenu = { id: ++menus, links };
+      emit({ type: 'menu', id: linkMenu.id, items: links.map((url, index) => ({ id: index, label: url, icon: 'external' })), ...at });
     },
-    menu: (items, x, y) => showMenu(items, x, y, index => emit({ type: 'menu', index })),
+    // A link opens from the click that chose it, which lets the page open a window.
+    menuChosen: (id, item) => {
+      if (id !== linkMenu?.id) return;
+      const { links } = linkMenu;
+      linkMenu = undefined;
+      if (item !== null && links[item]) openLink(links[item]);
+    },
     showBrowser: () => {},
     overlay: () => {},
   };
-}
-let closeMenu: (() => void) | undefined;
-function showMenu(items: Parameters<API['menu']>[0], x: number, y: number, choose: (index: number) => void) {
-  closeMenu?.();
-  const menu = document.createElement('div');
-  menu.className = 'web-menu'; menu.setAttribute('role', 'menu');
-  const previous = document.activeElement as HTMLElement | null;
-  const close = () => { menu.remove(); document.removeEventListener('pointerdown', outside, true); previous?.focus(); closeMenu = undefined; };
-  const outside = (event: PointerEvent) => { if (!menu.contains(event.target as Node)) close(); };
-  closeMenu = close;
-  items.forEach((item, index) => {
-    if ('separator' in item) { const separator = document.createElement('hr'); separator.setAttribute('role', 'separator'); menu.append(separator); return; }
-    const button = document.createElement('button'); button.type = 'button'; button.setAttribute('role', 'menuitem'); button.textContent = item.label; button.disabled = !item.enabled;
-    button.onclick = () => { close(); choose(index); }; menu.append(button);
-  });
-  menu.onkeydown = event => {
-    if (event.key === 'Escape' || event.key === 'Tab') { event.preventDefault(); close(); return; }
-    const buttons = [...menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
-    if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) && buttons.length) {
-      event.preventDefault();
-      const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-      buttons[event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length].focus();
-    }
-  };
-  (document.querySelector('dialog[open]') ?? document.body).append(menu);
-  menu.style.left = `${Math.max(0, Math.min(x, innerWidth - menu.offsetWidth))}px`;
-  menu.style.top = `${Math.max(0, Math.min(y, innerHeight - menu.offsetHeight))}px`;
-  document.addEventListener('pointerdown', outside, true);
-  menu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
 }

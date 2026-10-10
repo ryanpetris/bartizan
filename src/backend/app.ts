@@ -52,7 +52,7 @@ export async function createBackend(options: BackendOptions) {
   };
   const askpass = new Askpass(changed, changed, (message, id) => reportError('credentials', message, id));
 
-  const sessions = new Sessions(join(options.directory, 'ssh'), askpass, options.helper, changed, (id, data) => send({ type: 'data', id, data }), (message, id, label) => reportError('ssh', message, id, label), configuration);
+  const sessions = new Sessions(join(options.directory, 'ssh'), askpass, options.helper, changed, (id, data) => { sessions.sent(id, data.length); send({ type: 'data', id, data }); }, (message, id, label) => reportError('ssh', message, id, label), configuration);
   sessions.messages.listen(event => send({ type: 'helper', ...event }));
   let closed = false;
   let connecting = Promise.resolve();
@@ -64,9 +64,6 @@ export async function createBackend(options: BackendOptions) {
     if (!connection) throw new Error('Terminal is closed');
     return connection.info.id;
   };
-  /** Connects a profile in its existing navigation entry, if it has one. */
-  const createConnection = (spec: Spec, profileId?: string) =>
-    sessions.create(spec, profileId, [...sessions.entries.values()].find(e => profileId && e.info.profileId === profileId)?.info.id);
 
   const errorSchema = z.strictObject({ source: z.string().min(1).max(64), message: z.string().min(1).max(16384), connectionId: z.string().max(256).optional(), label: z.string().max(4096).optional() });
   handle('report-error', (input: unknown) => {
@@ -116,7 +113,7 @@ export async function createBackend(options: BackendOptions) {
   handle('profile-connect', (input: unknown) => { const owner = client; return serialize(async () => {
     const { changes, draft } = draftInput(input, owner);
     if (draft.id) throw new Error('Save the profile before connecting');
-    return createConnection(draftSpec(draft, changes));
+    return sessions.create(draftSpec(draft, changes));
   }); });
   handle('profile-save', (input: unknown) => { const owner = client; return serialize(async () => {
     const { id, connect, ...fields } = profileSaveSchema.parse(input);
@@ -130,7 +127,7 @@ export async function createBackend(options: BackendOptions) {
     const result: import('../shared').ProfileSaveResult = { profileId: prepared.id };
     changed();
     if (spec) {
-      try { result.connectionId = await createConnection({}, prepared.id); }
+      try { result.connectionId = await sessions.create({}, prepared.id); }
       catch (error) { result.connectionError = String(error); }
     }
     return result;
@@ -139,8 +136,8 @@ export async function createBackend(options: BackendOptions) {
   const targetSchema = z.union([z.strictObject({ profileId: z.string() }), z.strictObject({ host: z.string(), username: z.string().optional(), port: specSchema.shape.port })]);
   handle('connect', (input: unknown) => serialize(async () => {
     const target = targetSchema.parse(input);
-    if (!('profileId' in target)) return createConnection(target);
-    return createConnection({}, target.profileId);
+    if (!('profileId' in target)) return sessions.create(target, undefined, { destination: true });
+    return sessions.create({}, target.profileId);
   }));
   const disconnect = (id: string) => sessions.entries.get(id)?.disconnect() ?? Promise.resolve();
   handle('disconnect', (id: unknown) => serialize(() => disconnect(z.string().parse(id))));
@@ -168,6 +165,7 @@ export async function createBackend(options: BackendOptions) {
   });
   handle('capabilities', () => capabilities);
   handle('input', (id, data) => { if (typeof id !== 'string' || typeof data !== 'string' || data.length > 1024 * 1024) throw new Error('Invalid terminal input'); sessions.terminals.get(id)?.input(data); });
+  handle('acknowledge', (id, size) => { if (typeof id !== 'string' || !Number.isSafeInteger(size) || size < 0) throw new Error('Invalid acknowledgement'); sessions.processed(client, id, size); });
   handle('resize', (id, cols, rows, repaint) => { if (typeof id !== 'string' || !Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || rows < 1 || cols > 1000 || rows > 1000) throw new Error('Invalid terminal size'); sessions.terminals.get(id)?.resize(cols, rows, repaint === true); });
   const extension = options.extend?.({ sessions, changed, send, handle, serialize, terminalConnection, reportError });
   await askpass.start();
@@ -183,6 +181,12 @@ export async function createBackend(options: BackendOptions) {
       client = owner;
       return handler(...args);
     },
+    /** Starts counting a client's unacknowledged terminal output from zero, and pacing terminals to it. */
+    attach(owner: string) { sessions.attach(owner); },
+    /** Whether a client has fallen more than `limit` behind on some terminal's output. */
+    behind: (owner: string, limit: number) => sessions.behind(owner, limit),
+    /** Stops counting a client's terminal output and pacing terminals to it. */
+    detach(owner: string) { sessions.detach(owner); },
     release(owner: string) { drafts.delete(owner); },
     async close() { closed = true; await connecting; extension?.close(); await sessions.close(); askpass.close(); },
   };

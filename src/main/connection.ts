@@ -1,6 +1,7 @@
 import { Processes } from './processes';
 import { userInfo } from 'node:os';
 import { remoteCommand, loginCommand } from './remote-sessions';
+import { remotePorts } from './remote-ports';
 import type { HelperMessage, HelperRequest, RemoteSession } from '../helper-messages';
 import { RemoteHelper } from './remote-helper';
 import { RemoteIntegration } from './remote-integration';
@@ -14,6 +15,15 @@ import type { Askpass } from './askpass';
 import { SshConnection } from './ssh-connection';
 import { TerminalController } from './terminal';
 
+/**
+ * Where a connection goes, compared without case, IPv6 spelling, or the difference between an omitted username or port
+ * and its default.
+ */
+export function destination(spec: Spec) {
+  const [address, scope] = spec.host!.split('%');
+  const host = address!.includes(':') ? new URL(`http://[${address}]`).hostname.slice(1, -1) : address!.toLowerCase();
+  return JSON.stringify([scope === undefined ? host : `${host}%${scope}`, spec.username || userInfo().username, spec.port ?? 22]);
+}
 export class ConnectionController {
   readonly terminals = new Map<string, TerminalController>();
   readonly remoteSessions = new Map<string, RemoteSession>();
@@ -31,6 +41,7 @@ export class ConnectionController {
   private readonly integration = new RemoteIntegration(this);
   private readonly helperUsers = new Set<object>();
   private disposed = false;
+  private ports?: { at: number; ports: Promise<number[]> };
   constructor(id: string, private overrides: Spec, profileId: string | undefined, private configuration: Configuration,
     private directory: string, private askpass: Askpass, private askpassHelper: string, private publish: () => void,
     private data: (id: string, chunk: string) => void, private diagnostic: (message: string, connectionId: string, label: string) => void,
@@ -94,6 +105,7 @@ export class ConnectionController {
     let diagnosticTerminal = initial;
     const transport = this.transport = new SshConnection(spec, this.info.id, this.directory, this.askpass, this.askpassHelper,
       () => {
+        diagnosticTerminal = undefined;
         this.info.status = 'connected'; this.integration.sync(this.spec.remote_sessions ?? this.configuration.catalog.settings.remoteSessionIntegration); this.browsers?.sync();
         if (initial && this.terminals.has(initial.info.id) && initial.info.status !== 'closed') initial.start(transport);
         for (const terminal of this.terminals.values()) if (terminal.reconnectOnConnect) this.startTerminal(terminal);
@@ -213,6 +225,21 @@ export class ConnectionController {
     const terminal = this.allocateTerminal(remoteSession);
     this.startTerminal(terminal, command ? loginCommand(command) : undefined);
     return terminal.info.id;
+  }
+  /** The host's listening ports, read again at most every few seconds. */
+  remotePorts(): Promise<number[]> {
+    if (this.info.status !== 'connected') return Promise.resolve([]);
+    const now = performance.now();
+    if (!this.ports || now - this.ports.at >= 5000) this.ports = { at: now, ports: remotePorts(this.socket, this.transport!.spec) };
+    return this.ports.ports;
+  }
+  /** Whether the connection was made from a destination chosen by host, username and port alone. */
+  chosen = false;
+  /** A chosen connection's destination, of the transport in use or of the next one while disconnected. */
+  get destination() {
+    if (!this.chosen) return;
+    if (this.info.status !== 'closed' && this.transport) return destination(this.transport.spec);
+    try { return destination(resolveSpec(this.configuration.catalog, undefined, this.overrides)); } catch { return; }
   }
   details(): Promise<ConnectionInfo> {
     return this.transport?.details() ?? Promise.resolve({ status: this.info.status, username: this.info.username || userInfo().username });

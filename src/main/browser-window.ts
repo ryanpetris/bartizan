@@ -1,5 +1,5 @@
 import { webContents } from 'electron';
-import type { Bounds, PageShortcut } from '../shared';
+import type { Bounds, PageShortcut, Question } from '../shared';
 import type { ConnectionController } from './connection';
 import type { Browsers } from './browser';
 import type { BrowserSession } from './browser-session';
@@ -14,6 +14,11 @@ export class BrowserWindowController {
   readonly certificates = new Map<string, BrowserSession>();
   readonly authentication = new Map<string, BrowserSession>();
   readonly tabs = new Map<string, BrowserTabController>();
+  /**
+   * Asks the user in the application's dialogs until `signal` withdraws the question; settles to whether they chose to go
+   * ahead, or to nothing where nobody answered.
+   */
+  ask: (question: Question, signal: AbortSignal) => Promise<boolean | undefined> = async () => undefined;
   get challenges() { return [...this.entries.values()].flatMap(session => session.challenges); }
   owner(id: string) {
     const owner = this.entries.get(id);
@@ -25,6 +30,8 @@ export class BrowserWindowController {
     return connection.browsers.open(...args);
   }
   action(id: string, ...args: Parameters<BrowserSession['action']>) { return this.owner(id).action(...args); }
+  /** Lets a tab's page ask before the user closes it; settles to whether the tab may close. */
+  leave(id: string, tab?: string) { const owner = this.entries.get(id); return owner?.tabs.get(tab ?? owner.info.activeTab ?? '')?.leave() ?? Promise.resolve(true); }
   rename(id: string, name: string) { const session = this.owner(id); session.info.name = name.trim() || undefined; session.changed(); }
   find(id: string, tab: string, request: Parameters<BrowserTabController['find']>[0]) { return this.owner(id).tabs.get(tab)?.find(request); }
   download(id: string, ...args: Parameters<BrowserSession['download']>) { return this.owner(id).download(...args); }

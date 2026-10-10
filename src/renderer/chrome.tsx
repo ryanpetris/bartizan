@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { browserSessionName } from '../shared';
 import { Icon, IconButton, colorStyle } from './ui';
-import { api, run, store, select, showConnect, connectionOf, terminalName, activeTab, sessionColor, statusText, openTerminal, openBrowserTab, openApplication, reconnect } from './store';
+import { api, run, store, select, showConnect, connectionOf, terminalName, activeTab, sessionColor, statusText, reconnect } from './store';
 import { openSettings } from './settings';
 import { openDetails } from './details';
 import { openMenu } from './menu';
@@ -49,7 +49,7 @@ export function HomeButton({ children }: { children?: ReactNode }) {
       type="button"
       className="home-button"
       aria-label="Home"
-      title="Home"
+      data-tooltip="Home"
       aria-current={store.selection ? undefined : 'page'}
       onClick={() => select(undefined)}
     >
@@ -90,9 +90,9 @@ export function ContextTitle() {
     </>
   );
 }
-/** What the connection in view can open, and its details. */
+/** The details of the connection in view, fullscreen, and reconnecting what has closed. */
 export function ContextActions() {
-  const { terminal, workspace, owner } = viewContext();
+  const { terminal, owner } = viewContext();
   return (
     <div className="titlebar-actions">
       <IconButton
@@ -102,24 +102,6 @@ export function ContextActions() {
         onClick={() => owner && void openDetails(owner.id)}
       />
       <FullscreenButton />
-      <IconButton
-        icon="terminal"
-        label="New Terminal"
-        hidden={owner?.status !== 'connected'}
-        onClick={() => owner && void openTerminal(owner.id)}
-      />
-      <IconButton
-        icon="window"
-        label="New Browser Tab"
-        hidden={!store.state.capabilities.embeddedBrowser || owner?.status !== 'connected'}
-        onClick={() => owner && void openBrowserTab(owner.id, workspace?.id)}
-      />
-      <IconButton
-        icon="code"
-        label="Visual Studio Code"
-        hidden={!store.state.capabilities.embeddedBrowser || owner?.status !== 'connected'}
-        onClick={() => owner && void openApplication(owner.id, 'vscode')}
-      />
       <IconButton
         icon="reload"
         label="Reconnect"
@@ -141,8 +123,8 @@ export function FullscreenButton() {
     onContextMenu={event => {
       event.preventDefault();
       openMenu(event.currentTarget, [
-        { label: 'Fullscreen Content', disabled: store.fullscreen === 'content', action: () => void run('window', api.setFullscreen('content')) },
-        { label: 'Fullscreen Window', disabled: store.fullscreen === 'window', action: () => void run('window', api.setFullscreen('window')) },
+        { label: 'Fullscreen Content', icon: 'fullscreen', disabled: store.fullscreen === 'content', action: () => void run('window', api.setFullscreen('content')) },
+        { label: 'Fullscreen Window', icon: 'window', disabled: store.fullscreen === 'window', action: () => void run('window', api.setFullscreen('window')) },
       ]);
     }} />;
 }

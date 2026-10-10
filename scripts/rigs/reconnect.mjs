@@ -30,7 +30,10 @@ await withDirectory('reconnect', async (directory, cleanup) => {
   const ambiguous = await api('newTerminal', id);
   await api('input', ambiguous, 'exit 255\n');
   await waitState(s => s.terminals.find(t => t.id === ambiguous)?.status === 'closed');
+  // Disconnect returns once the transport has ended and its final state has been sent.
   await api('disconnect', id);
+  assert.equal((await app.state()).connections.find(c => c.id === id).exitCode, undefined);
+  await expect(page.locator(`.connection-chip[data-id="${id}"] .status-dot`)).toHaveAttribute('aria-label', 'Closed');
   await api('reconnect', id);
   const restored = await waitState(s => s.terminals.find(t => t.id === first)?.status === 'connected');
   assert.equal(restored.terminals.length, 3);
@@ -57,7 +60,7 @@ await withDirectory('reconnect', async (directory, cleanup) => {
   await api('reconnect', id);
   await waitState(s => s.terminals.find(t => t.id === exited)?.status === 'connected');
   assert.equal((await app.state()).terminals.find(t => t.id === ambiguous).status, 'closed');
-  console.log('Connection reconnect restores interrupted terminals in place; exited and ambiguous terminals require manual retry.');
+  console.log('Disconnect closes without an exit code, and reconnect restores interrupted terminals in place; exited and ambiguous terminals require manual retry.');
 
   // Closing the selected connection follows the displayed order, including the last position.
   const second = await api('connect', { profileId: 'second' });

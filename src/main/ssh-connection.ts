@@ -24,7 +24,7 @@ export class SshConnection {
   private observed: Partial<ConnectionInfo> = {};
   private pending?: Promise<ConnectionInfo>;
   constructor(readonly spec: Spec, private id: string, private directory: string, private askpass: Askpass, private askpassHelper: string,
-    private ready: () => void, private closed: (code: number) => void, private diagnostic: (text: string) => void, private failure: (text: string) => void) {}
+    private ready: () => void, private closed: (code?: number) => void, private diagnostic: (text: string) => void, private failure: (text: string) => void) {}
   async start() {
     const temporary = mkdtempSync(join(tmpdir(), 'bartizan-ssh-'));
     this.socket = join(temporary, 'mux');
@@ -40,17 +40,26 @@ export class SshConnection {
         env: { ...process.env, ...environment, BARTIZAN_HOST_KEY_JS: join(dirname(this.askpassHelper), 'host-key.cjs'), BARTIZAN_HOST_KEY_PINS: JSON.stringify(pins), LC_ALL: 'C' }, stdio: ['ignore', 'ignore', 'pipe'],
       });
       let stderr = '', failed = false, finished = false;
-      const diagnostic = (text: string) => { stderr = (stderr + text).slice(-4096); this.diagnostic(text); };
+      let established = false;
+      // Refused browser connections are routine, so they stay out of the failure message.
+      const diagnostic = (text: string) => {
+        if (!established) this.diagnostic(text);
+        stderr = (stderr + text).replace(/^channel \d+: open failed:.*\n/gm, '');
+        if (stderr.length <= 4096) return;
+        const cut = stderr.indexOf('\n', stderr.length - 4096);
+        stderr = cut < 0 ? stderr.slice(-4096) : stderr.slice(cut + 1);
+      };
       const finish = (code: number) => {
         if (finished) return;
         finished = true; failed = !this.stopping && code !== 0;
-        this.connected = false; this.exitCode = code; this.child = undefined;
-        this.cleanup(); this.finish(); this.closed(code);
+        this.connected = false; this.exitCode = this.stopping ? undefined : code; this.child = undefined;
+        this.cleanup(); this.finish(); this.closed(this.exitCode);
       };
       child.stderr?.setEncoding('utf8'); child.stderr?.on('data', diagnostic);
       child.once('error', error => { diagnostic(`${error.message}\r\n`); finish(255); });
       child.once('exit', code => finish(code ?? 255));
-      child.once('close', () => { if (failed && stderr) this.failure(stderr.trim().split(/\r?\n/).slice(-4).join('\n')); });
+      const tail = () => stderr.trim().split(/\r?\n/).filter(line => line && !/^channel \d+: open failed:/.test(line)).slice(-4).join('\n');
+      child.once('close', () => { if (failed) this.failure(tail() || `SSH connection exited with code ${this.exitCode}`); });
       let probing = false;
       this.probe = setInterval(() => {
         if (probing || finished || this.stopping) return;
@@ -58,7 +67,7 @@ export class SshConnection {
         execFile('ssh', ['-F', 'none', '-S', this.socket, '-O', 'check', '--', this.spec.host!], { timeout: 1000, env: { ...process.env, LC_ALL: 'C' } }, error => {
           probing = false;
           if (error || finished || this.stopping) return;
-          this.connected = true; clearInterval(this.probe); this.ready();
+          established = this.connected = true; stderr = ''; clearInterval(this.probe); this.ready();
         });
       }, 100);
     } catch (error) { this.cleanup(); this.finish(); throw error; }

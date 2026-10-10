@@ -1,14 +1,17 @@
 import { ApplicationStatus } from './application-status';
 import { Fragment, useLayoutEffect, useRef, useState } from 'react';
-import { applicationShowsPage, type BrowserAction, type BrowserShortcut, type Bounds } from '../shared';
+import { applicationShowsPage, shortcutLabel, type BrowserAction, type BrowserShortcut, type Bounds, type PageShortcut } from '../shared';
 import { Icon, IconButton, Button, colorStyle } from './ui';
-import { api, store, run, render, describeError, dialogOpen, onFocusRequest, sessionColor, activeManifest } from './store';
+import { api, store, run, render, describeError, dialogOpen, onFocusRequest, focusView, sessionColor, activeManifest, sessionTabs, selectTab } from './store';
+import type { BrowserTab, CertificateChallenge } from '../shared';
 import { currentTab as current, findText, setFindText, targetOf } from './tab-state';
 import { openMenu } from './menu';
 import { FindBar, focusFind } from './browser-find';
 import { DownloadsButton, DownloadsPopover } from './browser-downloads';
 import { LinkStatus } from './browser-status';
+import { AddressSuggestions, refreshPorts, remember, suggestionId, suggestionLimit, suggestions } from './browser-suggestions';
 
+const shortcutHint = (name: PageShortcut) => shortcutLabel(name, /^Mac/.test(navigator.platform));
 const actionErrors = new Map<string, string>();
 function act(workspaceId: string, action: BrowserAction, tabId?: string, url?: string) {
   return api.browser(workspaceId, action, tabId, url).then(
@@ -48,12 +51,44 @@ function openFind() {
   if (findText(tab.id) === undefined) setFindText(tab.id, '');
   focusFind();
 }
+/** Gives the keyboard to the selected tab's page, once the main process has it selected too. */
+function focusPage() {
+  const { workspace, tab } = current();
+  if (!workspace || !tab?.url) return;
+  // Focus left in a view that is no longer shown would come back to it with the window.
+  const focused = document.activeElement;
+  if (focused instanceof HTMLElement && focused.closest('[hidden]')) focused.blur();
+  syncNativeView();
+  void act(workspace.id, 'focus', tab.id);
+}
 /** Runs a shortcut on the selected session: one the application takes itself, or the find bar, which the main process asks for once a page has left its key alone. */
 export function shortcut(name: Exclude<BrowserShortcut, 'new-connection'> | 'find') {
+  const { workspace, tab } = current();
   if (name === 'focus-address') focusAddress();
   else if (name === 'find') openFind();
-  else if (current().tab?.url) actOnTab(name);
+  else if (name === 'devtools') { if (tab?.url) actOnTab(name); }
+  // Tabs of an application's session are the application's own.
+  else if (!workspace || workspace.application) return;
+  else if (name === 'new-tab') void act(workspace.id, 'new').then(focusAddress);
+  else if (name === 'close-tab') { if (tab) void act(workspace.id, 'close', tab.id).then(focusView); }
+  else if (name === 'reopen-tab') void act(workspace.id, 'reopen').then(focusView);
+  else {
+    const tabs = sessionTabs(workspace), index = tabs.findIndex((item) => item.id === tab?.id);
+    const next = tabs[(index + (name === 'next-tab' ? 1 : -1) + tabs.length) % tabs.length];
+    if (next && next.id !== tab?.id) selectTab(workspace.id, next.id);
+  }
 }
+/** The address the main process makes of what was entered in the address field, or nothing for one it would refuse. */
+function typedAddress(value: string) {
+  const text = value.trim();
+  try {
+    return new URL(/^https?:\/\//i.test(text) ? text : `http://${text}`).href;
+  } catch {
+    return '';
+  }
+}
+/** Sends the selected tab to an address, as Paste and Go does. */
+export let go: (value: string) => void = () => {};
 
 /** Where developer tools dock beside the page and how much room they take; this lasts for the application launch. */
 const dock: { side: 'bottom' | 'right'; size: number } = (() => {
@@ -82,30 +117,82 @@ const certificateTitles = [
   ['ERR_CERT_DATE_INVALID', 'Certificate Date Invalid'],
   ['ERR_CERT_COMMON_NAME_INVALID', 'Certificate Name Mismatch'],
 ];
+const certificateTitle = (challenge?: CertificateChallenge) => certificateTitles.find(([code]) => challenge?.error.includes(code))?.[1] ?? 'Certificate Error';
+/** The blocked resource certificate the user has opened in the warning, in place of its page. */
+let reviewing: string | undefined;
+/** The warning a tab shows: the blocked resource certificate opened from its notice until it is answered, or its page's own. */
+const shownChallenge = (tab?: BrowserTab) => (tab?.blockedCertificate && tab.blockedCertificate.id === reviewing ? tab.blockedCertificate : tab?.certificate);
 export function Browser() {
   const { workspace, tab } = current();
   const [draft, setDraft] = useState<{ id: string | undefined; value: string }>();
   const [answered, setAnswered] = useState<string>();
+  // The suggestions under the address field, and the one Up and Down have chosen.
+  const [suggesting, setSuggesting] = useState(false),
+    [highlighted, setHighlighted] = useState(-1);
   const pending = useRef<string | undefined>(undefined),
     frame = useRef<number | undefined>(undefined),
+    // While an address chosen from the suggestions is sent, focus that returns to the field leaves them closed.
+    settling = useRef(false),
     cancel = useRef<HTMLButtonElement>(null);
   const editing = draft?.id === tab?.id && draft !== undefined;
-  const challenge = tab?.certificate;
+  const challenge = shownChallenge(tab),
+    blocked = challenge ? undefined : tab?.blockedCertificate;
   const cancelSelection = () => {
     if (frame.current !== undefined) cancelAnimationFrame(frame.current);
     frame.current = undefined;
   };
   useLayoutEffect(() => {
     setDraft(undefined);
+    setSuggesting(false);
   }, [tab?.id]);
+  // An address left in the field gives way to the page's own once the page moves on.
+  useLayoutEffect(() => {
+    if (document.activeElement !== address || !document.hasFocus()) setDraft(undefined);
+  }, [tab?.url]);
+  // An action's error stays while the address is typed, and gives way once the tab shown changes, moves on or loads.
+  useLayoutEffect(() => {
+    if (workspace && actionErrors.delete(workspace.id)) render();
+  }, [tab?.id, tab?.url, tab?.loading]);
   useLayoutEffect(
     () =>
       onFocusRequest(() => {
         const { tab } = current();
-        if (tab && !tab.url && !dialogOpen()) focusAddress();
+        if (!tab || dialogOpen()) return;
+        if (!tab.url) focusAddress();
+        else focusPage();
       }),
     [],
   );
+  const query = editing ? draft.value : '';
+  const offered = suggesting && workspace && !workspace.application ? suggestions(workspace.connectionId, query) : [];
+  // A dialog over the window, or a view out of sight, keeps the list from showing.
+  const listed = view?.hidden || dialogOpen() ? [] : offered;
+  const chosen = highlighted < listed.length ? highlighted : -1;
+  /**
+   * Sends the tab to an address, keeping it in the field until the tab takes it. The page takes the keyboard after, from
+   * the field or, with `page`, from wherever it is.
+   */
+  const navigate = (value: string, page: boolean) => {
+    if (!workspace || !value.trim()) return;
+    setSuggesting(false);
+    settling.current = true;
+    void act(workspace.id, tab ? 'navigate' : 'new', tab?.id, value).then((navigated) => {
+      settling.current = false;
+      if (!navigated) return;
+      setDraft(undefined);
+      remember(workspace.connectionId, typedAddress(value));
+      requestAnimationFrame(() => {
+        const selected = current();
+        if (selected.workspace?.id !== workspace.id || tab && selected.tab?.id !== tab.id || dialogOpen()) return;
+        if (!page && (!document.hasFocus() || document.activeElement !== address)) return;
+        syncNativeView();
+        void act(workspace.id, 'focus', selected.tab?.id);
+      });
+    });
+  };
+  useLayoutEffect(() => {
+    go = (value) => navigate(value, true);
+  });
   useLayoutEffect(() => {
     if (!challenge) {
       setAnswered(undefined);
@@ -117,7 +204,7 @@ export function Browser() {
       (!focused || focused === document.body || (view?.contains(focused) && !(focused === address && editing)))
     ) {
       const request = requestAnimationFrame(() => {
-        if (current().tab?.certificate?.id === challenge.id && !dialogOpen()) cancel.current?.focus();
+        if (shownChallenge(current().tab)?.id === challenge.id && !dialogOpen()) cancel.current?.focus();
       });
       return () => cancelAnimationFrame(request);
     }
@@ -133,9 +220,10 @@ export function Browser() {
       cancelSelection();
     };
   }, []);
-  function answer(allow: boolean) {
-    if (!workspace || !challenge || pending.current === challenge.id || answered === challenge.id) return;
-    const id = challenge.id;
+  function answer(allow: boolean, target = challenge) {
+    if (!workspace || !target || pending.current === target.id || answered === target.id) return;
+    const id = target.id,
+      resource = target.id === tab?.blockedCertificate?.id;
     pending.current = id;
     setAnswered(id);
     void api
@@ -144,6 +232,9 @@ export function Browser() {
         (result) => {
           actionErrors.delete(workspace.id);
           if (!result) setAnswered((previous) => (previous === id ? undefined : previous));
+          // The page comes back in place of the warning or notice, and takes the keyboard they held.
+          const focused = document.activeElement;
+          if (resource && result && (!focused || focused === document.body || view?.contains(focused))) focusView();
         },
         (error) => {
           actionErrors.set(workspace.id, describeError(error).message);
@@ -192,15 +283,7 @@ export function Browser() {
         className="browser-toolbar"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!workspace || !address?.value.trim()) return;
-          const value = address.value;
-          setDraft(undefined);
-          void act(workspace.id, tab ? 'navigate' : 'new', tab?.id, value).then((navigated) => navigated && requestAnimationFrame(() => {
-            const selected = current();
-            if (selected.workspace?.id !== workspace.id || tab && selected.tab?.id !== tab.id || !document.hasFocus() || document.activeElement !== address || dialogOpen()) return;
-            syncNativeView();
-            void act(workspace.id, 'focus', selected.tab?.id);
-          }));
+          navigate(listed[chosen]?.url ?? address?.value ?? '', false);
         }}
       >
         <IconButton icon="back" label="Back" disabled={!tab?.canBack} onClick={() => actOnTab('back')} />
@@ -223,17 +306,34 @@ export function Browser() {
             name="address"
             aria-label="Address"
             placeholder="Address"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={listed.length > 0}
+            aria-controls="address-suggestions"
+            aria-activedescendant={chosen >= 0 ? suggestionId(chosen) : undefined}
+            data-url={tab?.url ?? ''}
             spellCheck={false}
             autoComplete="off"
             value={editing ? draft.value : (tab?.url ?? '')}
             onInput={cancelSelection}
             onChange={(event) => {
               setDraft({ id: tab?.id, value: event.target.value });
-              if (workspace && actionErrors.delete(workspace.id)) render();
+              setSuggesting(true);
+              setHighlighted(-1);
             }}
-            onBlur={cancelSelection}
+            onBlur={() => {
+              cancelSelection();
+              if (editing && draft.value === (tab?.url ?? '')) setDraft(undefined);
+              // Focus that leaves for the suggestions' own view returns, or the suggestions close as it leaves both.
+              if (document.hasFocus() || !listed.length) setSuggesting(false);
+            }}
             onFocus={() => {
               cancelSelection();
+              if (workspace && !workspace.application && !settling.current) {
+                refreshPorts(workspace.connectionId);
+                setSuggesting(true);
+                setHighlighted(-1);
+              }
               frame.current = requestAnimationFrame(() => {
                 frame.current = undefined;
                 if (document.activeElement === address) address?.select();
@@ -241,7 +341,16 @@ export function Browser() {
             }}
             onKeyDown={(event) => {
               cancelSelection();
-              if (event.key === 'Escape' && (editing || address?.value !== (tab?.url ?? ''))) {
+              if (event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                if (!suggesting) { setSuggesting(true); setHighlighted(-1); return; }
+                const last = listed.length - 1, down = event.key === 'ArrowDown';
+                setHighlighted(last < 0 ? -1 : chosen < 0 ? (down ? 0 : last) : Math.min(last, Math.max(-1, chosen + (down ? 1 : -1))));
+              } else if (event.key === 'Escape' && listed.length) {
+                event.preventDefault();
+                setSuggesting(false);
+              } else if (event.key === 'Escape' && (editing || address?.value !== (tab?.url ?? ''))) {
                 event.preventDefault();
                 setDraft(undefined);
                 requestAnimationFrame(() => address?.select());
@@ -253,7 +362,7 @@ export function Browser() {
             className="zoom-level"
             hidden={!zoomed}
             aria-label="Reset Zoom"
-            title="Reset Zoom"
+            data-tooltip="Reset Zoom"
             onClick={() => actOnTab('zoom-reset')}
           >
             {tab?.zoom}%
@@ -272,24 +381,42 @@ export function Browser() {
           label="Page Menu"
           aria-haspopup="menu"
           disabled={!tab}
-          onClick={(event) =>
+          onClick={(event) => {
+            // The menu belongs to the page on show as it opens, and closes once another tab shows or the page starts loading
+            // another document.
+            const opened = tab;
+            let loading = tab?.loading;
+            const onTab = (action: BrowserAction) => () => {
+              if (workspace && opened) void act(workspace.id, action, opened.id);
+            };
             openMenu(event.currentTarget, [
-              { label: 'Find in Page', disabled: !tab?.url, action: openFind },
+              { label: 'Find in Page', icon: 'search', shortcut: shortcutHint('find'), disabled: !tab?.url, action: openFind },
               { separator: true },
-              { label: 'Zoom In', disabled: !tab?.url, action: () => actOnTab('zoom-in') },
-              { label: 'Zoom Out', disabled: !tab?.url, action: () => actOnTab('zoom-out') },
-              { label: 'Reset Zoom', disabled: !zoomed, action: () => actOnTab('zoom-reset') },
+              { label: 'Zoom In', shortcut: shortcutHint('zoom-in'), disabled: !tab?.url, action: onTab('zoom-in') },
+              { label: 'Zoom Out', shortcut: shortcutHint('zoom-out'), disabled: !tab?.url, action: onTab('zoom-out') },
+              { label: 'Reset Zoom', shortcut: shortcutHint('zoom-reset'), disabled: !zoomed, action: onTab('zoom-reset') },
               { separator: true },
-              { label: 'Hard Reload', disabled: !tab?.url, action: () => actOnTab('hard-reload') },
-              { label: 'Save as PDF…', disabled: !tab?.url, action: () => actOnTab('pdf') },
-              { label: 'Print…', disabled: !tab?.url, action: () => actOnTab('print') },
+              { label: 'Hard Reload', icon: 'reload', shortcut: shortcutHint('hard-reload'), disabled: !tab?.url, action: onTab('hard-reload') },
+              { label: 'Clear Site Data', disabled: !/^https?:/i.test(tab?.url ?? ''), action: onTab('clear-site-data') },
+              { separator: true },
+              { label: 'Save as PDF…', disabled: !tab?.url, action: onTab('pdf') },
+              { label: 'Save Screenshot…', disabled: !tab?.url, action: onTab('screenshot') },
+              { label: 'Print…', shortcut: shortcutHint('print'), disabled: !tab?.url, action: onTab('print') },
               { separator: true },
               {
                 label: horizontal ? 'Dock Developer Tools at Bottom' : 'Dock Developer Tools at Right',
+                icon: 'code',
                 action: () => setDock({ side: horizontal ? 'bottom' : 'right' }),
               },
-            ])
-          }
+            ], {
+              stale: () => {
+                const now = current().tab;
+                const started = Boolean(now?.loading && !loading);
+                loading = now?.loading;
+                return now?.id !== opened?.id || started;
+              },
+            });
+          }}
         />
         <IconButton
           icon="plus"
@@ -320,6 +447,22 @@ export function Browser() {
         <Button hidden={!!actionError || !failure} onClick={() => actOnTab('reload')}>
           Retry
         </Button>
+      </div>
+      <div className="certificate-notice" role="status" hidden={!blocked}>
+        <Icon name="alert" />
+        <div className="browser-error-text">
+          <strong>{certificateTitle(blocked)}</strong>
+          <span className="mono">{blocked?.origin}</span>
+        </div>
+        <Button
+          onClick={() => {
+            reviewing = blocked?.id;
+            render();
+          }}
+        >
+          Review
+        </Button>
+        <IconButton icon="close" label="Dismiss" disabled={answered === blocked?.id} onClick={() => answer(false, blocked)} />
       </div>
       <div
         ref={(node) => {
@@ -355,9 +498,7 @@ export function Browser() {
                   <Icon name="alert" />
                 </span>
                 <div className="dialog-titles">
-                  <h2 id="certificate-title">
-                    {certificateTitles.find(([code]) => challenge?.error.includes(code))?.[1] ?? 'Certificate Error'}
-                  </h2>
+                  <h2 id="certificate-title">{certificateTitle(challenge)}</h2>
                   <p className="dialog-context mono">{challenge?.origin}</p>
                 </div>
               </header>
@@ -419,6 +560,23 @@ export function Browser() {
         </div>
       </div>
       {workspace && <DownloadsPopover workspace={workspace} />}
+      {/*
+        The list drawn over the page is in a document of its own, so assistive technology reads this copy of it. Its rows
+        stay in place and carry their addresses as labels: text taken out of the document while Address is being typed in
+        would end the typing that one Undo takes back.
+      */}
+      <ul className="visually-hidden" id="address-suggestions" role="listbox" aria-label="Suggestions" hidden={!listed.length}>
+        {Array.from({ length: suggestionLimit }, (_, index) => (
+          <li key={index} id={suggestionId(index)} role="option" aria-selected={index === chosen} aria-label={listed[index]?.url} hidden={index >= listed.length} />
+        ))}
+      </ul>
+      <AddressSuggestions
+        field={() => address}
+        items={listed}
+        highlighted={chosen}
+        onChoose={(url) => navigate(url, true)}
+        onLeave={() => setSuggesting(false)}
+      />
       {tab && (activeManifest().linkStatus !== 'inline' || store.fullscreen === 'content') && (
         <LinkStatus tab={tab} visible={pageVisible()} area={() => slot?.getBoundingClientRect()} />
       )}
@@ -440,7 +598,7 @@ function pageVisible() {
       tab &&
       (!workspace.application || applicationShowsPage(workspace.application, tab)) &&
       (tab.url || tab.loading) &&
-      !tab.certificate &&
+      !shownChallenge(tab) &&
       !view.hidden,
   );
 }

@@ -1,6 +1,6 @@
 import { remoteVisible } from './store';
 import { createContext, useContext, useLayoutEffect, useRef, type CSSProperties, type DragEvent, type HTMLAttributes, type ReactNode, type SyntheticEvent } from 'react';
-import { browserSessionName, type Workspace, type BrowserTab, type TerminalSession } from '../shared';
+import { browserSessionName, pageAddress, type BrowserAction, type Workspace, type BrowserTab, type TerminalSession } from '../shared';
 import { Icon, IconButton, Tags, colorStyle, moveFocus } from './ui';
 import {
   api,
@@ -8,6 +8,7 @@ import {
   run,
   select,
   selectTab,
+  activateTab,
   activeTab,
   groups,
   connectionOf,
@@ -30,7 +31,7 @@ import {
   activeManifest,
   type Group,
 } from './store';
-import { openMenu, type MenuItem } from './menu';
+import { openMenu, connectionChanges, type MenuItem } from './menu';
 import { faviconOf, dropFavicon } from './tab-state';
 import { hasCurrent } from './errors';
 import { openDetails } from './details';
@@ -68,9 +69,10 @@ const handleOf = (event: SyntheticEvent<HTMLElement>) => {
 };
 /**
  * Lets a unit of navigation move among the units of its scope by dragging its main button or from its context menu,
- * which starts with `actions`. Nested units see events first; a unit leaves events for other scopes to the unit around it.
+ * which starts with `actions`; the menu closes as connection `connectionId`, which they depend on, connects or
+ * disconnects. Nested units see events first; a unit leaves events for other scopes to the unit around it.
  */
-export function orderable(scope: string, key: string, actions: MenuItem[] = []) {
+export function orderable(scope: string, key: string, actions: MenuItem[] = [], connectionId?: string) {
   const place = (event: DragEvent<HTMLElement>) => {
     const keys = scopeKeys(scope),
       box = event.currentTarget.getBoundingClientRect();
@@ -119,7 +121,7 @@ export function orderable(scope: string, key: string, actions: MenuItem[] = []) 
         ...actions,
         { label: horizontal() ? 'Move Left' : 'Move Up', disabled: index <= 0, action: () => moveBy(-1) },
         { label: horizontal() ? 'Move Right' : 'Move Down', disabled: index < 0 || index >= keys.length - 1, action: () => moveBy(1) },
-      ]);
+      ], { stale: connectionId === undefined ? undefined : connectionChanges(connectionId) });
     },
   } as HTMLAttributes<HTMLElement>;
 }
@@ -136,7 +138,7 @@ function Row({
   tag: Tag = 'li',
   className = '',
   outer = {},
-  title,
+  tooltip,
   ...props
 }: {
   draggable?: boolean;
@@ -153,7 +155,9 @@ function Row({
   tag?: 'li' | 'div';
   className?: string;
   outer?: React.HTMLAttributes<HTMLElement>;
-  title?: string;
+  /** The tooltip, where the theme shows the label; a theme that leaves the label out of sight shows it as the tooltip. */
+  tooltip?: string;
+  'aria-description'?: string;
   'data-status'?: string;
   'data-state'?: string;
   'data-workspace'?: string;
@@ -173,7 +177,7 @@ function Row({
         data-id={id}
         aria-current={current}
         onClick={onSelect}
-        title={titled ? label : title}
+        data-tooltip={titled ? label : tooltip}
         {...props}
       >
         <span className="nav-icon">{icon}</span>
@@ -210,7 +214,7 @@ function TerminalRow({ terminal }: { terminal: TerminalSession }) {
           key="close"
           icon="close"
           label={`Close ${name}`}
-          title="Close Terminal"
+          tooltip="Close Terminal"
           className="row-close"
           onClick={() => void run('session', api.closeTerminal(terminal.id), terminal.connectionId)}
         />,
@@ -220,6 +224,30 @@ function TerminalRow({ terminal }: { terminal: TerminalSession }) {
 }
 const toggleMute = (workspace: Workspace, tab: BrowserTab) =>
   void run('browser', api.browser(workspace.id, 'mute', tab.id), workspace.connectionId);
+/** Closes tabs of a session one after another; the one kept takes the place of the active tab if that closes. */
+function closeTabs(workspace: Workspace, kept: BrowserTab, closing: BrowserTab[]) {
+  if (closing.some((tab) => tab.id === activeTab(workspace)?.id)) activateTab(workspace.id, kept.id);
+  void run('browser', (async () => { for (const tab of closing) await api.browser(workspace.id, 'close', tab.id); })(), workspace.connectionId);
+}
+/** The commands of a tab's row, ahead of those that move it. */
+function tabActions(workspace: Workspace, tab: BrowserTab): MenuItem[] {
+  const act = (action: BrowserAction, url?: string) => void run('browser', api.browser(workspace.id, action, tab.id, url), workspace.connectionId);
+  const tabs = sessionTabs(workspace), below = tabs.slice(tabs.findIndex((item) => item.id === tab.id) + 1);
+  return [
+    { label: 'Reload', icon: 'reload', disabled: !tab.url, action: () => act('reload') },
+    { label: 'Duplicate Tab', disabled: !pageAddress(tab.url), action: () => act('new', tab.url) },
+    { label: 'Copy Address', icon: 'link', disabled: !tab.url, action: () => void run('browser', api.copy(tab.url), workspace.connectionId) },
+    ...(store.state.capabilities.externalBrowser ? [{ label: 'Open in External Browser', icon: 'external' as const, disabled: !/^https?:/i.test(tab.url), action: () => act('external') }] : []),
+    { separator: true },
+    { label: tab.muted ? 'Unmute Tab' : 'Mute Tab', icon: tab.muted ? 'volume' : 'volume-off', action: () => toggleMute(workspace, tab) },
+    { separator: true },
+    { label: 'Close Tab', icon: 'close', action: () => act('close') },
+    { label: 'Close Other Tabs', disabled: tabs.length < 2, action: () => closeTabs(workspace, tab, tabs.filter((item) => item.id !== tab.id)) },
+    { label: horizontal() ? 'Close Tabs to the Right' : 'Close Tabs Below', disabled: !below.length, action: () => closeTabs(workspace, tab, below) },
+    { label: 'Reopen Closed Tab', disabled: !workspace.closedTabs, action: () => act('reopen') },
+    { separator: true },
+  ];
+}
 function TabRow({
   workspace,
   tab,
@@ -240,7 +268,8 @@ function TabRow({
       id={tab.id}
       data-workspace={workspace.id}
       label={title}
-      title={workspace.application ? undefined : tab.url || undefined}
+      tooltip={workspace.application ? undefined : tab.url || undefined}
+      aria-description={workspace.application ? undefined : tab.url || undefined}
       data-state={state}
       current={
         store.selection?.kind === 'browser' &&
@@ -266,7 +295,7 @@ function TabRow({
             key="mute"
             icon={tab.muted ? 'volume-off' : 'volume'}
             label={`${tab.muted ? 'Unmute' : 'Mute'} ${title}`}
-            title={tab.muted ? 'Unmute Tab' : 'Mute Tab'}
+            tooltip={tab.muted ? 'Unmute Tab' : 'Mute Tab'}
             className="row-mute persistent"
             aria-pressed={tab.muted}
             onClick={() => toggleMute(workspace, tab)}
@@ -276,7 +305,7 @@ function TabRow({
           key="close"
           icon="close"
           label={`Close Tab ${title}`}
-          title="Close Tab"
+          tooltip="Close Tab"
           className="row-close"
           onClick={() => void run('browser', api.browser(workspace.id, 'close', tab.id), workspace.connectionId)}
         />,
@@ -347,7 +376,7 @@ function Session({ workspace }: { workspace: Workspace }) {
             key="new"
             icon="plus"
             label={`New Tab in ${browserSessionName(workspace)}`}
-            title="New Tab"
+            tooltip="New Tab"
             className="row-new"
             onClick={() => void openBrowserTab(workspace.connectionId, workspace.id)}
           />,
@@ -355,7 +384,7 @@ function Session({ workspace }: { workspace: Workspace }) {
             key="close"
             icon="close"
             label={`Close ${browserSessionName(workspace)}`}
-            title="Close Browser Session"
+            tooltip="Close Browser Session"
             className="row-close"
             onClick={() =>
               void run('browser', api.browser(workspace.id, 'close-workspace'), workspace.connectionId)
@@ -369,9 +398,7 @@ function Session({ workspace }: { workspace: Workspace }) {
             key={tab.id}
             workspace={workspace}
             tab={tab}
-            outer={orderable(`tabs:${workspace.id}`, tab.id, [
-              { label: tab.muted ? 'Unmute Tab' : 'Mute Tab', action: () => toggleMute(workspace, tab) },
-            ])}
+            outer={orderable(`tabs:${workspace.id}`, tab.id, tabActions(workspace, tab))}
           />
         ))}
       </ul>
@@ -388,22 +415,22 @@ export function ConnectionTools({ connection }: { connection: Group['connection'
       <IconButton
         icon="plus"
         label={control(embeddedBrowser ? 'Add' : 'New Terminal')}
-        title={embeddedBrowser ? 'Add' : 'New Terminal'}
+        tooltip={embeddedBrowser ? 'Add' : 'New Terminal'}
         className="connection-add"
         hidden={connection.status !== 'connected'}
         aria-haspopup={embeddedBrowser ? 'menu' : undefined}
         onClick={(event) => embeddedBrowser ?
           openMenu(event.currentTarget, [
-            { label: 'Terminal', action: () => void openTerminal(id) },
-            { label: 'Browser Session', action: () => void openBrowser(id) },
-            { label: 'Visual Studio Code', action: () => void openApplication(id, 'vscode') },
-          ]) : void openTerminal(id)
+            { label: 'Terminal', icon: 'terminal', action: () => void openTerminal(id) },
+            { label: 'Browser Session', icon: 'window', action: () => void openBrowser(id) },
+            { label: 'Visual Studio Code', icon: 'code', action: () => void openApplication(id, 'vscode') },
+          ], { stale: connectionChanges(id) }) : void openTerminal(id)
         }
       />
       <IconButton
         icon="power"
         label={control(connection.status === 'connecting' ? 'Cancel' : 'Disconnect')}
-        title={connection.status === 'connecting' ? 'Cancel' : 'Disconnect'}
+        tooltip={connection.status === 'connecting' ? 'Cancel' : 'Disconnect'}
         className="connection-disconnect"
         hidden={connection.status === 'closed'}
         onClick={() => void run('session', api.disconnect(id), id)}
@@ -411,7 +438,7 @@ export function ConnectionTools({ connection }: { connection: Group['connection'
       <IconButton
         icon="reload"
         label={control('Reconnect')}
-        title="Reconnect"
+        tooltip="Reconnect"
         className="connection-reconnect"
         hidden={connection.status !== 'closed'}
         onClick={() => void reconnect(id)}
@@ -419,7 +446,7 @@ export function ConnectionTools({ connection }: { connection: Group['connection'
       <IconButton
         icon="close"
         label={control('Remove')}
-        title="Remove"
+        tooltip="Remove"
         className="connection-remove"
         hidden={connection.status !== 'closed'}
         onClick={() => void removeConnection(id)}
@@ -493,23 +520,23 @@ export function ConnectionChips({ current }: { current?: string }) {
             data-id={id}
             data-status={connection.status}
             {...orderable('connections', id, [
-              { label: 'New Terminal', disabled: !connected, action: () => void openTerminal(id) },
-              ...(store.state.capabilities.embeddedBrowser ? [{ label: 'New Browser Session', disabled: !connected, action: () => void openBrowser(id) }] : []),
+              { label: 'New Terminal', icon: 'terminal', disabled: !connected, action: () => void openTerminal(id) },
+              ...(store.state.capabilities.embeddedBrowser ? [{ label: 'New Browser Session', icon: 'window' as const, disabled: !connected, action: () => void openBrowser(id) }] : []),
               { separator: true },
               closed
-                ? { label: 'Reconnect', action: () => void reconnect(id) }
-                : { label: connected ? 'Disconnect' : 'Cancel', action: () => void run('session', api.disconnect(id), id) },
-              { label: 'Remove', disabled: !closed, action: () => void removeConnection(id) },
-              { label: 'Connection Details', action: () => void openDetails(id) },
+                ? { label: 'Reconnect', icon: 'reload', action: () => void reconnect(id) }
+                : { label: connected ? 'Disconnect' : 'Cancel', icon: 'power', action: () => void run('session', api.disconnect(id), id) },
+              { label: 'Remove', icon: 'close', disabled: !closed, action: () => void removeConnection(id) },
+              { label: 'Connection Details', icon: 'info', action: () => void openDetails(id) },
               { separator: true },
-            ])}
+            ], id)}
           >
             <button
               type="button"
               draggable
               className="connection-titles"
               data-id={id}
-              title={connection.label}
+              data-tooltip={connection.label}
               aria-current={current === id ? 'true' : undefined}
               onClick={() => revisit(id)}
             >

@@ -36,11 +36,6 @@ class VSCode:
 
     def start(self):
         launch = self.launch
-        if not isinstance(launch.options, dict) or set(launch.options) - {"folder"}:
-            raise ValueError("Unsupported Visual Studio Code options")
-        folder = launch.options.get("folder")
-        if folder is not None and (not isinstance(folder, str) or not os.path.isabs(folder) or "\0" in folder or len(folder) > 4096):
-            raise ValueError("Invalid project folder")
         launch.component = "Visual Studio Code Launcher"
         directory, release = launch.install(self.cache, self.release, "code", valid_release=lambda record: isinstance(record, dict) and isinstance(record.get("version"), str) and re.fullmatch(r"[a-f0-9]{40}", record["version"]))
         launch.component = "Visual Studio Code"
@@ -51,8 +46,6 @@ class VSCode:
             args = [str(directory / "code"), "serve-web", "--host", "127.0.0.1", "--port", "0",
                     "--cli-data-dir", str(directory / "cli-data"), "--server-data-dir", str(self.data / "server-data"),
                     "--commit-id", release["version"], "--log", "trace"]
-            if folder:
-                args += ["--default-folder", folder]
             process = launch.spawn(args)
             notice, notice_size, buffer, url = [], 0, b"", None
             deadline = time.monotonic() + 45

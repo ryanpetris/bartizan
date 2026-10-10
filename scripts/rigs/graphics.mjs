@@ -225,10 +225,12 @@ await withDirectory('graphics', async (directory, cleanup) => {
   await waitFor(() => application.evaluate(() => globalThis.rigReloaded), 'reload after the crash');
   assert.deepEqual((await waitState(s => s.terminals.length === 2)).connections.map(item => [item.id, item.status]), [[connection, 'connected']]);
   // The reloaded window opens on the home page, so the connection is chosen before its terminal.
+  const chip = `.connection-chip[data-id=${JSON.stringify(connection)}] .connection-titles`;
+  await waitFor(() => inWindow(`!!document.querySelector('${chip}')`), 'connections after the reload');
   await inWindow(`(async () => {
     window.recovered = '';
     window.bartizan.onEvent(event => { if (event.type === 'data') window.recovered += event.data; });
-    document.querySelector('.connection-chip[data-id=${JSON.stringify(connection)}] .connection-titles').click();
+    document.querySelector('${chip}').click();
     await new Promise(resolve => requestAnimationFrame(resolve));
     document.querySelector('[data-kind="terminal"][data-id=${JSON.stringify(first)}]').click();
     window.bartizan.input(${JSON.stringify(first)}, 'echo RENDERER_RECOVERY_OK\\n');

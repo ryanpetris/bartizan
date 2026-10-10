@@ -21,7 +21,7 @@ const session = z.object({
 });
 const launchId = z.string().regex(/^[A-Za-z0-9-]{1,128}$/);
 export const applicationRequest = z.discriminatedUnion('type', [
-  z.strictObject({ type: z.literal('applications.launch'), launchId, application: z.string().min(1).max(64), options: z.record(z.string().max(64), z.unknown()).optional() }),
+  z.strictObject({ type: z.literal('applications.launch'), launchId, application: z.string().min(1).max(64) }),
   z.strictObject({ type: z.literal('applications.respond'), launchId, consentId: key, accepted: z.boolean() }),
   z.strictObject({ type: z.literal('applications.stop'), launchId }),
 ]);

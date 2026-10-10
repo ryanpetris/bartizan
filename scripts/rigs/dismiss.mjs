@@ -2,7 +2,7 @@ import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { launch, sshProfile, startSshd, withDirectory } from './lib/harness.mjs';
+import { launch, selectList, sshProfile, startSshd, withDirectory } from './lib/harness.mjs';
 
 await withDirectory('dismiss', async (directory, cleanup) => {
   const sshd = await startSshd(directory, { passphrase: 'rig-passphrase' });
@@ -25,7 +25,7 @@ await withDirectory('dismiss', async (directory, cleanup) => {
   // A click on the backdrop dismisses a dialog, and focus returns to where it was; a press inside that is released outside does not.
   await settingsButton.click();
   await expect(settings).toBeVisible();
-  const appearance = settings.getByRole('combobox', { name: 'Appearance', exact: true });
+  const appearance = settings.getByRole('button', { name: 'Appearance', exact: true });
   const box = await settings.locator('#settings-title').boundingBox();
   await dialogs.mouse.move(box.x + 10, box.y + box.height / 2);
   await dialogs.mouse.down();
@@ -37,12 +37,14 @@ await withDirectory('dismiss', async (directory, cleanup) => {
   await expect(settingsButton).toBeFocused();
   console.log('A click on the backdrop dismisses Settings and returns focus; a press inside released on the backdrop does not.');
 
-  // A click on the backdrop that closes a select's list leaves the dialog open.
+  // A click on the backdrop that closes a select's list leaves the dialog open: the popup overlay covers the dialog's
+  // overlay while the list is open, so the click reaches the popup overlay alone.
   await settingsButton.click();
   await appearance.click();
-  await expect(appearance.locator('option').nth(1)).toBeVisible();
-  await backdrop();
-  await expect(appearance.locator('option').nth(1)).toBeHidden();
+  const list = await selectList(appearance);
+  await expect(list).toBeVisible();
+  await list.page().mouse.click(8, 8);
+  await expect(list).toHaveCount(0);
   await expect(settings).toBeVisible();
   await backdrop();
   await expect(settings).toBeHidden();

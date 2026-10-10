@@ -264,6 +264,47 @@ await withDirectory('connect', async (directory, cleanup) => {
   await api('reloadConfig');
   console.log('Explicit IPv6 ports connect through SSH and override the configured default.');
 
+  // A destination naming a direct connection's host, username and port, with or without its defaults, brings that
+  // connection into view; a disconnected one connects again. A profile for the same host keeps a connection of its own.
+  await openConnect();
+  await search.fill('[::1]');
+  await search.press('Enter');
+  const { connections: [direct], terminals: [directTerminal] } = await waitState(s => s.connections.length === 1 && s.terminals[0]?.status === 'connected', 'direct connection');
+  const directView = page.locator(`[data-kind="terminal"][data-id="${directTerminal.id}"]`);
+  await expect(directView).toHaveAttribute('aria-current', 'page');
+  for (const destination of [`${userInfo().username}@[::1]:${sshd.port}`, '0:0:0:0:0:0:0:1']) {
+    await home.click();
+    await openConnect();
+    await search.fill(destination);
+    await expect(options.last()).toHaveClass(/destination-item/);
+    await options.last().click();
+    await expect(connect).toBeHidden();
+    await expect(directView).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('.terminal-surface:not([hidden]) .xterm-helper-textarea')).toBeFocused();
+    const state = await app.state();
+    assert.deepEqual([state.connections.map(c => c.id), state.terminals.map(t => t.id)], [[direct.id], [directTerminal.id]], destination);
+  }
+  await api('disconnect', direct.id);
+  await waitState(s => s.connections[0].status === 'closed', 'direct connection closed');
+  await openConnect();
+  await search.fill('::1');
+  await search.press('ArrowDown');
+  await search.press('Enter');
+  const reconnected = await waitState(s => s.connections[0].status === 'connected' && s.terminals.some(t => t.status === 'connected'), 'direct connection reconnected');
+  assert.deepEqual(reconnected.connections.map(c => c.id), [direct.id]);
+  const shown = page.locator('[data-kind="terminal"][aria-current="page"]');
+  await expect(shown).toHaveAttribute('data-status', 'connected');
+  const shownId = await shown.getAttribute('data-id');
+  assert.equal((await app.state()).terminals.find(t => t.id === shownId)?.connectionId, direct.id);
+  await openConnect();
+  await search.fill('::1');
+  await search.press('Enter');
+  const both = await waitState(s => s.connections.length === 2 && s.connections.every(c => c.status === 'connected'), 'profile beside the direct connection');
+  assert.deepEqual(both.connections.map(c => c.profileId).sort(), ['loopback', undefined].sort());
+  for (const { id } of both.connections) { await api('disconnect', id); await api('removeConnection', id); }
+  await waitState(s => !s.connections.length, 'connections removed');
+  console.log('A destination matching a direct connection, by explicit or default username and port, focuses it or connects it again; a profile for the same host connects separately.');
+
   await openConnect();
   for (const invalid of ['@host', 'host:65536', '[::1', '999.1.1.1']) {
     await search.fill(invalid);

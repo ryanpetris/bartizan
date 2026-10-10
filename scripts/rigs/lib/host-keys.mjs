@@ -5,6 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse, stringify } from 'yaml';
 import { openConnect } from './profile-launch.mjs';
+import { chooseOption } from './harness.mjs';
 
 export async function testHostKeyPins(app, config, publicKey, otherPublicKey) {
   const { application, page, state, api } = app;
@@ -65,10 +66,10 @@ export async function testHostKeyPins(app, config, publicKey, otherPublicKey) {
       await edit();
       await dialogs.locator('#connection-tab-host-keys').click();
       const field = dialogs.locator(`[data-path="host_keys.${path}"]`);
-      const mode = field.locator('select');
-      await expect(mode).toHaveValue('');
-      await expect(mode.locator('option:checked')).toContainText(value);
-      await mode.selectOption('custom');
+      const mode = field.getByRole('button', { name: label, exact: true });
+      await expect(mode).toHaveAttribute('value', '');
+      await expect(mode).toContainText(value);
+      await chooseOption(mode, 'custom');
       await dialogs.locator('#connection-dialog').getByRole('button', { name: 'Save', exact: true }).click();
       await expect(field.locator('.field-error')).toHaveText(emptyError);
       await field.getByRole('textbox').fill('SHA256:invalid');
@@ -84,10 +85,10 @@ export async function testHostKeyPins(app, config, publicKey, otherPublicKey) {
       await close(custom);
       await edit();
       await dialogs.locator('#connection-tab-host-keys').click();
-      await mode.selectOption('none');
+      await chooseOption(mode, 'none');
       await field.getByRole('button', { name: `Reset ${label}` }).click();
-      await expect(mode).toHaveValue('');
-      await mode.selectOption('none');
+      await expect(mode).toHaveAttribute('value', '');
+      await chooseOption(mode, 'none');
       await dialogs.locator('#connection-dialog').getByRole('button', { name: 'Save', exact: true }).click();
       await expect(dialogs.locator('#connection-dialog')).not.toBeVisible();
       const cleared = await api('connect', { profileId: 'rig' });

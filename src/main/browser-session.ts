@@ -1,16 +1,19 @@
-import { session, shell, type WebContentsView, type DownloadItem, type Event } from 'electron';
+import { app, session, shell, type WebContents, type WebContentsView, type DownloadItem, type Event } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
 import { z } from 'zod';
 import { Relay } from '../core/relay';
-import { type Workspace, type BrowserChallenge, type Download, type PageShortcut } from '../shared';
+import { pagePermitted, type Workspace, type BrowserChallenge, type Download, type PageShortcut } from '../shared';
 import { Certificates } from './certificates';
-import { BrowserTabController } from './browser-tab';
+import { BrowserTabController, type TabOptions } from './browser-tab';
+import { webAddress } from './link-menu';
 import type { Browsers } from './browser';
 import type { ApplicationSession } from './application-session';
 
 const rejectDownload = (event: Event) => event.preventDefault();
 const downloadLimit = 100;
+/** How many closed tabs a session can reopen. */
+const reopenLimit = 25;
 type PendingLogin = { info: BrowserChallenge; callbacks: ((username?: string, password?: string) => void)[] };
 const credentialField = z.string().max(4096).regex(/^[^\0\r\n]*$/, 'Credentials must be a single line');
 const browserCredentials = z.strictObject({ username: credentialField, password: credentialField });
@@ -24,10 +27,16 @@ export class BrowserSession {
   readonly items = new Map<string, DownloadItem>();
   readonly saved = new Map<string, string>();
   application?: ApplicationSession;
+  /** The tab to give the keyboard once it is selected, or `true` for the next tab selected. */
+  focusing?: string | true;
   port?: number;
   network = Promise.resolve();
   closed = false;
   private closing?: Promise<void>;
+  /** An application's blank popups that wait for an address. */
+  private readonly held = new Set<WebContents>();
+  /** Addresses of closed tabs, the most recent last. */
+  private closedTabs: string[] = [];
   private stopDownloads = () => {};
   private cancelDownloads = () => {};
   hasDownloadDialog = () => false;
@@ -78,8 +87,7 @@ export class BrowserSession {
       const allowCapture = (contents: Electron.WebContents | null, permission: string) => {
         const tab = contents && this.contents.get(contents.id);
         return Boolean(tab && this.display.visible === this.info.id && this.info.activeTab === tab.info.id
-          && this.window.isFocused() && tab.view.getVisible()
-          && ['fullscreen', 'pointerLock', 'keyboardLock'].includes(permission));
+          && this.window.isFocused() && tab.view.getVisible() && pagePermitted(permission, Boolean(this.info.application)));
       };
       ses.setPermissionRequestHandler((contents, permission, callback) => {
         const allowed = allowCapture(contents, permission);
@@ -92,8 +100,9 @@ export class BrowserSession {
       // Progress reaches the application at most four times a second.
       let progressTimer: ReturnType<typeof setTimeout> | undefined;
       const progress = () => { progressTimer ??= setTimeout(() => { progressTimer = undefined; this.changed(); }, 250); };
-      const onDownload = (event: Event, item: DownloadItem, contents: Electron.WebContents) => {
-        const tab = this.contents.get(contents.id)?.info.id;
+      // A download the session starts itself has no page.
+      const onDownload = (event: Event, item: DownloadItem, contents: Electron.WebContents | null) => {
+        const tab = contents ? this.contents.get(contents.id)?.info.id : undefined;
         if ((tab && this.muted.has(tab)) || (download && !download.getSavePath())) { event.preventDefault(); return; }
         download = item; downloads.add(item);
         // A download is listed once its save location is chosen.
@@ -124,7 +133,7 @@ export class BrowserSession {
           if (state === 'interrupted' && item.getSavePath()) { interrupted = true; item.cancel(); return; }
           if (list()) progress();
         });
-        item.setSaveDialogOptions({ title: 'Save Download', defaultPath: item.getFilename() });
+        item.setSaveDialogOptions({ title: 'Save Download', defaultPath: join(app.getPath('downloads'), item.getFilename()) });
       };
       ses.off('will-download', rejectDownload);
       ses.on('will-download', onDownload);
@@ -150,6 +159,7 @@ export class BrowserSession {
         if (this.port !== port || this.closed) return;
         this.relay.route(port);
         this.session.disableNetworkEmulation();
+        for (const tab of this.tabs.values()) tab.reconnected();
       });
     }
     this.network = this.network.catch(error => console.error('Could not update browser connection', error));
@@ -176,24 +186,58 @@ export class BrowserSession {
     contents.close({ waitForBeforeUnload: false });
     return destroyed;
   }
+  /** The address a tab is sent to for what the user entered: an HTTP or HTTPS address, or the source of one. */
   url(input: string): string {
-    const value = input.trim();
-    const url = new URL(/^https?:\/\//i.test(value) ? value : `http://${value}`);
+    const value = input.trim(), source = /^view-source:/i.test(value);
+    const address = source ? value.slice(12) : value;
+    const url = new URL(/^https?:\/\//i.test(address) ? address : `http://${address}`);
     if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) throw new Error('Enter an HTTP or HTTPS URL');
-    return url.href;
+    return `${source ? 'view-source:' : ''}${url.href}`;
+  }
+  /** Opens a tab once the session's network is settled. */
+  async open(options: TabOptions) {
+    await this.network;
+    if (this.closed) throw new Error('Browser session is closed');
+    if (this.info.application && this.tabs.size) throw new Error('Application tabs cannot contain browser tabs');
+    new BrowserTabController(this, options);
+  }
+  reopenable(url: string) {
+    this.closedTabs = [...this.closedTabs.filter(item => item !== url), url].slice(-reopenLimit);
+    this.info.closedTabs = this.closedTabs.length;
+  }
+  /**
+   * Keeps an application's blank popup out of sight until its opener sends it to a web address, which opens in an
+   * ordinary session of the connection instead; it closes then, or after a while without one.
+   */
+  handOff(contents: WebContents) {
+    const finish = (url?: string) => {
+      clearTimeout(timer);
+      if (url && !this.closed) this.openPopup?.(this.info.connectionId, url);
+      if (!contents.isDestroyed()) contents.close();
+    };
+    const timer = setTimeout(finish, 30000);
+    this.held.add(contents);
+    contents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+    contents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    contents.on('will-navigate', (event, target) => {
+      event.preventDefault();
+      if (webAddress(target)) finish(target);
+    });
+    contents.once('destroyed', () => { clearTimeout(timer); this.held.delete(contents); });
   }
   async action(action: string, tabId?: string, input?: string, userInitiated = false, title?: string) {
     if (this.closed) {
       if (action === 'close' || action === 'close-workspace') return this.closing;
       throw new Error('Browser session is closed');
     }
-    if (['new', 'navigate', 'reload', 'hard-reload', 'back', 'forward'].includes(action)) await this.network;
+    if (['navigate', 'reload', 'hard-reload', 'back', 'forward'].includes(action)) await this.network;
     if (this.closed) throw new Error('Browser session is closed');
     if (action === 'close-workspace') return this.close();
-    if (action === 'new') {
-      if (this.info.application && this.tabs.size) throw new Error('Application tabs cannot contain browser tabs');
-      if (this.tabs.size >= 32) throw new Error('Tab limit reached');
-      new BrowserTabController(this, input ? this.url(input) : undefined, title);
+    if (action === 'new') return this.open({ url: input ? this.url(input) : undefined, title });
+    if (action === 'reopen') {
+      const url = this.closedTabs.pop();
+      this.info.closedTabs = this.closedTabs.length;
+      if (url) await this.open({ url });
       return;
     }
     await this.tabs.get(tabId ?? this.info.activeTab ?? '')?.action(action, input, userInitiated);
@@ -217,6 +261,7 @@ export class BrowserSession {
     this.owner.host.entries.delete(this.info.id);
     this.application?.close();
     this.certificates.close();
+    for (const contents of this.held) if (!contents.isDestroyed()) contents.close();
     const done = this.closing = Promise.resolve().then(async () => {
       this.finishLogins([...this.logins.keys()]);
       this.port = undefined;

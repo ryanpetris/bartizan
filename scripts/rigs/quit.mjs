@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 import assert from 'node:assert/strict';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { launch, sshProfile, startSshd, waitFor, withDirectory } from './lib/harness.mjs';
 
@@ -9,15 +9,23 @@ await withDirectory('quit', async (directory, cleanup) => {
   cleanup(sshd.stop);
   const config = join(directory, 'config.yaml');
   await writeFile(config, `version: 1\nprofiles:\n  first:\n${sshProfile(sshd)}  second:\n${sshProfile(sshd)}`);
-  /** Launches the application with the given profiles connected; `closed()` waits for it to exit. */
+  const temporary = join(directory, 'tmp');
+  await mkdir(temporary);
+  /** Launches the application with the given profiles connected; `closed()` waits for it to exit and checks it left no temporary directories. */
   const start = async (...profiles) => {
-    const app = await launch(directory, config);
+    const app = await launch(directory, config, { env: { TMPDIR: temporary } });
     let exited = false;
     app.application.once('close', () => { exited = true; });
     cleanup(() => exited || app.close());
     for (const profileId of profiles) await app.api('connect', { profileId });
     await app.waitState(s => s.connections.filter(c => c.status === 'connected').length === profiles.length, 'connections');
-    return { ...app, closed: () => waitFor(() => exited, 'the application to exit') };
+    for (const { id } of (await app.state()).connections) await app.api('newBrowser', id);
+    assert.ok((await readdir(temporary)).some(name => name.startsWith('bartizan-auth-')));
+    const closed = async () => {
+      await waitFor(() => exited, 'the application to exit');
+      assert.deepEqual((await readdir(temporary)).filter(name => /^bartizan-(auth|ssh)-/.test(name)), []);
+    };
+    return { ...app, closed };
   };
   /** Asks the window to close, as its close button and the window manager do; the main process may exit before it answers. */
   const closeWindow = app => app.application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.close()).catch(() => {});
@@ -72,7 +80,7 @@ await withDirectory('quit', async (directory, cleanup) => {
   await reloaded.getByRole('button', { name: 'Quit', exact: true }).click();
   await app.closed();
   assert.deepEqual(app.errors, []);
-  console.log('Quit closes the application.');
+  console.log('Quit closes the application and removes its temporary directories.');
 
   // Quitting the application does not ask, nor does closing the window once no connection is live.
   const quitting = await start('first');

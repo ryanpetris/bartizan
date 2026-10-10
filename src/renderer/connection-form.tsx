@@ -1,11 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Spec } from '../core/config';
 import type { ProfileDraft, ProfileChanges } from '../shared';
-import { IconButton, Button, useUnsavedNotice } from './ui';
+import { IconButton, Button, NumberField, notNumber, useUnsavedNotice } from './ui';
 import { api, store, render, describeError, report, profileName, activeConnection, focusConnection } from './store';
 import { openModal } from './dialogs';
 import { ClosedDialog, Field, FormDialog, Sections } from './form-dialog';
 import { FontPicker, bundledTerminalFont } from './fonts';
+import { Select } from './select';
 import {
   sections,
   algorithmKeys,
@@ -26,7 +27,6 @@ type FieldValue = {
   items: string[];
   pending: string;
   defined: boolean;
-  badInput?: boolean;
 };
 type Definition = {
   kind?: 'choice' | 'list' | 'secret' | 'agent' | 'font';
@@ -108,8 +108,8 @@ function read(path: string, value: FieldValue, baseline: unknown): unknown {
   if (def.kind === 'font') return value.defined ? value.text.trim() : undefined;
   if (!def.kind) {
     if (def.number) {
-      if (value.badInput) throw new Error('Enter a number');
-      if (!value.text) return undefined;
+      if (notNumber(value.text)) throw new Error('Enter a number');
+      if (!value.text.trim()) return undefined;
       const number = Number(value.text),
         [min, max] = def.number;
       if (!Number.isInteger(number) || number < min || number > max)
@@ -280,45 +280,43 @@ function Control({
   const focusDetail = () =>
     requestAnimationFrame(() => host.current?.querySelector<HTMLInputElement>('input:not([hidden])')?.focus());
   const select = (options: [string, string][], extra?: (mode: string) => void) => (
-    <select
+    <Select
       {...validity}
       id={id}
       name={path}
-      className="input"
       value={value.mode}
-      onChange={(e) => {
-        update({ mode: e.target.value });
-        extra?.(e.target.value);
+      options={[{ value: '', label: inheritLabel }, ...options.map(([key, text]) => ({ value: key, label: text }))]}
+      onChange={(mode) => {
+        update({ mode });
+        extra?.(mode);
       }}
-    >
-      <option value="">{inheritLabel}</option>
-      {options.map(([key, text]) => (
-        <option key={key} value={key}>
-          {text}
-        </option>
-      ))}
-    </select>
+    />
   );
   if (!def.kind) {
-    const input = (
+    const placeholder = def.empty !== undefined && value.defined ? def.empty : format(path, inherited) || def.empty;
+    const input = def.number ? (
+      <NumberField
+        {...validity}
+        id={id}
+        name={path}
+        min={def.number[0]}
+        max={def.number[1]}
+        value={value.text}
+        placeholder={placeholder}
+        onValue={(text) => update({ text, defined: true })}
+      />
+    ) : (
       <input
         {...validity}
         id={id}
         name={path}
         className={`input${def.mono ? ' mono' : ''}`}
-        type={def.number ? 'number' : 'text'}
+        type="text"
         autoComplete="off"
         spellCheck={false}
-        min={def.number?.[0]}
-        max={def.number?.[1]}
-        step={def.number ? 1 : undefined}
         value={value.text}
-        placeholder={def.empty !== undefined && value.defined ? def.empty : format(path, inherited) || def.empty}
-        onInput={(e) => {
-          if (def.number && value.badInput !== e.currentTarget.validity.badInput)
-            update({ badInput: e.currentTarget.validity.badInput, defined: true });
-        }}
-        onChange={(e) => update({ text: e.target.value, defined: true, badInput: e.target.validity.badInput })}
+        placeholder={placeholder}
+        onChange={(e) => update({ text: e.target.value, defined: true })}
       />
     );
     return def.unit ? (

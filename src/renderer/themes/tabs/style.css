@@ -316,12 +316,12 @@
 :root[data-theme="tabs"] dialog::backdrop { background: var(--backdrop); }
 :root[data-theme="tabs"] .dialog-icon { border-radius: 10px; }
 :root[data-theme="tabs"] .dialog-titles h2 { font-size: 16px; letter-spacing: -0.012em; }
-:root[data-theme="tabs"] select.input::picker(select) { border-radius: 10px; }
+:root[data-theme="tabs"] .menu { border-radius: 10px; }
+:root[data-theme="tabs"] .menu-item { border-radius: 6px; }
 :root[data-theme="tabs"] .popover { border-radius: 12px; box-shadow: var(--float-shadow); }
 :root[data-theme="tabs"] .link-status { border-radius: 0 8px 0 0; }
 :root[data-theme="tabs"] .link-status-box[data-side="right"] > .link-status { border-radius: 8px 0 0; }
 :root[data-theme="tabs"] .theme-option { border-radius: 10px; }
-:root[data-theme="tabs"] .field-body > input[type="checkbox"]:first-child { flex: none; margin-top: 8px; }
 :root[data-theme="tabs"] .tag { border-radius: 8px; padding: 0 6px; }
 :root[data-theme="tabs"] .error-toaster[data-sonner-toaster][data-sonner-theme] { --border-radius: 12px; }
 :root[data-theme="tabs"] .error-toaster [data-sonner-toast] { box-shadow: var(--float-shadow); }

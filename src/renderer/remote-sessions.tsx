@@ -4,7 +4,7 @@ import { store, connectionOf, remoteOpening, remoteRefreshing, refreshRemoteSess
 import { Button, Icon, IconButton, type IconName } from './ui';
 import { pageName } from './chrome';
 import { Notice, Picker, type PickerRow } from './picker';
-import { openMenu } from './menu';
+import { openMenu, connectionChanges } from './menu';
 import { openKill } from './kill-session';
 
 /** What a session is doing for this connection, which decides its mark, its detail and its action. */
@@ -45,9 +45,9 @@ function RemoteSessionsPage({ connection, state }: { connection: Connection; sta
   const menuFor = (session: RemoteSession) => {
     const terminal = remoteTerminal(connection.id, session);
     return [
-      ...(terminal ? [{ label: 'Go To', action: () => select({ kind: 'terminal', id: terminal.id }) }] : [
-        { label: 'Resume', disabled: busy || session.attached || !session.commands.resume, action: () => open([session.key], false) },
-        { label: 'Take Over', disabled: busy || !session.commands.takeover, action: () => open([session.key], true) },
+      ...(terminal ? [{ label: 'Go To', icon: actions.open.icon, action: () => select({ kind: 'terminal', id: terminal.id }) }] : [
+        { label: 'Resume', icon: actions.detached.icon, disabled: busy || session.attached || !session.commands.resume, action: () => open([session.key], false) },
+        { label: 'Take Over', icon: actions.attached.icon, disabled: busy || !session.commands.takeover, action: () => open([session.key], true) },
       ]),
       { separator: true as const },
       { label: 'Kill Session', disabled: busy || !session.commands.stop, action: () => openKill(connection.id, session) },
@@ -68,7 +68,7 @@ function RemoteSessionsPage({ connection, state }: { connection: Connection; sta
       row: {
         'data-standing': standing,
         'data-error': session.error ? '' : undefined,
-        onContextMenu: event => { event.preventDefault(); openMenu(event.currentTarget, menuFor(session)); },
+        onContextMenu: event => { event.preventDefault(); openMenu(event.currentTarget, menuFor(session), { stale: connectionChanges(connection.id) }); },
       },
       item: { className: 'remote-item' },
       choose: () => act(session),
@@ -82,7 +82,7 @@ function RemoteSessionsPage({ connection, state }: { connection: Connection; sta
           <span className="item-label">{session.label}</span>
           <span className="item-detail">{detailOf(session, standing)}</span>
         </span>
-        <span className="remote-action" title={actions[standing].label}>
+        <span className="remote-action" data-tooltip={actions[standing].label}>
           <Icon name={actions[standing].icon} />
           <span className="hidden-text">{actions[standing].label}</span>
         </span>
@@ -98,7 +98,7 @@ function RemoteSessionsPage({ connection, state }: { connection: Connection; sta
       <div className="split-button">
         <Button disabled={busy || !ordinary.length} onClick={() => open(ordinary.map(s => s.key), false)}>Resume All</Button>
         <button type="button" className="button split-more" aria-label="More Session Actions" aria-haspopup="menu" disabled={busy || !resumable.length}
-          onClick={event => openMenu(event.currentTarget, [{ label: 'Take Over All', action: () => open(resumable.map(s => s.key), true) }])}><Icon name="down" /></button>
+          onClick={event => openMenu(event.currentTarget, [{ label: 'Take Over All', action: () => open(resumable.map(s => s.key), true) }], { stale: connectionChanges(connection.id) })}><Icon name="down" /></button>
       </div>
       <IconButton icon="reload" label="Refresh" disabled={remoteRefreshing.has(connection.id)}
         onClick={() => void refreshRemoteSessions(connection.id)} />

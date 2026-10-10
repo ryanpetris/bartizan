@@ -44,6 +44,7 @@ await withDirectory('tls', async (directory, cleanup) => {
   });
   const port = await listen(secure), otherPort = await listen(httpsServer(fixture, handler)), crashPort = await listen(httpsServer(fixture, handler));
   const datedPort = await listen(httpsServer(dated, handler)), namedPort = await listen(httpsServer(named, handler));
+  const resourcePort = await listen(httpsServer(fixture, handler));
   const plainPort = await listen(httpServer((_request, response) => {
     response.setHeader('Content-Type', 'text/html');
     response.end(`<title>Plain fixture</title><form method="post" action="https://localhost:${otherPort}/post"><input name="value" value="original body"></form>`);
@@ -73,7 +74,8 @@ await withDirectory('tls', async (directory, cleanup) => {
     const tabs = s => s.workspaces.find(workspace => workspace.id === session)?.tabs;
     return { session, tab: tabs(await waitState(s => tabs(s)?.length, 'browser session'))[0].id };
   };
-  const newestGuest = () => application.evaluate(({ BrowserWindow, webContents }) => Math.max(...webContents.getAllWebContents().filter(contents => contents.getType() === 'window' && contents !== BrowserWindow.getAllWindows()[0].webContents).map(contents => contents.id)));
+  // Pages use their browser session's storage; the application's overlays, opened as it needs them, share its own.
+  const newestGuest = () => application.evaluate(({ BrowserWindow, webContents }) => Math.max(...webContents.getAllWebContents().filter(contents => contents.getType() === 'window' && contents.session !== BrowserWindow.getAllWindows()[0].webContents.session).map(contents => contents.id)));
   const inGuest = (id, script) => application.evaluate(({ webContents }, { id, script }) => webContents.fromId(id).executeJavaScript(script), { id, script });
   const follow = (id, address) => inGuest(id, `location.href = ${JSON.stringify(address)}; void 0`);
   const select = tabId => page.locator(`.nav-item[data-kind="tab"][data-id="${tabId}"]`).click();
@@ -93,7 +95,7 @@ await withDirectory('tls', async (directory, cleanup) => {
   }, { id: challenge.id, guest: firstGuest }), 'Untrusted caller');
   await expect(warningView.locator('h2')).toHaveText('Untrusted Certificate');
   await expect(warningView.locator('.dialog-context')).toHaveText(`https://localhost:${port}`);
-  assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible()).length), 0);
+  assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible() && view.webContents.getURL() !== 'about:blank').length), 0);
 
   // Developer tools open in a view docked beside the page, and the same control or key closes them again.
   const toolsOpen = async () => (await app.state()).workspaces.find(w => w.id === session).tabs.find(t => t.id === first).devtools;
@@ -110,7 +112,7 @@ await withDirectory('tls', async (directory, cleanup) => {
   assert.equal(await application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
   assert.equal((await warning(first)).id, challenge.id);
   await closeTools();
-  await page.getByRole('textbox', { name: 'Address', exact: true }).focus();
+  await page.getByRole('combobox', { name: 'Address', exact: true }).focus();
   await page.keyboard.press('F12');
   await expect.poll(toolsOpen).toBe(true);
   await closeTools();
@@ -147,15 +149,82 @@ await withDirectory('tls', async (directory, cleanup) => {
     try { await webContents.fromId(id).session.fetch(address); return 'fetched'; } catch { return 'refused'; }
   }, { id: secondGuest, address: url('/background', otherPort) }), 'refused');
   assert.equal(served('/unapproved').length + served('/background').length, 0);
+  assert.equal(tabOf(await waitState(s => tabOf(s, second)?.blockedCertificate, 'blocked resource'), second).blockedCertificate.origin, `https://localhost:${otherPort}`);
   assert.equal(tabOf(await state(), second).certificate, undefined);
-  console.log('Tabs, fetch, frames and WebSockets in the session share an approved exception; subresources and background requests never ask.');
+  console.log('Tabs, fetch, frames and WebSockets in the session share an approved exception; a refused resource waits on its tab, and background requests never ask.');
 
+  // A page on one origin loads a resource from another whose certificate is untrusted.
   const reached = async address => { await waitFor(() => application.evaluate((_, address) => globalThis.rigCertificateErrors.includes(address), address), `certificate error for ${address}`); };
+  const resource = path => url(path, resourcePort);
+  const load = path => inGuest(firstGuest, `fetch(${JSON.stringify(resource(path))}, { mode: 'no-cors' }).then(() => 'loaded', () => 'blocked')`);
+  const blockedOf = async () => tabOf(await state(), first).blockedCertificate;
+  const blocked = async () => tabOf(await waitState(s => tabOf(s, first)?.blockedCertificate, 'blocked resource'), first).blockedCertificate;
+  const pageViews = () => application.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].contentView.children.filter(view => view.getVisible() && view.webContents.getURL() !== 'about:blank').length);
+  const notice = page.locator('.certificate-notice');
+  const clickPage = () => application.evaluate(({ webContents }, id) => {
+    for (const type of ['mouseDown', 'mouseUp']) webContents.fromId(id).sendInputEvent({ type, button: 'left', x: 20, y: 20, clickCount: 1 });
+  }, firstGuest);
+  const reloaded = async trigger => {
+    await inGuest(firstGuest, 'window.rigMarker = true');
+    await trigger();
+    await waitFor(() => inGuest(firstGuest, 'window.rigMarker === undefined && document.readyState === "complete"').catch(() => false), 'page to reload');
+    await loaded(first);
+  };
+  await select(first);
+  assert.equal(await load('/api'), 'blocked');
+  challenge = await blocked();
+  assert.equal(challenge.origin, `https://localhost:${resourcePort}`);
+  assert.equal(await load('/api-again'), 'blocked');
+  assert.equal((await blockedOf())?.id, challenge.id);
+  await expect(notice).toBeVisible();
+  await expect(notice.locator('strong')).toHaveText('Untrusted Certificate');
+  await expect(notice.locator('.mono')).toHaveText(`https://localhost:${resourcePort}`);
+  await expect.poll(pageViews).toBe(1);
+  await notice.getByRole('button', { name: 'Review', exact: true }).click();
+  await expect(warningView.locator('.dialog-context')).toHaveText(`https://localhost:${resourcePort}`);
+  await expect(warningView.locator('dd').filter({ hasText: fingerprint(fixture).replaceAll(':', '').toLowerCase() })).toBeVisible();
+  await expect(warningView.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  await expect.poll(pageViews).toBe(0);
+  await warningView.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(warningView).toBeHidden();
+  await expect(notice).toBeHidden();
+  await expect.poll(pageViews).toBe(1);
+  assert.equal(tabOf(await state(), first).error, undefined);
+  assert.equal(await load('/api-muted'), 'blocked');
+  await reached(resource('/api-muted'));
+  await clickPage();
+  assert.equal(await load('/api-dismissed'), 'blocked');
+  await reached(resource('/api-dismissed'));
+  assert.equal(await blockedOf(), undefined);
+  assert.equal(await inGuest(firstGuest, `fetch(${JSON.stringify(url('/elsewhere', crashPort))}, { mode: 'no-cors' }).then(() => 'loaded', () => 'blocked')`), 'blocked');
+  assert.equal((await blocked()).origin, `https://localhost:${crashPort}`);
+  assert.equal(await api('answerCertificate', challenge.id, true), false);
+
+  await reloaded(() => api('browser', session, 'reload', first));
+  assert.equal(await load('/api-reloaded'), 'blocked');
+  challenge = await blocked();
+  await notice.getByRole('button', { name: 'Dismiss', exact: true }).click();
+  await expect(notice).toBeHidden();
+  assert.equal(await blockedOf(), undefined);
+
+  await reloaded(() => api('browser', session, 'reload', first));
+  assert.equal(await load('/api-proceed'), 'blocked');
+  challenge = await blocked();
+  await notice.getByRole('button', { name: 'Review', exact: true }).click();
+  await reloaded(() => warningView.getByRole('button', { name: 'Proceed', exact: true }).click());
+  await expect(notice).toBeHidden();
+  await expect.poll(pageViews).toBe(1);
+  assert.equal(await load('/api-approved'), 'loaded');
+  assert.equal(served('/api').length + served('/api-again').length + served('/api-muted').length + served('/api-dismissed').length + served('/api-reloaded').length + served('/api-proceed').length, 0);
+  assert.equal(served('/api-approved').length, 1);
+  assert.equal(await blockedOf(), undefined);
+  console.log('A refused resource certificate shows a notice over the page; Cancel and Dismiss keep it refused and quiet for that page, and Proceed approves it and reloads the page.');
+
   await select(second);
   await follow(secondGuest, url('/cancelled', otherPort));
   challenge = await warning(second);
   await warningView.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await settled(second, tab => tab.error);
+  await settled(second, tab => tab.error && !tab.blockedCertificate);
   assert.equal(await api('answerCertificate', challenge.id, true), false);
   await follow(secondGuest, url('/muted', otherPort));
   await reached(url('/muted', otherPort));
@@ -167,6 +236,8 @@ await withDirectory('tls', async (directory, cleanup) => {
   await application.evaluate(({ webContents }, id) => webContents.fromId(id).sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }), secondGuest);
   await follow(secondGuest, url('/after-enter', otherPort));
   await warning(second);
+  // The warning takes the keyboard in the frame after it shows.
+  await expect(warningView.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
   await page.keyboard.press('Escape');
   await settled(second);
   await application.evaluate(({ webContents }, id) => {

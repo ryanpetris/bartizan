@@ -69,6 +69,7 @@
   --shadow: 0 24px 64px rgba(15, 23, 32, 0.22), 0 2px 8px rgba(15, 23, 32, 0.08);
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%235a6470' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
   --menu-shadow: 0 10px 28px rgba(15, 23, 32, 0.16), 0 1px 3px rgba(15, 23, 32, 0.1);
+  --tooltip-shadow: 0 1px 4px rgba(15, 23, 32, 0.14);
   --session-0: #2566d8;
   --session-1: #8645d6;
   --session-2: #0b7d8a;
@@ -128,6 +129,7 @@
     --shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
     --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239ba4ae' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4.5 6.5 3.5 3.5 3.5-3.5'/%3E%3C/svg%3E");
     --menu-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --tooltip-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
     --session-0: #6ea8fe;
     --session-1: #b793f5;
     --session-2: #4cc5d3;
@@ -142,7 +144,7 @@
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
 body { margin: 0; overflow: hidden; font: 13px/1.4 var(--font-ui); color: var(--text); background: var(--bg-app); -webkit-font-smoothing: antialiased; }
-button, input, select, textarea { font: inherit; color: inherit; }
+button, input, textarea { font: inherit; color: inherit; }
 button { cursor: default; }
 ul, ol { margin: 0; padding: 0; list-style: none; }
 [hidden] { display: none !important; }
@@ -207,21 +209,29 @@ progress:indeterminate { background: linear-gradient(90deg, var(--border-strong)
 .input::placeholder { color: var(--text-faint); opacity: 1; }
 .input:focus { border-color: var(--focus); box-shadow: 0 0 0 3px var(--focus-ring); outline: none; }
 .input:disabled { opacity: 0.6; }
-/* Selects draw their option list in the page, so it follows the application appearance. */
-select.input, select.input::picker(select) { appearance: base-select; }
-select.input { display: flex; align-items: center; padding-right: 28px; background-image: var(--chevron); background-repeat: no-repeat; background-position: right 7px center; }
-select.input::picker-icon { display: none; }
-select.input::picker(select) {
-  max-block-size: min(320px, 50vh); margin-block: 4px; padding: 4px; overflow-y: auto;
-  border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg-dialog); color: var(--text); box-shadow: var(--menu-shadow);
-}
-select.input option { display: flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px 0 6px; border-radius: var(--radius-sm); white-space: nowrap; }
-select.input option::checkmark { width: 12px; color: var(--accent-text); }
-select.input option:is(:hover, :focus-visible):not(:disabled) { background: var(--selected); color: var(--text-strong); outline: none; }
-select.input option:disabled { opacity: 0.5; }
-input[type="number"].input { max-width: 170px; }
-input[type="number"].input::-webkit-inner-spin-button { opacity: 0.6; }
-input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+/* A select shows its value beside a chevron, and its unseen options give it the width of the longest. Its options open as a list in the menus' style. */
+.select { display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; padding-right: 28px; background-image: var(--chevron); background-repeat: no-repeat; background-position: right 7px center; text-align: left; }
+.select-value, .select-size { grid-area: 1 / 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.select-size { height: 0; visibility: hidden; }
+.select-size::before { content: attr(data-label); }
+/* A number field holds the buttons that step it at its end. */
+.number-field { position: relative; display: block; flex: 1 1 auto; min-width: 0; max-width: 170px; }
+.number-field > .input { padding-right: 62px; font-variant-numeric: tabular-nums; }
+.number-steps { position: absolute; top: 1px; right: 1px; bottom: 1px; display: flex; }
+.number-step { display: grid; place-items: center; width: 30px; padding: 0; border: 0; border-left: 1px solid var(--border-subtle); background: transparent; color: var(--text-muted); }
+.number-step:last-child { border-radius: 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0; }
+.number-step:hover:not(:disabled, [aria-disabled="true"]) { background: var(--hover); color: var(--text); }
+.number-step:active:not(:disabled, [aria-disabled="true"]) { background: var(--control-active); }
+.number-step:is(:disabled, [aria-disabled="true"]) { color: var(--text-faint); opacity: 0.55; }
+.number-step .icon { width: 14px; height: 14px; }
+/* A checkbox is a box that fills with the accent and shows a check mark when checked. */
+input[type="checkbox"] { appearance: none; display: grid; place-items: center; flex: none; width: 16px; height: 16px; margin: 0; border: 1px solid var(--border-control); border-radius: 4px; background: var(--field); }
+input[type="checkbox"]::before { content: ""; width: 10px; height: 10px; background: var(--on-accent); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m1.75 5.25 2.25 2.25 4.25-4.75'/%3E%3C/svg%3E") center / contain no-repeat; visibility: hidden; }
+input[type="checkbox"]:hover:not(:disabled) { border-color: var(--border-strong); }
+input[type="checkbox"]:checked { border-color: var(--accent); background: var(--accent); }
+input[type="checkbox"]:checked:hover:not(:disabled) { border-color: var(--accent-hover); background: var(--accent-hover); }
+input[type="checkbox"]:checked::before { visibility: visible; }
+input[type="checkbox"]:disabled { opacity: 0.5; }
 
 .status-dot { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); flex: none; }
 .status-dot[data-status="connected"] { background: var(--ok); }
@@ -357,9 +367,10 @@ input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: var
 .find-count { min-width: 52px; margin: 0 6px 0 8px; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; }
 .progress { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; overflow: hidden; }
 .progress::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--accent); animation: slide 1.1s ease-in-out infinite; }
-.browser-error { display: flex; align-items: center; gap: 10px; flex: none; padding: 6px 10px 6px 16px; border-bottom: 1px solid var(--danger-border); background: var(--danger-soft); color: var(--danger-text); }
+.browser-error, .certificate-notice { display: flex; align-items: center; gap: 10px; flex: none; padding: 6px 10px 6px 16px; border-bottom: 1px solid var(--danger-border); background: var(--danger-soft); color: var(--danger-text); }
 .browser-error-text { display: flex; align-items: baseline; gap: 10px; flex: 1; min-width: 0; }
 .browser-error-text .mono { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.85; }
+.certificate-notice { border-bottom-color: var(--border); background: var(--warn-soft); color: var(--warn-text); }
 /* The page and its developer tools are native views over these slots, so the splitter between them has its whole width to itself. */
 .browser-body { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
 .browser-body[data-dock="right"] { flex-direction: row; }
@@ -426,6 +437,12 @@ html.overlay [data-compact] .error-toaster [data-sonner-toast] [data-description
 /* An overlay ends at its surface, so a popover's margin is the room its shadow has. */
 .popover { width: 340px; margin: 4px 16px 24px; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg-dialog); color: var(--text); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.2); }
 .popover-actions { display: flex; justify-content: flex-end; padding: 6px 8px; border-top: 1px solid var(--border); }
+.address-suggestions { width: auto; margin: 2px 12px 16px; padding: 4px; list-style: none; }
+.address-suggestion { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: var(--radius); color: var(--text-muted); cursor: default; }
+.address-suggestion:hover { background: var(--hover); }
+.address-suggestion[data-highlighted] { background: var(--selected); color: var(--text-strong); }
+.address-suggestion > .icon { flex: none; color: var(--text-faint); }
+.address-suggestion-url { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .download-list { max-height: 320px; padding: 4px; overflow-y: auto; }
 .download { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 5px 4px 5px 10px; border-radius: var(--radius); }
 .download:hover { background: var(--hover); }
@@ -462,6 +479,8 @@ dialog:focus-visible { outline: none; }
 
 
 .prompt-dialog { width: min(500px, calc(100vw - 48px)); }
+/* A question shows all of the page's name or the link it asks about. */
+.question-detail { max-height: 40vh; overflow-y: auto; white-space: normal; overflow-wrap: anywhere; }
 .dialog-form { display: flex; flex-direction: column; gap: 14px; padding: 20px; }
 .prompt { max-height: 30vh; margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--field-muted); font: 12px/1.5 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 .facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--field-muted); }
@@ -489,7 +508,7 @@ dialog:focus-visible { outline: none; }
 .field.overridden .field-label::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .field-body { display: flex; align-items: flex-start; gap: 4px; min-width: 0; }
 .field-body > :first-child { flex: 1; min-width: 0; }
-.field-body > input[type="checkbox"] { flex: none; margin-top: 8px; }
+.field-body > input[type="checkbox"] { flex: none; margin-top: 7px; }
 .field-reset, .field-reset-space { width: 30px; height: 30px; flex: none; }
 .field:not(.overridden) .field-reset { visibility: hidden; }
 .field-error { grid-column: 2; margin: 5px 34px 0 0; color: var(--danger-text); font-size: 12px; }
@@ -574,11 +593,29 @@ dialog:focus-visible { outline: none; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
 
-.web-menu { position: fixed; z-index: 10000; display: grid; max-width: min(400px, 100vw); max-height: 80vh; overflow: auto; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-dialog); box-shadow: var(--menu-shadow); }
-.web-menu button { border: 0; background: none; color: var(--text); padding: 6px 12px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.web-menu button:hover:not(:disabled), .web-menu button:focus { background: var(--selected); }
-.web-menu button:disabled { color: var(--text-faint); }
-.web-menu hr { width: 100%; border: 0; border-top: 1px solid var(--border); }
+/* Popups are placed in the popup layer, which in a browser is a layer of the page over everything else. */
+.popup-layer { position: relative; }
+:root:not(.overlay) .popup-layer { position: fixed; top: 0; left: 0; z-index: 10000; width: 0; height: 0; }
+.popup { position: absolute; box-sizing: border-box; width: max-content; max-width: var(--window-width); max-height: var(--window-height); }
+.menu { min-width: 180px; max-width: min(480px, var(--window-width)); padding: 4px; overflow-y: auto; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg-dialog); color: var(--text); box-shadow: var(--menu-shadow); outline: none; user-select: none; }
+.menu-item { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 10px 0 8px; border-radius: var(--radius-sm); white-space: nowrap; cursor: default; outline: none; }
+.menu-item:focus, .menu-item[aria-expanded="true"] { background: var(--selected); color: var(--text-strong); }
+.menu-item[aria-disabled="true"] { color: var(--text-faint); }
+.menu-icon { display: flex; flex: none; width: 16px; color: var(--text-muted); }
+.menu-item:focus .menu-icon, .menu-item[aria-expanded="true"] .menu-icon { color: inherit; }
+.menu-item[aria-disabled="true"] .menu-icon { color: inherit; opacity: 0.7; }
+.menu-item[aria-checked="true"] .menu-icon { color: var(--accent-text); }
+.menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.menu-shortcut { margin-left: 20px; color: var(--text-faint); font-size: 12px; }
+.menu-arrow { flex: none; margin-right: -4px; color: var(--text-muted); }
+.menu-separator { height: 1px; margin: 4px 2px; background: var(--border); }
+.select-list { min-width: 0; max-height: min(320px, calc(var(--window-height) / 2)); }
+.select-list.fixed .menu-item { content-visibility: auto; contain-intrinsic-size: auto 28px; }
+.menu-item[aria-selected="true"] .menu-icon { color: var(--accent-text); }
+/* In a browser, a tooltip lets the pointer through to what is under it. A long one is cut short, so it fits clear of its control. */
+.tooltip-layer { pointer-events: none; }
+.tooltip-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
+.tooltip { max-width: min(400px, var(--window-width)); padding: 3px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg-dialog); color: var(--text); box-shadow: var(--tooltip-shadow); font-size: 12px; line-height: 16px; overflow-wrap: anywhere; user-select: none; }
 
 .startup-error { display: grid; place-content: center; min-height: 100vh; padding: 24px; color: var(--text); }
 
@@ -640,3 +677,5 @@ html:root[data-fullscreen="content"] { --chrome-top: 0px; }
 
 .fullscreen-hint-position { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 10; pointer-events: none; }
 .fullscreen-hint { padding: 10px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-header); color: var(--text); white-space: nowrap; pointer-events: none; }
+/* Read by assistive technology but not drawn. */
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

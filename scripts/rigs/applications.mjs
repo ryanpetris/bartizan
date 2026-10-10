@@ -43,10 +43,9 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await waitState(s => s.connections[0]?.status === 'connected');
   await app.chooseConnection(connection);
   assert.deepEqual((await app.state()).connections[0].processes, []);
-  await application.evaluate(({ Menu }) => { globalThis.rigMenus = []; Menu.prototype.popup = function () { globalThis.rigMenus.push(this); }; });
   await page.evaluate(() => { window.applicationSnapshots = []; window.processSnapshots = []; window.bartizan.onEvent(event => { if (event.type === 'state') { window.applicationSnapshots.push(event.state.workspaces); window.processSnapshots.push(event.state.connections[0].processes); } }); });
   await page.locator('.connection-add:visible').click();
-  await application.evaluate(() => { const item = globalThis.rigMenus.at(-1).items.find(i => i.label === 'Visual Studio Code'); if (!item) throw new Error('Visual Studio Code missing'); item.click(); });
+  await app.menu.choose('Visual Studio Code');
   await expect(page.locator('.application-status')).toBeVisible();
   assert.equal((await app.state()).workspaces.find(w => w.application)?.tabs[0]?.title, 'Visual Studio Code');
   await expect(page.getByRole('button', { name: 'Close Tab Visual Studio Code', exact: true })).toBeVisible();
@@ -152,6 +151,18 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await application.evaluate(({ webContents }) => webContents.getAllWebContents().find(w => w.getTitle() === 'Editor fixture').executeJavaScript(`document.querySelector('a').click()`));
   await waitState(s => s.workspaces.find(w => w.id === browser)?.tabs.length === 2, 'application popup uses ordinary browser');
   assert.equal((await app.state()).workspaces.length, countBeforePopup);
+  // A blank popup opens in the ordinary session once its opener sends it to an address, and closes.
+  await page.waitForTimeout(1100);
+  const editor = script => application.evaluate(({ webContents }, script) => webContents.getAllWebContents().find(w => w.getTitle() === 'Editor fixture').executeJavaScript(script, true), script);
+  assert.equal(await editor(`(() => { window.rigPopup = window.open(); rigPopup.location = 'http://127.0.0.1:1/blank-popup'; return rigPopup !== null; })()`), true);
+  await waitState(s => s.workspaces.find(w => w.id === browser)?.tabs.some(tab => tab.url === 'http://127.0.0.1:1/blank-popup'), 'blank application popup in the ordinary session');
+  await expect.poll(() => editor('rigPopup.closed')).toBe(true);
+  assert.equal((await app.state()).workspaces.length, countBeforePopup);
+  // An application's page reads the clipboard.
+  await page.locator(`.nav-item[data-kind="tab"][data-id="${applicationTab}"]`).click();
+  await application.evaluate(({ clipboard }) => clipboard.writeText('to application'));
+  await expect.poll(() => editor('navigator.clipboard.readText().then(text => text, error => error.name)')).toBe('to application');
+  console.log('A blank application popup opens in the ordinary session, and the application reads the clipboard.');
   const firstHelperPid = Number(await readFile(helperPid, 'utf8'));
   await api('browser', first.id, 'close-workspace');
   await expect.poll(() => { try { process.kill(pid, 0); return false; } catch { return true; } }).toBe(true);
@@ -218,7 +229,7 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   const pidFile = join(data, 'bartizan/tools/vscode/server-data/fixture.pid');
   const runningPid = Number(await readFile(pidFile, 'utf8'));
   await page.locator('.connection-add:visible').click();
-  await application.evaluate(() => { const item = globalThis.rigMenus.at(-1).items.find(i => i.label === 'Visual Studio Code'); if (!item) throw new Error('Visual Studio Code missing'); item.click(); });
+  await app.menu.choose('Visual Studio Code');
   await expect(page.locator('.application-status[data-state="progress"]')).toBeVisible();
   // The fixture truncates its pid file before writing, so only a whole new pid counts.
   let cancelledPid = 0;

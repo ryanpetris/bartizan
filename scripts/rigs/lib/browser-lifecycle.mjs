@@ -60,23 +60,28 @@ export async function testTransportDiagnostics(app, serverPid) {
   await expect.poll(async () => (await state()).connections.find(c => c.id === id)?.status).toBe('connected');
   const peers = (await children(serverPid)).filter(pid => !before.has(pid));
   assert.equal(peers.length, 1);
-  await page.evaluate(() => {
-    window.rigDiagnostics = [];
-    window.rigDiagnosticsOff = window.bartizan.onEvent(event => { if (event.type === 'errors') window.rigDiagnostics = event.log.history.filter(entry => entry.source === 'ssh').map(entry => entry.message); });
-  });
+  const terminal = (await state()).terminals.find(t => t.connectionId === id).id;
+  await page.evaluate(terminal => {
+    window.rigDiagnostics = []; window.rigTerminal = '';
+    window.rigDiagnosticsOff = window.bartizan.onEvent(event => {
+      if (event.type === 'errors') window.rigDiagnostics = event.log.history.filter(entry => entry.source === 'ssh').map(entry => entry.message);
+      if (event.type === 'data' && event.id === terminal) window.rigTerminal += event.data;
+    });
+  }, terminal);
   const { createServer } = await import('node:net');
   const listener = createServer();
   await new Promise(resolve => listener.listen(0, '127.0.0.1', resolve));
   const port = listener.address().port;
   await new Promise(resolve => listener.close(resolve));
   const workspace = await browse(app, id, `http://localhost:${port}/`);
-  for (const terminal of (await state()).terminals.filter(t => t.connectionId === id)) await api('closeTerminal', terminal.id);
   await expect.poll(async () => Boolean((await state()).workspaces.find(w => w.id === workspace)?.tabs[0]?.error)).toBe(true);
   for (let i = 0; i < 5; i++) {
     await api('browser', workspace, 'reload');
     await expect.poll(async () => Boolean((await state()).workspaces.find(w => w.id === workspace)?.tabs[0]?.error)).toBe(true);
   }
+  await page.waitForTimeout(500);
   assert.deepEqual(await page.evaluate(() => window.rigDiagnostics), []);
+  assert.doesNotMatch(await page.evaluate(() => window.rigTerminal), /open failed/);
   const stopPeer = async pid => {
     for (const child of await children(pid)) await stopPeer(child);
     try { process.kill(Number(pid), 'SIGKILL'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
@@ -89,7 +94,7 @@ export async function testTransportDiagnostics(app, serverPid) {
   assert.ok(message.split('\n').length <= 4);
   assert.match(message, /closed|reset|Broken pipe|fatal/i);
   await api('removeConnection', id);
-  console.log('Browser request failures stay out of application alerts; transport loss reports one bounded diagnostic.');
+  console.log('Browser request failures stay out of application alerts and terminals; transport loss reports one bounded diagnostic.');
 }
 
 export async function testAuthenticationTransportLoss(app) {

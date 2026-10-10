@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Select } from './select';
 /** Fonts the application ships, named in configuration by their display names. */
 export const bundledTerminalFont = 'JetBrains Mono';
 export const bundledInterfaceFont = 'Inter';
@@ -110,34 +111,32 @@ export function FontPicker({
         : value === bundled || names?.includes(value)
           ? value
           : customOption;
-  const option = (family: string) => (
-    <option key={family} value={family}>
-      {family}
-    </option>
-  );
+  // Each font is named in its own typeface.
+  const typeface = terminal ? terminalFontFamily : interfaceFontFamily;
+  const option = (family: string) => ({ value: family, label: family, style: { fontFamily: typeface(family) } });
   return (
     <div className="stack">
-      <select
+      <Select
         disabled={!names}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? `${id}-error` : undefined}
         id={id}
         name={name}
-        className="input"
+        fixedWidth
         value={choice}
-        onChange={(event) => {
-          const chosen = event.target.value;
+        options={[
+          ...(inherit ? [{ value: '', label: inherit }] : []),
+          option(bundled),
+          { value: systemOption, label: 'System Default', style: { fontFamily: typeface('') } },
+          ...(names ?? []).filter((family) => family !== bundled).map(option),
+          { value: customOption, label: 'Custom' },
+        ]}
+        onChange={(chosen) => {
           setCustom(chosen === customOption);
           if (chosen === customOption) requestAnimationFrame(() => input.current?.focus());
           else onChange(chosen === systemOption ? '' : chosen === '' ? undefined : chosen, false);
         }}
-      >
-        {inherit && <option value="">{inherit}</option>}
-        {option(bundled)}
-        <option value={systemOption}>System Default</option>
-        {names?.filter((family) => family !== bundled).map(option)}
-        <option value={customOption}>Custom</option>
-      </select>
+      />
       <input
         disabled={!names}
         ref={input}
