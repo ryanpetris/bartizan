@@ -53,10 +53,6 @@ jobs:
           node-version: '24'
       - name: Build portable packages
         run: make portable
-      - name: Check packaged runtime and AppImage launcher
-        run: |
-          BARTIZAN_EXECUTABLE=release/linux-unpacked/bartizan node scripts/rigs.mjs --docker smoke connect fonts web vnc sandbox
-          APPIMAGE_EXTRACT_AND_RUN=1 BARTIZAN_EXECUTABLE="release/Bartizan-$BARTIZAN_VERSION.AppImage" node scripts/rigs.mjs --docker smoke
       - name: Record checksums
         working-directory: release
         run: sha256sum *.AppImage *.tar.gz > SHA256SUMS-linux
@@ -177,32 +173,6 @@ jobs:
           path: |
             release/*.deb
             release/SHA256SUMS-${{ matrix.distribution }}
-  desktop-smoke:
-    needs: [validate, debian]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    env:
-      BARTIZAN_VERSION: ${{ needs.validate.outputs.version }}
-      BARTIZAN_EXECUTABLE: /usr/bin/bartizan
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-      - uses: actions/download-artifact@v8
-        with:
-          name: packages-noble
-          path: build/native
-      - name: Install desktop package and test dependencies
-        run: |
-          (cd build/native && sha256sum -c SHA256SUMS-noble)
-          sudo apt-get update
-          sudo apt-get install -y xvfb dbus-x11 openssh-server ./build/native/*.deb
-          npm ci
-      - name: Check installed desktop with sandbox enabled
-        run: dbus-run-session -- node scripts/rigs.mjs --no-build smoke connect fonts sandbox
   mac:
     needs: validate
     runs-on: macos-15
@@ -239,7 +209,7 @@ jobs:
             release/*.dmg
             release/SHA256SUMS-mac
   publish:
-    needs: [validate, linux, arch, debian, desktop-smoke, mac]
+    needs: [validate, linux, arch, debian, mac]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

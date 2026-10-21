@@ -55,13 +55,14 @@ if (flags.has('--docker') || selected.includes('network') && available('docker')
 if (flags.has('--docker')) {
   const inside = selected.filter(name => !rigs[name].includes('docker'));
   if (inside.length) {
+    const apparmor = inside.includes('vnc') ? ['--security-opt', 'apparmor=unconfined'] : [];
     const environment = ['BARTIZAN_VERSION', 'BARTIZAN_RIG_SOFTWARE_GL', 'APPIMAGE_EXTRACT_AND_RUN'].filter(key => process.env[key]).flatMap(key => ['-e', key]);
     const packaged = [];
     if (process.env.BARTIZAN_EXECUTABLE) {
       const executable = realpathSync(process.env.BARTIZAN_EXECUTABLE);
       packaged.push('-v', `${dirname(executable)}:/package:ro`, '-e', `BARTIZAN_EXECUTABLE=/package/${basename(executable)}`);
     }
-    const result = spawnSync('docker', ['run', '--rm', '--shm-size=512m', '--security-opt', 'seccomp=unconfined', '--cap-add', 'SYS_ADMIN', ...environment, ...packaged, image,
+    const result = spawnSync('docker', ['run', '--rm', '--shm-size=512m', '--security-opt', 'seccomp=unconfined', '--cap-add', 'SYS_ADMIN', ...apparmor, ...environment, ...packaged, image,
       'runuser', '-u', 'node', '--', 'node', 'scripts/rigs.mjs', '--no-build', ...inside], { stdio: 'inherit' });
     if (result.status !== 0) process.exit(1);
   }
