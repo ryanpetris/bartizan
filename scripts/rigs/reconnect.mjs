@@ -69,7 +69,7 @@ await withDirectory('reconnect', async (directory, cleanup) => {
   await page.keyboard.type("printf 'TYPED_%s\\n' SECOND");
   await page.keyboard.press('Enter');
   await expect.poll(() => output(exited)).toContain('TYPED_SECOND');
-  // A control focused while the connection completes keeps the focus, here as soon as reconnecting moves it to a row.
+  // The selected terminal takes the focus when it resumes, even from a control focused while the connection completes.
   const fullscreen = page.getByRole('button', { name: 'Toggle Fullscreen', exact: true });
   await api('disconnect', id);
   await fullscreen.evaluate(button => document.addEventListener('focusin', function moved(event) {
@@ -78,20 +78,16 @@ await withDirectory('reconnect', async (directory, cleanup) => {
     button.focus();
   }));
   await page.locator('.connection-reconnect:visible').click();
+  await waitState(s => s.terminals.find(t => t.id === exited)?.status === 'connected');
+  await expect(page.locator('.terminal-surface:not([hidden]) .xterm-helper-textarea')).toBeFocused();
+  // A terminal that resumes out of view leaves the focus alone.
+  await terminal(first).click();
+  await api('input', exited, 'exit 7\n');
+  await waitState(s => s.terminals.find(t => t.id === exited)?.status === 'closed');
+  await fullscreen.focus();
+  await api('reconnectTerminal', exited);
   await expect(terminal(exited)).toHaveAttribute('data-status', 'connected');
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  await expect(fullscreen).toBeFocused();
-  // So does a control focused after the terminal resumes but before the focus moves into it, which waits for a frame.
-  await api('disconnect', id);
-  await page.evaluate(() => {
-    const frame = window.requestAnimationFrame, held = [];
-    window.requestAnimationFrame = callback => held.push(callback);
-    window.releaseFrames = () => { window.requestAnimationFrame = frame; for (const callback of held) frame(callback); };
-  });
-  await page.locator('.connection-reconnect:visible').click();
-  await expect(terminal(exited)).toHaveAttribute('data-status', 'connected');
-  await fullscreen.focus();
-  await page.evaluate(() => new Promise(resolve => { releaseFrames(); requestAnimationFrame(() => requestAnimationFrame(resolve)); }));
   await expect(fullscreen).toBeFocused();
   assert.equal((await app.state()).terminals.find(t => t.id === ambiguous).status, 'closed');
   // A selected terminal that stays closed, and a selected connection page, leave the focus where reconnecting put it.

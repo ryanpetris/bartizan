@@ -8,7 +8,6 @@ import {
   api,
   groups,
   currentConnection,
-  connectionOf,
   revisit,
   store,
   render,
@@ -114,24 +113,19 @@ function applyState(state: State) {
     store.selection = next && { kind: next.kind, id: next.id };
     if (next?.tab) activateTab(next.id, next.tab);
   }
-  // A selected terminal that resumes takes the focus back from the item focus recovery left it on while its connection was down.
-  const terminal = selection?.kind === 'terminal' ? state.terminals.find((t) => t.id === selection.id) : undefined;
-  const from = recovered;
+  // The selected terminal takes the focus whenever it connects, unless another view is selected before it can.
+  const shownTerminal = store.selection?.kind === 'terminal' ? store.selection.id : undefined;
   if (
-    terminal?.status === 'connected' &&
-    earlier.terminals.find((t) => t.id === terminal.id)?.status !== 'connected' &&
-    document.activeElement === from
-  ) {
-    recovered = undefined;
-    focusView(() => document.activeElement === from);
-  }
+    state.terminals.find((t) => t.id === shownTerminal)?.status === 'connected' &&
+    earlier.terminals.find((t) => t.id === shownTerminal)?.status !== 'connected'
+  )
+    focusView(() => store.selection?.kind === 'terminal' && store.selection.id === shownTerminal &&
+      store.state.terminals.find((t) => t.id === shownTerminal)?.status === 'connected');
   loaded = true;
   render();
   stateApplied();
 }
 
-/** The item focus recovery last moved focus to while the selected view's connection was down. */
-let recovered: HTMLElement | undefined;
 const focusables = (container: HTMLElement) =>
   [
     ...container.querySelectorAll<HTMLElement>(
@@ -171,10 +165,8 @@ class FocusRecovery extends Component<{ children: ReactNode }> {
       const target =
         items.find((item) => snapshot.id && item.dataset.id === snapshot.id) ??
         snapshot.nearest.find((item) => items.includes(item));
-      if (target) {
-        target.focus();
-        recovered = connectionOf(currentConnection() ?? '')?.status === 'connected' ? undefined : target;
-      } else if (!dialogOpen()) refocus();
+      if (target) target.focus();
+      else if (!dialogOpen()) refocus();
     }
     browser.syncNativeView();
   }
