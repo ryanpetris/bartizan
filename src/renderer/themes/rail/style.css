@@ -291,7 +291,8 @@
 :root[data-theme="rail"] .nav-item[aria-current="page"] { color: var(--text-strong); font-weight: 550; }
 :root[data-theme="rail"] .row:hover > .nav-item[aria-current="page"] { background: var(--selected); }
 :root[data-theme="rail"] .nav-item[aria-current="page"]::before { content: none; }
-:root[data-theme="rail"] .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[aria-current="page"] .nav-icon { color: var(--accent-text); }
+:root[data-theme="rail"] .nav-item[aria-current="page"]:not([data-status="closed"], [data-state="error"], [data-state="certificate"]) .nav-icon { color: var(--accent); }
+:root[data-theme="rail"] .tab-items .nav-item[aria-current="page"][data-state="idle"] .nav-icon { color: var(--session-color); }
 :root[data-theme="rail"] .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="closed"][aria-current="page"] :is(.nav-icon, .nav-label) { color: var(--text-muted); }
 :root[data-theme="rail"] .session-row > .nav-item { color: var(--text); font-weight: 550; }
 :root[data-theme="rail"] .session-row > .nav-item[aria-current="true"] { color: var(--text-strong); }
