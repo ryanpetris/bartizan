@@ -10,7 +10,7 @@ test('the client uses the same JSON requests, responses and errors across transp
     onEvent: () => () => {},
     request: request => dispatch(JSON.parse(JSON.stringify(request)), (method, args) => {
       received.push({ ...request, args });
-      if (method === 'capabilities') return { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false };
+      if (method === 'capabilities') return { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false, vnc: false };
       if (method === 'profile-draft') return { token: 'draft' };
       if (method === 'answer') return args[1];
       throw new Error('Unsupported operation');
@@ -48,7 +48,7 @@ test('backend shutdown drains active work and rejects queued work', async () => 
   let finished = false, closed = false, queuedRan = false;
   const backend = await createBackend({
     directory, file: join(directory, 'config.yaml'), helper: join(directory, 'askpass.cjs'),
-    capabilities: { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false }, send: () => {},
+    capabilities: { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false, vnc: false }, send: () => {},
     extend({ handle, serialize }) {
       handle('hold', () => serialize(async () => { started(); await held; finished = true; }));
       handle('queued', () => serialize(async () => { queuedRan = true; }));

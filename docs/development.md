@@ -48,11 +48,14 @@ Run all rigs or select them by filename without `.mjs`:
 npm run rigs
 npm run rigs -- connect profiles order
 npm run rigs -- --docker integration
+npm run rigs -- --docker vnc
 ```
 
 Rigs run under Xvfb and drive Electron with Playwright. The `web` rig starts both the Node server and Electron `serve` without a display, then drives Chromium against each, exercising the same terminal and configuration backend. It requires `chromium`; `BARTIZAN_CHROMIUM` can select its executable. They use temporary configuration and application data directories. Some start an isolated SSH server; the network rig starts a Docker container. The runner builds the app first unless `--no-build` or `BARTIZAN_EXECUTABLE` is set.
 
-The `dev` rig runs `npm run dev` in a temporary source copy and edits that copy to check component and CSS updates, font loading, renderer reloads and Electron restarts.
+The `vnc` rig uses real TigerVNC servers and a Tk desktop that records input with its modifier state and clipboard text, changes its pixels and takes the pointer shape the rig gives it. One server accepts remote resizing and the other refuses it. Isolated user, network and mount namespaces contain the SSH server and both VNC destinations. A private `/tmp` keeps X sockets and locks separate from other runs. A Unix-socket bridge exposes only SSH to Electron, so neither remote loopback nor the non-loopback VNC destination is directly reachable by the desktop. It requires Linux user/network/mount namespaces, `unshare`, `mount`, `ip`, TigerVNC, Python Tk and Chromium; the rig image includes these tools. It runs with remote session integration disabled and checks that no helper starts. The fixture tests no authentication and VNC password authentication, not every security type supported by noVNC. Its SSH server denies PTYs; terminal behavior is covered by the other rigs. The rig reads the X screen to check that the VNC menu stays drawn in place, frame by frame, as a submenu opens beside it, and does so again in a short window at a high application zoom, where the submenu scrolls. Release CI runs the VNC rig against the portable Linux payload. The rig and native Linux package checks read the bundled noVNC notices from the application payload.
+
+The `dev` rig runs `npm run dev` in a temporary source copy and edits that copy to check component and CSS updates, font loading, renderer reloads and Electron restarts. It slows the overlays' requests to check that menus, tooltips and dialogs stay styled while the app renders and while updated stylesheets load.
 
 Local execution requires `xvfb-run`. Each rig also checks for its own tools, such as `sshd`, Vim, OpenSSL or xdotool, and skips if they are absent. Check the runner's output for skipped rigs before treating a run as complete.
 
@@ -70,7 +73,7 @@ This regenerates `docs/images/bartizan.png`, the animated screenshot in the READ
 
 ## Build and Package
 
-`npm run build` uses Vite to bundle the Electron main process, web server and SSH helpers into `out/main/`, the preload into `out/preload/`, and the renderer into `out/renderer/`. The renderer includes its styles, font worker, bundled fonts and font licenses.
+`npm run build` uses Vite to bundle the Electron main process, web server and SSH helpers into `out/main/`, the preload into `out/preload/`, and the renderer into `out/renderer/`. The renderer includes its styles, font worker, bundled fonts and font licenses, plus noVNC and its license notices.
 
 ```sh
 make portable
@@ -90,7 +93,7 @@ Arch uses `makepkg`. Debian and Ubuntu use `dpkg-buildpackage`, debhelper and `d
 To check the unpacked packaged application:
 
 ```sh
-BARTIZAN_EXECUTABLE=release/linux-unpacked/bartizan npm run rigs -- --docker smoke
+BARTIZAN_EXECUTABLE=release/linux-unpacked/bartizan npm run rigs -- --docker smoke vnc
 ```
 
 `BARTIZAN_EXECUTABLE` accepts a path relative to the repository for both local and Docker runs.

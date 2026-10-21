@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { browserSessionName } from '../shared';
 import { Icon, IconButton, colorStyle } from './ui';
-import { api, run, store, select, showConnect, connectionOf, terminalName, activeTab, sessionColor, statusText, reconnect } from './store';
+import { api, run, store, select, showConnect, connectionOf, terminalName, activeTab, sessionColor, statusText, reconnect, vncName } from './store';
+import { reconnectVnc, vncStatus } from './vnc';
 import { openSettings } from './settings';
 import { openDetails } from './details';
 import { openMenu } from './menu';
@@ -10,18 +11,21 @@ import { faviconOf, dropFavicon } from './tab-state';
 
 /** What each page that belongs to no connection's items is called, in the bar over the view and on the page itself. */
 export const pageName = { connect: 'Connect', remote: 'Remote Sessions', details: 'Connection Details' } as const;
-/** What is in view: the selected terminal or browser session, the connection that owns it, and the item whose status describes it. */
+/** What is in view: the selected terminal, VNC tab or browser session, the connection that owns it, and the item whose status describes it. */
 export function viewContext() {
   const selection = store.selection;
   const terminal =
     selection?.kind === 'terminal' ? store.state.terminals.find((t) => t.id === selection.id) : undefined;
+  const vnc = selection?.kind === 'vnc' ? store.state.vncs.find((v) => v.id === selection.id) : undefined;
   const workspace =
     selection?.kind === 'browser' ? store.state.workspaces.find((w) => w.id === selection.id) : undefined;
   const owner = connectionOf(
-    terminal?.connectionId ?? workspace?.connectionId ?? (selection?.kind === 'connection' || selection?.kind === 'remote' || selection?.kind === 'details' ? selection.id : ''),
+    terminal?.connectionId ?? vnc?.connectionId ?? workspace?.connectionId ?? (selection?.kind === 'connection' || selection?.kind === 'remote' || selection?.kind === 'details' ? selection.id : ''),
   );
   const name = terminal
     ? terminalName(terminal)
+    : vnc
+      ? vncName(vnc)
     : workspace
       ? activeTab(workspace)?.title || browserSessionName(workspace)
       : selection?.kind === 'remote' || selection?.kind === 'details'
@@ -29,8 +33,9 @@ export function viewContext() {
         : selection?.kind === 'connect'
           ? pageName.connect
           : '';
-  const source = owner?.status === 'connecting' || !terminal ? owner : terminal;
-  return { terminal, workspace, owner, name, source };
+  const item = terminal ?? (vnc && { status: vncStatus(vnc), exitCode: vnc.exitCode });
+  const source = owner?.status === 'connecting' || !item ? owner : item;
+  return { terminal, vnc, workspace, owner, name, source };
 }
 export function Brand() {
   return (
@@ -92,7 +97,7 @@ export function ContextTitle() {
 }
 /** The details of the connection in view, fullscreen, and reconnecting what has closed. */
 export function ContextActions() {
-  const { terminal, owner } = viewContext();
+  const { terminal, vnc, owner } = viewContext();
   return (
     <div className="titlebar-actions">
       <IconButton
@@ -113,6 +118,12 @@ export function ContextActions() {
         label="Reconnect Terminal"
         hidden={terminal?.status !== 'closed' || owner?.status !== 'connected'}
         onClick={() => terminal && void run('session', api.reconnectTerminal(terminal.id), terminal.connectionId)}
+      />
+      <IconButton
+        icon="reload"
+        label="Reconnect VNC"
+        hidden={vnc?.status !== 'closed' || owner?.status !== 'connected'}
+        onClick={() => vnc && reconnectVnc(vnc)}
       />
     </div>
   );

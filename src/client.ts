@@ -1,5 +1,5 @@
 import type { HelperEnvelope, HelperMessage } from './helper-messages';
-import type { API, Event } from './shared';
+import { vncLimits, type API, type Event } from './shared';
 import type { Transport } from './transport';
 export function createClient(transport: Transport): API {
   let nextId = 0;
@@ -12,6 +12,8 @@ export function createClient(transport: Transport): API {
   const notify = (method: string, ...args: unknown[]) => {
     void call(method, ...args).catch(error => console.error(`${method}:`, error));
   };
+  const reads = new Set<string>(), writes = new Map<string, number>();
+  const desktopOnly = () => new Error('VNC is available only in the desktop app');
 return {
   capabilities: () => call('capabilities'),
   graphics: event => notify('graphics', event),
@@ -47,6 +49,34 @@ return {
   newTerminal: id => call('new-terminal', id),
   reconnectTerminal: id => call('reconnect-terminal', id),
   closeTerminal: id => call('close-terminal', id),
+  newVnc: (connectionId, destination) => call('new-vnc', connectionId, destination),
+  reconnectVnc: (connectionId, id) => call('reconnect-vnc', connectionId, id),
+  closeVnc: (connectionId, id) => call('close-vnc', connectionId, id),
+  stopVnc: (connectionId, id, attempt) => call('stop-vnc', connectionId, id, attempt),
+  async readVnc(connectionId, id, attempt) {
+    if (!transport.readVnc) throw desktopOnly();
+    const key = JSON.stringify([connectionId, id, attempt]);
+    if (reads.has(key)) throw new Error('A VNC read is already pending');
+    reads.add(key);
+    try { return await transport.readVnc(connectionId, id, attempt); }
+    finally { reads.delete(key); }
+  },
+  async writeVnc(connectionId, id, attempt, data) {
+    if (!transport.writeVnc) throw desktopOnly();
+    const key = JSON.stringify([connectionId, id, attempt]), pending = writes.get(key) ?? 0;
+    if (!(data instanceof Uint8Array) || data.byteLength > vncLimits.chunk || pending + data.byteLength > vncLimits.input) {
+      void call('stop-vnc', connectionId, id, attempt).catch(() => {});
+      throw new Error('VNC input limit exceeded');
+    }
+    if (!data.byteLength) return;
+    const owned = Uint8Array.from(data);
+    writes.set(key, pending + owned.byteLength);
+    try { await transport.writeVnc(connectionId, id, attempt, owned); }
+    finally {
+      const remaining = (writes.get(key) ?? 0) - owned.byteLength;
+      if (remaining) writes.set(key, remaining); else writes.delete(key);
+    }
+  },
   newApplication: (id, application) => call('new-application', id, application),
   retryApplication: id => call('retry-application', id),
   respondApplication: (id, consentId, accepted) => call('respond-application', id, consentId, accepted),

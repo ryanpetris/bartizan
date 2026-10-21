@@ -55,7 +55,7 @@ jobs:
         run: make portable
       - name: Check packaged runtime and AppImage launcher
         run: |
-          BARTIZAN_EXECUTABLE=release/linux-unpacked/bartizan node scripts/rigs.mjs --docker smoke connect fonts web sandbox
+          BARTIZAN_EXECUTABLE=release/linux-unpacked/bartizan node scripts/rigs.mjs --docker smoke connect fonts web vnc sandbox
           APPIMAGE_EXTRACT_AND_RUN=1 BARTIZAN_EXECUTABLE="release/Bartizan-$BARTIZAN_VERSION.AppImage" node scripts/rigs.mjs --docker smoke
       - name: Record checksums
         working-directory: release

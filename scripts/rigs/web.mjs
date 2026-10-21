@@ -81,8 +81,9 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
   await page.getByRole('button', { name: 'Home', exact: true }).click();
   await expect(page.locator('.connect')).toBeHidden();
   const api = (name, ...args) => page.evaluate(({ name, args }) => window.bartizan[name](...args), { name, args });
-  assert.deepEqual(await api('capabilities'), { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false });
+  assert.deepEqual(await api('capabilities'), { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false, vnc: false });
   await assert.rejects(api('newBrowser', 'missing'), /Unsupported operation/);
+  await assert.rejects(api('newVnc', 'missing'), /desktop app/);
   await page.evaluate(() => { window.rigOutput = ''; window.bartizan.onEvent(event => { if (event.type === 'state') window.rigState = event.state; if (event.type === 'data') window.rigOutput = (window.rigOutput + event.data).slice(-65536); }); });
   await page.evaluate(async () => {
     const clipboard = navigator.clipboard;
@@ -221,6 +222,7 @@ for (const runtime of ['node', 'electron']) await withDirectory(`web-${runtime}`
     await page.locator('.connection-chip').click({ button: 'right' });
     await expect(page.getByRole('menuitem', { name: 'New Terminal', exact: true })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'New Browser', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('menuitem', { name: 'New VNC', exact: true })).toHaveCount(0);
     await page.keyboard.press('Escape');
     const backgrounds = {};
     for (const appearance of ['light', 'dark', 'system']) {

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type CSSProperties, type HTMLAttributes, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
-import { store, dialogOpen, dialogHost, useStore } from './store';
+import { store, dialogHost, useStore } from './store';
 import { Overlay, documentOrigins } from './overlay';
 import { topModal } from './dialogs';
 
@@ -18,15 +18,17 @@ const isElement = (anchor: unknown): anchor is Element => typeof (anchor as Elem
 
 /**
  * A layer of popups: `pad` is the room around them for their shadows, `placed` each open popup's place in this window
- * and whether it takes input, and `bounds` where the layer starts and its size; popups are drawn at their place less its
- * start. Menus and other popups share one layer; tooltips have their own.
+ * and whether it takes input, `bounds` where the layer starts and its size, and `covers` whether it covers the window
+ * below its start; popups are drawn at their place less its start. Menus and other popups share one layer; tooltips have
+ * their own.
  */
-type Layer = { pad: { left: number; top: number; right: number; bottom: number }; placed: Map<HTMLElement, Rect & { interactive: boolean }>; bounds: Rect; host: HTMLElement | null; attach: (node: HTMLDivElement | null) => void };
+type Layer = { pad: { left: number; top: number; right: number; bottom: number }; placed: Map<HTMLElement, Rect & { interactive: boolean }>; bounds: Rect; covers: boolean; host: HTMLElement | null; attach: (node: HTMLDivElement | null) => void };
 function createLayer(pad: Layer['pad']): Layer {
   const created: Layer = {
     pad,
     placed: new Map(),
     bounds: { x: 0, y: 0, width: 0, height: 0 },
+    covers: false,
     host: null,
     attach: (node) => {
       if (created.host === node) return;
@@ -54,32 +56,37 @@ const useLayer = () =>
   );
 const overlaid = () => store.state.capabilities.embeddedBrowser;
 /**
- * The layer covers the popups and the room for their shadows. While an interactive popup is open over a dialog it covers
- * the dialog's overlay too, so a press beside the popup closes it and leaves the dialog alone, as a native menu would.
- * Returns whether the layer changed, which redraws the popups.
+ * The layer covers the popups and the room for their shadows. While an interactive popup is open it covers the window
+ * below the title bar, as a dialog does, and the dialog's overlay where one is open, so a press beside the popup closes it
+ * and reaches nothing below, as with a native menu. Its start then follows the interactive popups alone, and the popups
+ * that open beside them, such as submenus, keep below it, so the layer keeps its place as they open: a view that moves
+ * shows its last frame out of place. Returns whether the layer changed, which redraws the popups.
  */
 function relayout(layer: Layer) {
   const rects = [...layer.placed.values()],
     pad = layer.pad;
-  let bounds: Rect = { x: 0, y: 0, width: 0, height: 0 };
+  let bounds: Rect = { x: 0, y: 0, width: 0, height: 0 },
+    covers = false;
   if (rects.length && overlaid()) {
     let left = Math.min(...rects.map((r) => r.x - pad.left)),
       top = Math.min(...rects.map((r) => r.y - pad.top)),
       right = Math.max(...rects.map((r) => r.x + r.width + pad.right)),
       bottom = Math.max(...rects.map((r) => r.y + r.height + pad.bottom));
-    const modal = dialogHost.document !== document && dialogOpen() && documentOrigins.get(dialogHost.document);
+    const modal = dialogHost.document !== document && documentOrigins.get(dialogHost.document);
     if (modal && rects.some((r) => r.interactive)) {
+      covers = true;
       left = 0;
       right = innerWidth;
-      top = Math.min(top, modal.y);
+      top = Math.min(modal.y, ...rects.filter((r) => r.interactive).map((r) => r.y - pad.top));
       bottom = innerHeight;
     }
     left = Math.max(0, Math.floor(left));
     top = Math.max(0, Math.floor(top));
     bounds = { x: left, y: top, width: Math.min(innerWidth, Math.ceil(right)) - left, height: Math.min(innerHeight, Math.ceil(bottom)) - top };
   }
-  if (JSON.stringify(bounds) === JSON.stringify(layer.bounds)) return false;
+  if (covers === layer.covers && JSON.stringify(bounds) === JSON.stringify(layer.bounds)) return false;
   layer.bounds = bounds;
+  layer.covers = covers;
   changed();
   return true;
 }
@@ -100,11 +107,11 @@ export function windowRect(element: Element): Rect {
 /**
  * Places a popup of `size`: below an element or rectangle, or above it where there is no room below; beside it, with
  * `side`, or on its other side where there is no room; or at a point, or up and to its left where there is no room. It
- * keeps within the window. A `centered` popup is centred on the rectangle's other axis.
+ * keeps within the window below `top`. A `centered` popup is centred on the rectangle's other axis.
  */
-export function placePopup(anchor: Rect | Point, size: { width: number; height: number }, side = false, centered = false): Point {
+export function placePopup(anchor: Rect | Point, size: { width: number; height: number }, side = false, centered = false, top = 0): Point {
   const width = Math.min(size.width, innerWidth),
-    height = Math.min(size.height, innerHeight);
+    height = Math.min(size.height, innerHeight - top);
   const box = 'width' in anchor ? anchor : { ...anchor, width: 0, height: 0 };
   const point = !('width' in anchor);
   let x: number, y: number;
@@ -114,11 +121,11 @@ export function placePopup(anchor: Rect | Point, size: { width: number; height: 
   } else {
     x = centered ? box.x + (box.width - width) / 2 : box.x + width <= innerWidth ? box.x : point ? box.x - width : box.x + box.width - width;
     const below = box.y + box.height;
-    y = below + height <= innerHeight ? below : box.y - height >= 0 ? box.y - height : below;
+    y = below + height <= innerHeight ? below : box.y - height >= top ? box.y - height : below;
   }
   return {
     x: Math.round(Math.max(0, Math.min(x, innerWidth - width))),
-    y: Math.round(Math.max(0, Math.min(y, innerHeight - height))),
+    y: Math.round(Math.max(top, Math.min(y, innerHeight - height))),
   };
 }
 
@@ -187,8 +194,8 @@ export function PopupLayer() {
  *   returns focus to the anchor where that suits; a popup rendered alongside a root popup, such as a submenu, goes with
  *   it.
  * - `onShown` is told of the surface once it has its place, which is the time to move focus into it.
- * - In Electron the popup overlay takes the keyboard as it appears; the layer covers only the popups and their shadows,
- *   so the pages around them keep receiving the pointer.
+ * - In Electron the popup overlay takes the keyboard as it appears, and while a root popup is open it covers the window
+ *   below the title bar.
  * - `tooltip` draws it centred on its anchor in the tooltip layer, which never takes the keyboard, and in a browser lets
  *   the pointer through.
  */
@@ -220,7 +227,9 @@ export function Popup({
   shown.current = onShown;
   const interactive = Boolean(onDismiss),
     layer = tooltip ? tooltips : popups,
-    host = layer.host;
+    host = layer.host,
+    // A popup beside an interactive one keeps within what the layer covers, and scrolls where it is taller.
+    top = !interactive && layer.covers ? layer.bounds.y : 0;
   useLayoutEffect(() => {
     const node = surface.current;
     if (!node) return;
@@ -229,7 +238,7 @@ export function Popup({
       return;
     }
     const size = { width: node.offsetWidth, height: node.offsetHeight };
-    const at = placePopup(isElement(anchor) ? windowRect(anchor) : anchor, size, side, tooltip);
+    const at = placePopup(isElement(anchor) ? windowRect(anchor) : anchor, size, side, tooltip, top);
     const rect = { ...at, ...size, interactive },
       previous = layer.placed.get(node);
     if (!previous || JSON.stringify(previous) !== JSON.stringify(rect)) {
@@ -306,7 +315,7 @@ export function Popup({
         else if (ref) ref.current = node;
       }}
       className={`popup ${className}`.trim()}
-      style={{ ...props.style, left: (at?.x ?? 0) - layer.bounds.x, top: (at?.y ?? 0) - layer.bounds.y, '--window-width': `${innerWidth}px`, '--window-height': `${innerHeight}px` } as CSSProperties}
+      style={{ ...props.style, left: (at?.x ?? 0) - layer.bounds.x, top: (at?.y ?? 0) - layer.bounds.y, '--window-width': `${innerWidth}px`, '--room-height': `${innerHeight - top}px` } as CSSProperties}
       onKeyDown={(event) => {
         props.onKeyDown?.(event);
         if (interactive && event.key === 'Escape' && !event.defaultPrevented) {

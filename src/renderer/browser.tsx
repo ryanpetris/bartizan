@@ -70,8 +70,8 @@ export function shortcut(name: Exclude<BrowserShortcut, 'new-connection'> | 'fin
   // Tabs of an application's session are the application's own.
   else if (!workspace || workspace.application) return;
   else if (name === 'new-tab') void act(workspace.id, 'new').then(focusAddress);
-  else if (name === 'close-tab') { if (tab) void act(workspace.id, 'close', tab.id).then(focusView); }
-  else if (name === 'reopen-tab') void act(workspace.id, 'reopen').then(focusView);
+  else if (name === 'close-tab') { if (tab) void act(workspace.id, 'close', tab.id).then(() => focusView()); }
+  else if (name === 'reopen-tab') void act(workspace.id, 'reopen').then(() => focusView());
   else {
     const tabs = sessionTabs(workspace), index = tabs.findIndex((item) => item.id === tab?.id);
     const next = tabs[(index + (name === 'next-tab' ? 1 : -1) + tabs.length) % tabs.length];

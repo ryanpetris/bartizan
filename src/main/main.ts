@@ -63,7 +63,7 @@ else void app.whenReady().then(async () => {
   const trusted = (event: IpcMainInvokeEvent | IpcMainEvent) => event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame && event.senderFrame?.url === origin;
   const backend = await createBackend({
     file, directory: app.getPath('userData'), helper: join(__dirname, 'askpass.cjs'),
-    capabilities: { embeddedBrowser: true, nativeFilePicker: true, externalBrowser: externalBrowserAvailable() }, send,
+    capabilities: { embeddedBrowser: true, nativeFilePicker: true, externalBrowser: externalBrowserAvailable(), vnc: true }, send,
     appearance(value) { settings = value; nativeTheme.themeSource = settings.appearance; updateTitleBar(); },
     extend({ sessions, changed, send, handle, serialize, terminalConnection, reportError }) {
   const browsers = new BrowserWindowController();
@@ -290,6 +290,14 @@ else void app.whenReady().then(async () => {
       }
       return backend.request(method, args);
     });
+  });
+  ipcMain.handle('vnc-read', (event, connectionId, id, attempt) => {
+    if (!trusted(event)) throw new Error('Untrusted caller');
+    return backend.readVnc(connectionId, id, attempt);
+  });
+  ipcMain.handle('vnc-write', (event, connectionId, id, attempt, data) => {
+    if (!trusted(event)) throw new Error('Untrusted caller');
+    return backend.writeVnc(connectionId, id, attempt, data);
   });
   // A page that has gone, or been replaced and is still loading, holds no terminal back; once loaded it attaches.
   window.webContents.on('render-process-gone', () => backend.detach('desktop'));

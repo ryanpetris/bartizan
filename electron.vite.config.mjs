@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { archiveSources, pythonArchive } from './scripts/python-archive.mjs';
 import { defineConfig } from 'electron-vite';
@@ -46,6 +47,19 @@ export default defineConfig(({ mode }) => ({
     plugins: [
       // The entry mounts a root and overlays own native child windows; both need a page reload.
       react({ exclude: [/node_modules/, /\/(app|overlay)\.tsx$/] }),
+      {
+        // The renderer bundles noVNC, which is MPL-2.0; its notices and where its source is published ship beside it.
+        name: 'bartizan-novnc-notices',
+        apply: 'build',
+        generateBundle() {
+          const root = resolve('node_modules/@novnc/novnc');
+          const { version } = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
+          const files = ['LICENSE.txt', 'AUTHORS', 'docs/LICENSE.MPL-2.0', 'docs/LICENSE.BSD-2-Clause', 'docs/LICENSE.BSD-3-Clause', 'docs/LICENSE.OFL-1.1', 'vendor/pako/LICENSE'];
+          for (const file of files)
+            this.emitFile({ type: 'asset', fileName: `licenses/novnc/${file}`, source: readFileSync(resolve(root, file)) });
+          this.emitFile({ type: 'asset', fileName: 'licenses/novnc/SOURCE', source: `noVNC ${version}\nhttps://github.com/novnc/noVNC/tree/v${version}\n` });
+        },
+      },
       {
         name: 'bartizan-dev-html',
         apply: 'serve',

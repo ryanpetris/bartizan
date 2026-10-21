@@ -8,6 +8,7 @@ import {
   api,
   groups,
   currentConnection,
+  connectionOf,
   revisit,
   store,
   render,
@@ -31,6 +32,7 @@ import {
 } from './store';
 import { recordVisits } from './browser-suggestions';
 import * as terminals from './terminals';
+import { Vncs, NewVnc, VncPrompts } from './vnc';
 import * as browser from './browser';
 import * as tabState from './tab-state';
 import * as errors from './errors';
@@ -112,11 +114,24 @@ function applyState(state: State) {
     store.selection = next && { kind: next.kind, id: next.id };
     if (next?.tab) activateTab(next.id, next.tab);
   }
+  // A selected terminal that resumes takes the focus back from the item focus recovery left it on while its connection was down.
+  const terminal = selection?.kind === 'terminal' ? state.terminals.find((t) => t.id === selection.id) : undefined;
+  const from = recovered;
+  if (
+    terminal?.status === 'connected' &&
+    earlier.terminals.find((t) => t.id === terminal.id)?.status !== 'connected' &&
+    document.activeElement === from
+  ) {
+    recovered = undefined;
+    focusView(() => document.activeElement === from);
+  }
   loaded = true;
   render();
   stateApplied();
 }
 
+/** The item focus recovery last moved focus to while the selected view's connection was down. */
+let recovered: HTMLElement | undefined;
 const focusables = (container: HTMLElement) =>
   [
     ...container.querySelectorAll<HTMLElement>(
@@ -156,8 +171,10 @@ class FocusRecovery extends Component<{ children: ReactNode }> {
       const target =
         items.find((item) => snapshot.id && item.dataset.id === snapshot.id) ??
         snapshot.nearest.find((item) => items.includes(item));
-      if (target) target.focus();
-      else if (!dialogOpen()) refocus();
+      if (target) {
+        target.focus();
+        recovered = connectionOf(currentConnection() ?? '')?.status === 'connected' ? undefined : target;
+      } else if (!dialogOpen()) refocus();
     }
     browser.syncNativeView();
   }
@@ -280,6 +297,7 @@ function App() {
         <FullscreenHint />
         <main className="main">
           <terminals.Terminals />
+          <Vncs />
           <browser.Browser />
           <RemoteSessions />
           <Details />
@@ -296,6 +314,8 @@ function App() {
         <Modal>
           <ConnectionForm />
           <Challenges />
+          <NewVnc />
+          <VncPrompts />
           <Settings />
           <errors.Errors />
           <Quit />

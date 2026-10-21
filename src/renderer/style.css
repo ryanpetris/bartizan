@@ -292,8 +292,8 @@ input[type="checkbox"]:disabled { opacity: 0.5; }
 .nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-meta { flex: none; color: var(--text-faint); font-size: 11px; font-weight: 400; }
 .nav-meta:empty { display: none; }
-.nav-item[data-kind="terminal"][data-status="closed"] :is(.nav-icon, .nav-label) { color: var(--text-faint); }
-.nav-item[data-kind="terminal"][data-status="connecting"] .nav-icon { animation: pulse 1.2s ease-in-out infinite; }
+.nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="closed"] :is(.nav-icon, .nav-label) { color: var(--text-faint); }
+.nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="connecting"] .nav-icon { animation: pulse 1.2s ease-in-out infinite; }
 
 .session-row > .nav-item .nav-icon { color: var(--session-color); }
 .session-name { padding-left: 19px; }
@@ -344,6 +344,28 @@ input[type="checkbox"]:disabled { opacity: 0.5; }
 .terminal-surface { position: absolute; inset: 10px 4px 4px 14px; }
 .terminal-surface .xterm { height: 100%; }
 .terminal-surface .xterm-viewport { background: transparent !important; }
+.vnc-body { position: relative; display: flex; flex: 1; min-height: 0; }
+.vnc-frame { display: flex; flex: 1; min-width: 0; }
+/* A desktop fills the view, or a zoomed one keeps its size: centred where it is smaller, scrolled where it is larger. */
+.vnc-host { position: relative; display: flex; flex: 1; min-width: 0; overflow: auto; }
+.vnc-surface { position: absolute; inset: 0; }
+.vnc-surface.zoomed { position: relative; inset: auto; flex: none; margin: auto; }
+/* noVNC sets the canvas's cursor to the remote one, which a panning desktop replaces. A touch drag pans it as the mouse does. */
+.vnc-surface.panning canvas { cursor: grab !important; touch-action: none; }
+.vnc-surface.panning.dragging canvas { cursor: grabbing !important; }
+.vnc-status { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg-main); }
+/* The toolbar wraps onto more rows where the view is too narrow for it. */
+.vnc-toolbar { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 2px; flex: none; min-height: 44px; padding: 8px 10px 8px 8px; background: var(--bg-toolbar); border-bottom: 1px solid var(--border); }
+.vnc-scaling { flex: 0 1 auto; width: auto; min-width: 0; height: 28px; margin-right: 6px; }
+.vnc-zoom { display: flex; align-items: center; flex: none; }
+.vnc-zoom-level { width: 58px; height: 28px; padding: 0 4px; text-align: center; font-variant-numeric: tabular-nums; }
+.vnc-held { height: 24px; margin-left: 4px; padding: 0 8px; }
+.vnc-held[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+.vnc-tools { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.vnc-clipboard { position: absolute; top: 100%; right: 0; z-index: 3; max-width: calc(100% - 32px); }
+.vnc-clipboard-backdrop { position: fixed; inset: var(--chrome-top) 0 0; z-index: 2; }
+.vnc-clipboard-text { display: block; width: calc(100% - 16px); height: 140px; margin: 8px; padding: 6px 9px; resize: vertical; }
+.vnc-error { max-width: min(640px, 80%); color: var(--danger-text); font-weight: 400; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; }
 /* A terminal's scroll bar is an element of its own, which takes the theme's size and shape; its colours come with the terminal's. */
 .xterm .xterm-scrollable-element > .scrollbar.vertical { width: var(--scroll-size) !important; }
 .xterm .xterm-scrollable-element > .scrollbar.vertical > .slider { left: 2px !important; width: calc(var(--scroll-size) - 4px) !important; border-radius: var(--scroll-radius); }
@@ -436,7 +458,7 @@ html.overlay [data-compact] .error-toaster [data-sonner-toast] [data-description
 .overlay-surface { position: absolute; top: 0; left: 0; width: max-content; }
 /* An overlay ends at its surface, so a popover's margin is the room its shadow has. */
 .popover { width: 340px; margin: 4px 16px 24px; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg-dialog); color: var(--text); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.2); }
-.popover-actions { display: flex; justify-content: flex-end; padding: 6px 8px; border-top: 1px solid var(--border); }
+.popover-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 6px 8px; border-top: 1px solid var(--border); }
 .address-suggestions { width: auto; margin: 2px 12px 16px; padding: 4px; list-style: none; }
 .address-suggestion { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: var(--radius); color: var(--text-muted); cursor: default; }
 .address-suggestion:hover { background: var(--hover); }
@@ -596,7 +618,7 @@ dialog:focus-visible { outline: none; }
 /* Popups are placed in the popup layer, which in a browser is a layer of the page over everything else. */
 .popup-layer { position: relative; }
 :root:not(.overlay) .popup-layer { position: fixed; top: 0; left: 0; z-index: 10000; width: 0; height: 0; }
-.popup { position: absolute; box-sizing: border-box; width: max-content; max-width: var(--window-width); max-height: var(--window-height); }
+.popup { position: absolute; box-sizing: border-box; width: max-content; max-width: var(--window-width); max-height: var(--room-height); }
 .menu { min-width: 180px; max-width: min(480px, var(--window-width)); padding: 4px; overflow-y: auto; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--bg-dialog); color: var(--text); box-shadow: var(--menu-shadow); outline: none; user-select: none; }
 .menu-item { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 10px 0 8px; border-radius: var(--radius-sm); white-space: nowrap; cursor: default; outline: none; }
 .menu-item:focus, .menu-item[aria-expanded="true"] { background: var(--selected); color: var(--text-strong); }
@@ -610,7 +632,7 @@ dialog:focus-visible { outline: none; }
 .menu-shortcut { margin-left: 20px; color: var(--text-faint); font-size: 12px; }
 .menu-arrow { flex: none; margin-right: -4px; color: var(--text-muted); }
 .menu-separator { height: 1px; margin: 4px 2px; background: var(--border); }
-.select-list { min-width: 0; max-height: min(320px, calc(var(--window-height) / 2)); }
+.select-list { min-width: 0; max-height: min(320px, calc(var(--room-height) / 2)); }
 .select-list.fixed .menu-item { content-visibility: auto; contain-intrinsic-size: auto 28px; }
 .menu-item[aria-selected="true"] .menu-icon { color: var(--accent-text); }
 /* In a browser, a tooltip lets the pointer through to what is under it. A long one is cut short, so it fits clear of its control. */

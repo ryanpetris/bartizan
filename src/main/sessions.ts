@@ -25,6 +25,11 @@ export class Sessions {
     return connection;
   }
   terminalOwner(id: string) { return this.terminals.get(id)?.connection; }
+  vnc(connectionId: string, id: string) {
+    const vnc = this.get(connectionId).vncs.get(id);
+    if (!vnc) throw new Error('VNC tab does not belong to this connection');
+    return vnc;
+  }
   /** Starts counting a client's output afresh, as for a page that has just loaded. */
   attach(client: string) {
     this.clients.add(client);
@@ -33,6 +38,10 @@ export class Sessions {
   detach(client: string) {
     this.clients.delete(client);
     for (const terminal of this.terminals.values()) { terminal.unprocessed.delete(client); terminal.pace(); }
+    if (client === 'desktop') {
+      for (const connection of this.entries.values()) for (const vnc of connection.vncs.values()) vnc.stop();
+      this.changed();
+    }
   }
   /** Records output sent to every attached client. */
   sent(id: string, size: number) {

@@ -25,7 +25,7 @@ export async function serve(args: string[], dataDirectory?: string) {
   };
   const backend = await createBackend({
     file: resolve(options.config ?? join(directory, 'config.yaml')), directory, helper: join(__dirname, 'askpass.cjs'),
-    capabilities: { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false },
+    capabilities: { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false, vnc: false },
     send: event => { for (const socket of clients.clients) send(socket, { event }); },
   });
   const allowedHost = (host: string | undefined) => {

@@ -291,8 +291,8 @@
 :root[data-theme="rail"] .nav-item[aria-current="page"] { color: var(--text-strong); font-weight: 550; }
 :root[data-theme="rail"] .row:hover > .nav-item[aria-current="page"] { background: var(--selected); }
 :root[data-theme="rail"] .nav-item[aria-current="page"]::before { content: none; }
-:root[data-theme="rail"] .nav-item[data-kind="terminal"][aria-current="page"] .nav-icon { color: var(--accent-text); }
-:root[data-theme="rail"] .nav-item[data-kind="terminal"][data-status="closed"][aria-current="page"] :is(.nav-icon, .nav-label) { color: var(--text-muted); }
+:root[data-theme="rail"] .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[aria-current="page"] .nav-icon { color: var(--accent-text); }
+:root[data-theme="rail"] .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="closed"][aria-current="page"] :is(.nav-icon, .nav-label) { color: var(--text-muted); }
 :root[data-theme="rail"] .session-row > .nav-item { color: var(--text); font-weight: 550; }
 :root[data-theme="rail"] .session-row > .nav-item[aria-current="true"] { color: var(--text-strong); }
 :root[data-theme="rail"] .input.session-name { height: 32px; padding: 0 8px 0 33px; }
@@ -350,7 +350,7 @@
 
 /* Browser */
 /* The first command in the toolbar stands under the marker in the bar above it. */
-:root[data-theme="rail"] .browser-toolbar { padding-left: 10px; }
+:root[data-theme="rail"] :is(.browser-toolbar, .vnc-toolbar) { padding-left: 10px; }
 :root[data-theme="rail"] .address { border-radius: var(--field-radius); }
 :root[data-theme="rail"] .zoom-level { border-radius: 7px; }
 :root[data-theme="rail"] .find-input { border-radius: var(--field-radius); }

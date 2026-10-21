@@ -2,7 +2,7 @@
 
 # Architecture
 
-Bartizan has one Electron application window containing a React interface around either an xterm terminal or a native browser view. The shared backend owns connections, PTYs, credentials and configuration writes. Electron adds embedded browser sessions; a standalone Node server serves the terminal UI in an ordinary browser.
+Bartizan has one Electron application window containing a React interface around an xterm terminal, a VNC canvas or a native browser view. The shared backend owns connections, PTYs, credentials and configuration writes. Electron adds embedded browser sessions and VNC; a standalone Node server serves the terminal UI in an ordinary browser.
 
 ## Source Map
 
@@ -16,6 +16,7 @@ Bartizan has one Electron application window containing a React interface around
 | [`src/main/sessions.ts`](../src/main/sessions.ts) | Connection registry and terminal request routing |
 | [`src/main/connection.ts`](../src/main/connection.ts) | Persistent connection controller, effective configuration, helper and remote sessions |
 | [`src/main/ssh-connection.ts`](../src/main/ssh-connection.ts), [`src/main/terminal.ts`](../src/main/terminal.ts) | One SSH transport attempt and one terminal tab |
+| [`src/main/vnc.ts`](../src/main/vnc.ts) | One VNC tab and its pipe-based SSH TCP channel |
 | [`src/main/application-session.ts`](../src/main/application-session.ts) | One remote application launch and its browser session |
 | [`src/main/browser.ts`](../src/main/browser.ts) | Browser-session collection belonging to one connection |
 | [`src/main/browser-session.ts`](../src/main/browser-session.ts) | One browser partition, relay, downloads and authentication |
@@ -41,7 +42,7 @@ Terminal output has flow control. The backend counts, for each attached client, 
 
 The web client reconnects a lost socket, waiting longer between attempts up to ten seconds. It names itself with a random identifier for the life of the page, so the backend keeps its profile draft for ten minutes after its last socket closes. The server sends it a fresh snapshot; terminals keep what they show and continue with live output, without replaying what was missed.
 
-`window.bartizan.capabilities()` returns the running backend's capabilities, also included in state snapshots. `embeddedBrowser` controls browser-session actions; `nativeFilePicker` controls native file-picker buttons; `externalBrowser` says whether links can open in the system browser. Electron provides the first two, and the third where it finds a way to open links; the web server provides none. Unsupported backend operations reject even if a caller bypasses the UI. This API is available to future integrations without depending on a particular transport.
+`window.bartizan.capabilities()` returns the running backend's capabilities, also included in state snapshots. `vnc` controls desktop VNC actions; `embeddedBrowser` controls browser-session actions; `nativeFilePicker` controls native file-picker buttons; `externalBrowser` says whether links can open in the system browser. Electron provides VNC, embedded browsers and native file pickers, plus external links where it finds a way to open them; the web server provides none. Unsupported backend operations reject even if a caller bypasses the UI. This API is available to future integrations without depending on a particular transport.
 
 Web clients share one backend, while each client's profile form has its own draft. The backend serializes connection/configuration mutations. Shutdown rejects queued mutations, waits for the active one, and closes platform resources and SSH sessions.
 
@@ -51,7 +52,7 @@ Browser tabs use sandboxed `WebContentsView` instances without a preload or Node
 
 Interface that floats over a page, such as the downloads list and a hovered link's address, is drawn in an overlay: a transparent `WebContentsView` above the page views. The renderer opens each overlay as a named blank child window. The [main process](../src/main/overlays.ts) makes that window a view inside the application window and denies every other `window.open`. The child shares the renderer's process, so the [renderer](../src/renderer/overlay.tsx) copies its styles into the overlay's document and renders into it through a React portal. An overlay has no preload and cannot navigate. A floating overlay is sized to its content, so the page around it keeps receiving input, and its top left corner stays fixed while it resizes, because a view that moves as it resizes shows one frame out of place. The modal overlay holds dialogs instead: while one is open it covers the window below the title bar, so its backdrop dims the page and the application, and it takes the keyboard.
 
-Menus, including a page's context menu, and the option lists of [selects](../src/renderer/select.tsx) are the application's own, drawn by a [popup](../src/renderer/popup.tsx) in the popup overlay, above the pages and dialogs, which takes the keyboard while one is open. A press outside one closes it: the application page and the popup overlay see their own presses, and the main process reports those in page views and other overlays. Over a dialog the overlay covers the dialog too, so such a press leaves the dialog alone. The main process builds the menus of pages, text fields and terminal links and keeps their actions; the renderer draws them at the point where they opened, a page's offset by its view, and reports the item chosen by the menu's ID, so only an item of the open menu runs. Before an item runs, the keyboard returns to the contents the menu opened for, so editing commands act on the field and selection it left. A question such as **Leave Page?** closes any open popup, so the question has the keyboard. The web client draws the same menus in its page, inside the dialog on top where one is open.
+Menus, including a page's context menu, and the option lists of [selects](../src/renderer/select.tsx) are the application's own, drawn by a [popup](../src/renderer/popup.tsx) in the popup overlay, above the pages and dialogs, which takes the keyboard while one is open. While one is open the overlay covers the window below the title bar, and any dialog, so a press beside it closes it and reaches nothing below, as with a native menu. The overlay keeps its place as a submenu opens to either side, because a view that moves shows its last frame out of place: a submenu stays within what the overlay covers, and scrolls where it is taller. A press in the title bar closes it too: the application page sees its own presses, and the main process reports those in other views. The main process builds the menus of pages, text fields and terminal links and keeps their actions; the renderer draws them at the point where they opened, a page's offset by its view, and reports the item chosen by the menu's ID, so only an item of the open menu runs. Before an item runs, the keyboard returns to the contents the menu opened for, so editing commands act on the field and selection it left. A question such as **Leave Page?** closes any open popup, so the question has the keyboard. The web client draws the same menus in its page, inside the dialog on top where one is open.
 
 Tooltips are popups as well, drawn in the tooltip overlay above the popup overlay, which the main process never gives the keyboard; in the web client, in a layer of the page that lets the pointer through. A control gives its tooltip in a `data-tooltip` attribute, which the [renderer](../src/renderer/tooltip.tsx) watches for in its page and every overlay. A view above a page takes the pointer wherever it lies, so a tooltip keeps a gap from its control and goes as the pointer reaches it, whether it showed for the pointer or for keyboard focus. Focus counts only when a key moved it, not when the page moves it by itself or a popup that a key closed returns it to the control it opened from.
 
@@ -74,6 +75,18 @@ Each terminal runs another `ssh` process in a `node-pty` pseudo-terminal and use
 [SSH argument generation](../src/core/ssh.ts) uses `-F none`, explicit authentication settings and Bartizan's own trust store. Authentication prompts go through an askpass helper to a private Unix socket. The broker supplies a configured credential once for each recognized password/passphrase kind and sends remaining prompts to the UI.
 
 Pinned connections use an OpenSSH `KnownHostsCommand` helper. It validates the offered public host key against the configured SHA-256 fingerprints and fingerprints derived from configured public keys and rejects host certificates.
+
+## VNC transport
+
+Each VNC tab owns a fixed hostname and port, an ID and a current attempt token. Its controller opens `ssh -W` through the connection's existing master, with pipes rather than a PTY. The SSH server resolves the destination. This channel uses neither the remote helper nor the browser SOCKS relay, and cannot fall back to a separate SSH connection.
+
+The bundled noVNC client renders into a canvas and handles RFB authentication and input. Dedicated binary IPC reads and writes carry its bytes between the trusted application renderer and the SSH process. Each read returns at most 64 KiB; the controller bounds outstanding input at 1 MiB. Attempt tokens reject operations from a replaced session. A connected backend state means the channel process has started; the renderer tracks RFB readiness separately.
+
+The renderer applies each tab's display and input controls to every attempt of that tab. noVNC has no zoom setting, so a zoomed desktop's element takes the zoomed size of the remote desktop and noVNC scales the desktop to fit it, which keeps its pointer mapping. Only the desktop in view has remote resizing enabled, because a hidden one measures 0 by 0. noVNC drops resize requests while a desktop is view-only, so remote resizing is enabled again as input returns, which asks for the view's size.
+
+The controller drains buffered output before publishing EOF, including authentication failure bytes. It checks the SSH master when a channel exits because OpenSSH can report exit code zero after either server EOF or master loss. Interrupted channels resume when SSH reconnects; server-closed channels wait for manual reconnect. Reconnect keeps the tab ID and destination and assigns a fresh attempt token. Closing a tab, reloading the application renderer or quitting stops its channel. Renderer reload leaves the tab available for manual reconnect.
+
+VNC credentials remain in memory for their current authentication attempt. The web backend rejects VNC operations and exposes `vnc: false`.
 
 ## Browser Routing and Storage
 

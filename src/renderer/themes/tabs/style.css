@@ -206,7 +206,7 @@
   animation: tabs-fade linear both; animation-timeline: scroll(self inline);
 }
 
-/* Tabs: a terminal and a browser tab are each a tab of the width the strip gives them. */
+/* Tabs: a terminal, a VNC tab and a browser tab are each a tab of the width the strip gives them. */
 :root[data-theme="tabs"] .tabs-strip :is(.row-entry, .tab-items) > .row { position: relative; flex: none; width: clamp(var(--tab-min), var(--tab-width, 176px), var(--tab-max)); height: 32px; border: 1px solid transparent; border-bottom: 0; border-radius: 9px 9px 0 0; }
 /* The button's transparent border insets its hover fill from the tab's edges. */
 :root[data-theme="tabs"] .tabs-strip :is(.row-entry, .tab-items) > .row > .nav-item { gap: 7px; height: 100%; padding: 0 6px 0 7px; border: solid transparent; border-width: 3px 2px 4px; border-radius: 10px; background-clip: padding-box; color: var(--text-muted); font-size: 12.5px; }
@@ -236,11 +236,11 @@
 :root[data-theme="tabs"] .tabs-strip :is(.row-entry, .tab-items) > .row > .nav-item::after { content: ""; position: absolute; top: 50%; right: -3px; width: 1px; height: 14px; background: var(--border-strong); transform: translateY(-50%); }
 :root[data-theme="tabs"] .tabs-strip :is(.row-entry, .tab-items) > .row:is(:hover, .current) > .nav-item::after, :root[data-theme="tabs"] .tabs-strip .tab-items > .row:is(:last-child, :has(+ .row:is(:hover, .current))) > .nav-item::after, :root[data-theme="tabs"] .tabs-strip .row-entry:is(:last-child, :has(+ .pinned-entry), :has(+ .session), :has(+ .row-entry > .row:is(:hover, .current))) .nav-item::after { opacity: 0; }
 :root[data-theme="tabs"] .tabs-strip .nav-meta { font-size: 10.5px; }
-/* A closed terminal leans, and its icon carries the hollow ring of a closed connection. */
-:root[data-theme="tabs"] .tabs-strip .nav-item[data-kind="terminal"][data-status="closed"] .nav-label { font-style: italic; }
-:root[data-theme="tabs"] .tabs-strip .nav-item[data-kind="terminal"][data-status="closed"] .nav-icon { position: relative; }
-:root[data-theme="tabs"] .tabs-strip .nav-item[data-kind="terminal"][data-status="closed"] .nav-icon .icon { mask-image: radial-gradient(circle at 12.5px 12.5px, transparent 5.25px, #000 5.75px); }
-:root[data-theme="tabs"] .tabs-strip .nav-item[data-kind="terminal"][data-status="closed"] .nav-icon::after { content: ""; position: absolute; top: 8.5px; left: 8.5px; width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; }
+/* A closed terminal or VNC tab leans, and its icon carries the hollow ring of a closed connection. */
+:root[data-theme="tabs"] .tabs-strip .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="closed"] .nav-label { font-style: italic; }
+:root[data-theme="tabs"] .tabs-strip .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="closed"] .nav-icon { position: relative; }
+:root[data-theme="tabs"] .tabs-strip .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="closed"] .nav-icon .icon { mask-image: radial-gradient(circle at 12.5px 12.5px, transparent 5.25px, #000 5.75px); }
+:root[data-theme="tabs"] .tabs-strip .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="closed"] .nav-icon::after { content: ""; position: absolute; top: 8.5px; left: 8.5px; width: 8px; height: 8px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px currentColor; }
 /* A narrow tab keeps its room for its name: it says a terminal is closed by its icon and its lean alone. */
 :root[data-theme="tabs"] .tabs-strip :is(.row-entry, .tab-items) > .row { container-type: inline-size; }
 @container (max-width: 148px) {
@@ -303,6 +303,7 @@
 
 /* Shared surfaces, in the theme's shapes. */
 :root[data-theme="tabs"] .browser-toolbar { height: 42px; padding: 0 10px 0 8px; box-shadow: none; }
+:root[data-theme="tabs"] .vnc-toolbar { min-height: 42px; padding-block: 7px; }
 /* The tabs above the toolbar open and close tabs. */
 :root[data-theme="tabs"] .browser-toolbar > .icon-button:is([aria-label="New Tab"], [aria-label="Close Tab"]) { display: none; }
 :root[data-theme="tabs"] .address-icon { top: 7px; color: color-mix(in srgb, var(--session-color) 70%, var(--text-faint)); }

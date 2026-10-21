@@ -6,6 +6,8 @@ export type Message = Response | { event: Event };
 export interface Transport {
   request(request: Request): Promise<Response>;
   onEvent(callback: (event: Event) => void): () => void;
+  readVnc?: API['readVnc'];
+  writeVnc?: API['writeVnc'];
 }
 /** Both transports validate the envelope here; each operation validates its arguments in the backend. */
 export async function dispatch(input: unknown, invoke: (method: string, args: unknown[]) => unknown): Promise<Response> {

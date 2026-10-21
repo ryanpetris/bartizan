@@ -7,6 +7,7 @@ import { Askpass } from '../main/askpass';
 import { Sessions } from '../main/sessions';
 import { Configuration } from '../core/configuration';
 import { Errors } from '../core/errors';
+import { vncDestinationSchema } from '../main/vnc';
 import { defaultSettings, type Capabilities, type Settings, type State, type Event } from '../shared';
 import { profileDraft, profileChangesSchema, profileSaveSchema, prepareProfile, saveProfile, saveSettings, resolveDraft, draftSpec, type Draft } from '../core/profiles';
 
@@ -44,7 +45,7 @@ export async function createBackend(options: BackendOptions) {
   const reportError = (source: string, message: string, connectionId?: string, label?: string) => errors.report({ source, message, connectionId, label: connectionId ? label ?? sessions.entries.get(connectionId)?.info.label : 'App' });
   const state = (): State => {
     errors.sync(configError);
-    return { ...catalog, settings, capabilities, configError, defaults: redactSpec(catalog.defaults), profiles: catalog.profiles.map(p => ({ ...p, spec: redactSpec(p.spec) })), connections: [...sessions.entries.values()].map(e => e.info), terminals: [...sessions.entries.values()].flatMap(connection => [...connection.terminals.values()].map(terminal => terminal.info)), workspaces: extension?.state().workspaces ?? [], challenges: [...askpass.challenges, ...(extension?.state().challenges ?? [])] };
+    return { ...catalog, settings, capabilities, configError, defaults: redactSpec(catalog.defaults), profiles: catalog.profiles.map(p => ({ ...p, spec: redactSpec(p.spec) })), connections: [...sessions.entries.values()].map(e => e.info), terminals: [...sessions.entries.values()].flatMap(connection => [...connection.terminals.values()].map(terminal => terminal.info)), vncs: [...sessions.entries.values()].flatMap(connection => [...connection.vncs.values()].map(vnc => vnc.info)), workspaces: extension?.state().workspaces ?? [], challenges: [...askpass.challenges, ...(extension?.state().challenges ?? [])] };
   };
   const changed = () => {
     if (closed) return;
@@ -64,6 +65,26 @@ export async function createBackend(options: BackendOptions) {
     if (!connection) throw new Error('Terminal is closed');
     return connection.info.id;
   };
+  const desktopVnc = () => { if (!capabilities.vnc) throw new Error('VNC is available only in the desktop app'); };
+  const vnc = (connectionId: unknown, id: unknown) => {
+    desktopVnc();
+    return sessions.vnc(z.string().uuid().parse(connectionId), z.string().uuid().parse(id));
+  };
+  handle('new-vnc', (connectionId: unknown, destination: unknown) => {
+    desktopVnc();
+    const owner = z.string().uuid().parse(connectionId), target = vncDestinationSchema.parse(destination === undefined ? {} : destination);
+    return serialize(async () => sessions.get(owner).newVnc(target));
+  });
+  handle('reconnect-vnc', (connectionId: unknown, id: unknown) => {
+    const entry = vnc(connectionId, id);
+    return serialize(async () => { if (entry.connection.vncs.get(entry.info.id) === entry) await entry.connection.reconnectVnc(entry.info.id); });
+  });
+  handle('close-vnc', (connectionId: unknown, id: unknown) => { vnc(connectionId, id).close(); });
+  handle('stop-vnc', (connectionId: unknown, id: unknown, attempt: unknown) => {
+    const entry = vnc(connectionId, id), token = z.string().uuid().parse(attempt);
+    // A viewer closing after reconnect must not close the replacement channel.
+    if (entry.info.attempt === token) { entry.stop(); changed(); }
+  });
 
   const errorSchema = z.strictObject({ source: z.string().min(1).max(64), message: z.string().min(1).max(16384), connectionId: z.string().max(256).optional(), label: z.string().max(4096).optional() });
   handle('report-error', (input: unknown) => {
@@ -174,6 +195,14 @@ export async function createBackend(options: BackendOptions) {
     state,
     snapshot: (): Event[] => [{ type: 'state', state: state() }, { type: 'errors', log: errors.snapshot(), initial: true }],
     replay: () => extension?.replay(),
+    readVnc(connectionId: unknown, id: unknown, attempt: unknown) {
+      if (closed) throw new Error('Backend is closed');
+      return vnc(connectionId, id).read(z.string().uuid().parse(attempt));
+    },
+    writeVnc(connectionId: unknown, id: unknown, attempt: unknown, data: Uint8Array) {
+      if (closed) throw new Error('Backend is closed');
+      return vnc(connectionId, id).write(z.string().uuid().parse(attempt), data);
+    },
     async request(method: string, args: unknown[], owner = 'desktop') {
       if (closed) throw new Error('Backend is closed');
       const handler = handlers.get(method);

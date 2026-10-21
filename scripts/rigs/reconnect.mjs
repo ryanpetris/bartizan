@@ -34,8 +34,13 @@ await withDirectory('reconnect', async (directory, cleanup) => {
   await api('disconnect', id);
   assert.equal((await app.state()).connections.find(c => c.id === id).exitCode, undefined);
   await expect(page.locator(`.connection-chip[data-id="${id}"] .status-dot`)).toHaveAttribute('aria-label', 'Closed');
-  await api('reconnect', id);
+  await page.locator('.connection-reconnect:visible').click();
   const restored = await waitState(s => s.terminals.find(t => t.id === first)?.status === 'connected');
+  // The selected terminal resumes with the keyboard focus, so typing reaches its new shell.
+  await expect(page.locator('.terminal-surface:not([hidden]) .xterm-helper-textarea')).toBeFocused();
+  await page.keyboard.type("printf 'TYPED_%s\\n' RESUMED");
+  await page.keyboard.press('Enter');
+  await expect.poll(() => output(first)).toContain('TYPED_RESUMED');
   assert.equal(restored.terminals.length, 3);
   assert.equal(restored.terminals.find(t => t.id === exited).status, 'closed');
   assert.equal(restored.terminals.find(t => t.id === ambiguous).status, 'closed');
@@ -56,10 +61,48 @@ await withDirectory('reconnect', async (directory, cleanup) => {
   await expect.poll(() => output(exited)).toContain('Terminal exited with code 7');
   await api('reconnectTerminal', exited);
   await waitState(s => s.terminals.find(t => t.id === exited)?.status === 'connected');
+  // The selected terminal takes the focus when it resumes after another terminal on its connection.
   await api('disconnect', id);
-  await api('reconnect', id);
+  await page.locator('.connection-reconnect:visible').click();
   await waitState(s => s.terminals.find(t => t.id === exited)?.status === 'connected');
+  await expect(page.locator('.terminal-surface:not([hidden]) .xterm-helper-textarea')).toBeFocused();
+  await page.keyboard.type("printf 'TYPED_%s\\n' SECOND");
+  await page.keyboard.press('Enter');
+  await expect.poll(() => output(exited)).toContain('TYPED_SECOND');
+  // A control focused while the connection completes keeps the focus, here as soon as reconnecting moves it to a row.
+  const fullscreen = page.getByRole('button', { name: 'Toggle Fullscreen', exact: true });
+  await api('disconnect', id);
+  await fullscreen.evaluate(button => document.addEventListener('focusin', function moved(event) {
+    if (!event.target.matches('.nav-item')) return;
+    document.removeEventListener('focusin', moved);
+    button.focus();
+  }));
+  await page.locator('.connection-reconnect:visible').click();
+  await expect(terminal(exited)).toHaveAttribute('data-status', 'connected');
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(fullscreen).toBeFocused();
+  // So does a control focused after the terminal resumes but before the focus moves into it, which waits for a frame.
+  await api('disconnect', id);
+  await page.evaluate(() => {
+    const frame = window.requestAnimationFrame, held = [];
+    window.requestAnimationFrame = callback => held.push(callback);
+    window.releaseFrames = () => { window.requestAnimationFrame = frame; for (const callback of held) frame(callback); };
+  });
+  await page.locator('.connection-reconnect:visible').click();
+  await expect(terminal(exited)).toHaveAttribute('data-status', 'connected');
+  await fullscreen.focus();
+  await page.evaluate(() => new Promise(resolve => { releaseFrames(); requestAnimationFrame(() => requestAnimationFrame(resolve)); }));
+  await expect(fullscreen).toBeFocused();
   assert.equal((await app.state()).terminals.find(t => t.id === ambiguous).status, 'closed');
+  // A selected terminal that stays closed, and a selected connection page, leave the focus where reconnecting put it.
+  for (const row of [terminal(ambiguous), page.locator(`.nav-item[data-kind="details"][data-id="${id}"]`)]) {
+    await row.click();
+    await api('disconnect', id);
+    await page.locator('.connection-reconnect:visible').click();
+    await waitState(s => s.terminals.find(t => t.id === exited)?.status === 'connected');
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(terminal(first)).toBeFocused();
+  }
   console.log('Disconnect closes without an exit code, and reconnect restores interrupted terminals in place; exited and ambiguous terminals require manual retry.');
 
   // Closing the selected connection follows the displayed order, including the last position.

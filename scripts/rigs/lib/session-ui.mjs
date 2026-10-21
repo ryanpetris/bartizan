@@ -11,7 +11,7 @@ export async function testSessionUI(app, connectionId) {
   };
   const initial = await state();
   await connection.locator('.connection-add').click();
-  assert.deepEqual(await app.menu.shown(), ['Terminal', 'Browser', '-', 'Visual Studio Code']);
+  assert.deepEqual(await app.menu.shown(), ['Terminal', 'Browser', 'VNC', '-', 'Visual Studio Code']);
   await app.menu.choose('Terminal');
   await expect.poll(async () => (await state()).terminals.length).toBe(initial.terminals.length + 1);
   const terminal = (await state()).terminals.find(t => !initial.terminals.some(old => old.id === t.id));

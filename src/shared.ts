@@ -113,6 +113,14 @@ export type RemoteSessions = { sessions: RemoteSession[]; loading: boolean; erro
 /** `installed` lists the optional applications found on the host since it connected; it is absent until they have been looked for. */
 export type Connection = { id: string; profileId?: string; label: string; host: string; username?: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number; terminal: NonNullable<Spec['terminal']>; processes: RemoteProcess[]; remoteSessions?: RemoteSessions; installed?: ApplicationId[] };
 export type TerminalSession = { remoteSession?: RemoteSession; id: string; connectionId: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number };
+export type VncDestination = { host: string; port: number };
+/**
+ * A VNC tab keeps its destination and ID across attempts. Connected means the SSH channel has spawned, before RFB
+ * authentication. Natural closure is published when a read reaches EOF, after all preceding bytes have been delivered.
+ */
+export type VncSession = VncDestination & { id: string; connectionId: string; attempt: string; status: 'connecting' | 'connected' | 'closed'; exitCode?: number; error?: string };
+/** Bytes per read and maximum outstanding input per attempt, including IPC and the SSH pipe. */
+export const vncLimits = { chunk: 64 * 1024, input: 1024 * 1024 };
 export type CertificateChallenge = { id: string; url: string; origin: string; error: string; fingerprint: string; subject: string; issuer: string; validFrom: string; validTo: string };
 /**
  * A browser tab; `zoom` is in percent, and `devtools` is whether its developer tools are open. `certificate` holds the
@@ -190,9 +198,9 @@ export type BrowserChallenge = { id: string; workspaceId: string; tabId: string;
 export type AuthChallenge = Challenge | BrowserChallenge;
 export type AuthAnswer = string | null | { username: string; password: string };
 /** `externalBrowser` is whether links can open in the system browser. */
-export type Capabilities = { embeddedBrowser: boolean; nativeFilePicker: boolean; externalBrowser: boolean };
+export type Capabilities = { embeddedBrowser: boolean; nativeFilePicker: boolean; externalBrowser: boolean; vnc: boolean };
 export type State = {
-  capabilities: Capabilities; settings: Settings; configError?: string; profiles: PublicProfile[]; defaults: PublicSpec; file: string; connections: Connection[]; terminals: TerminalSession[]; workspaces: Workspace[]; challenges: AuthChallenge[] };
+  capabilities: Capabilities; settings: Settings; configError?: string; profiles: PublicProfile[]; defaults: PublicSpec; file: string; connections: Connection[]; terminals: TerminalSession[]; vncs: VncSession[]; workspaces: Workspace[]; challenges: AuthChallenge[] };
 export type FullscreenMode = false | 'window' | 'content';
 /** `transport` reports the page losing its link to the backend, with `error`, and regaining it, without. */
 export type Event = { type: 'fullscreen'; mode: FullscreenMode } | { type: 'helper'; connectionId: string; message: HelperMessage } | { type: 'transport'; error?: string } | { type: 'select-browser'; id: string } | { type: 'state'; state: State } | { type: 'data'; id: string; data: string } | { type: 'errors'; log: ErrorLog; initial?: boolean } | { type: 'browser-shortcut'; id: string; action: Exclude<BrowserShortcut, 'devtools'> | 'find' }
@@ -271,6 +279,15 @@ export interface API {
   newTerminal(connectionId: string): Promise<string>;
   reconnectTerminal(id: string): Promise<void>;
   closeTerminal(id: string): Promise<void>;
+  newVnc(connectionId: string, destination?: Partial<VncDestination>): Promise<string>;
+  reconnectVnc(connectionId: string, id: string): Promise<void>;
+  closeVnc(connectionId: string, id: string): Promise<void>;
+  /** Ends only the named attempt and keeps its tab. */
+  stopVnc(connectionId: string, id: string, attempt: string): Promise<void>;
+  /** One outstanding read per attempt. Null ends the stream; bytes never appear in state or events. */
+  readVnc(connectionId: string, id: string, attempt: string): Promise<Uint8Array | null>;
+  /** Copies the input before returning. Await rejection and end the viewer if delivery fails. */
+  writeVnc(connectionId: string, id: string, attempt: string, data: Uint8Array): Promise<void>;
   newApplication(connectionId: string, application: string): Promise<string>;
   retryApplication(workspaceId: string): Promise<void>;
   respondApplication(workspaceId: string, consentId: string, accepted: boolean): Promise<void>;
@@ -283,7 +300,7 @@ export interface API {
   openLink(terminalId: string, url: string): Promise<void>;
   /** Shows the menu of a terminal's links at a point of the page. */
   linkMenu(terminalId: string, url: string | string[], at: { x: number; y: number }): Promise<void>;
-  /** Gives the order navigation shows a connection's items in, by their `terminal:<id>` and `session:<id>` keys. */
+  /** Gives the order navigation shows a connection's items in, by their `terminal:<id>`, `session:<id>` and `vnc:<id>` keys. */
   orderItems(connectionId: string, keys: string[]): void;
   copy(text: string): Promise<void>;
   readClipboard(): Promise<string>;

@@ -42,21 +42,34 @@ async function prepare(target: Document, name: OverlayName) {
   };
   mirror();
   new MutationObserver(mirror).observe(document.documentElement, { attributes: true });
-  const loaded: Promise<unknown>[] = [];
-  for (const node of document.querySelectorAll('link[rel="stylesheet"], style')) {
-    const copy = target.importNode(node, true);
-    if (copy.nodeName === 'LINK')
-      loaded.push(new Promise((resolve) => { copy.addEventListener('load', resolve); copy.addEventListener('error', resolve); }));
-    target.head.append(copy);
-  }
-  await Promise.all(loaded);
-  if (process.env.NODE_ENV === 'development') {
-    // Vite updates styles in the opener; the overlay uses its own copies.
-    new MutationObserver(() => {
-      target.head.querySelectorAll('link[rel="stylesheet"], style').forEach(node => node.remove());
-      for (const node of document.querySelectorAll('link[rel="stylesheet"], style')) target.head.append(target.importNode(node, true));
-    }).observe(document.head, { childList: true, subtree: true, attributes: true, characterData: true });
-  }
+  // The overlay keeps its own copy of each of this window's stylesheets, in the same order.
+  const copies = new Map<Element, Element>(),
+    loads = new WeakMap<Element, Promise<unknown>>();
+  const copy = () => {
+    const sources = [...document.querySelectorAll('link[rel="stylesheet"], style')];
+    let next: Element | null = null;
+    for (const source of sources.reverse()) {
+      let copied = copies.get(source);
+      if (!copied) {
+        const node = (copied = target.importNode(source, true));
+        copies.set(source, node);
+        if (node.nodeName === 'LINK')
+          loads.set(node, new Promise((resolve) => { node.addEventListener('load', resolve); node.addEventListener('error', resolve); }));
+        target.head.insertBefore(node, next);
+      } else if (copied.textContent !== source.textContent) copied.textContent = source.textContent;
+      next = copied;
+    }
+    // A replaced stylesheet stays until the overlay's copies have loaded, so the overlay is never left unstyled. That
+    // includes its own copy, because a link removed while it loads never fires load or error.
+    const loaded = Promise.all([...copies.values()].map((node) => loads.get(node)));
+    const removed = [...copies].filter(([source]) => !source.isConnected);
+    for (const [source] of removed) copies.delete(source);
+    return loaded.then(() => { for (const [, node] of removed) node.remove(); });
+  };
+  await copy();
+  // Vite updates styles in this window as their sources change.
+  if (process.env.NODE_ENV === 'development')
+    new MutationObserver(() => void copy()).observe(document.head, { childList: true, subtree: true, characterData: true });
   return target;
 }
 

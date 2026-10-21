@@ -12,6 +12,7 @@ const rigs = {
   dev: ['sshd'],
   smoke: [],
   web: ['sshd', 'chromium'],
+  vnc: ['sshd', 'python3', 'Xtigervnc', 'tigervncpasswd', 'unshare', 'mount', 'ip', 'chromium'],
   sandbox: [],
   integration: ['sshd', 'vim', 'python3'],
   appearance: [],

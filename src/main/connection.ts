@@ -8,11 +8,12 @@ import { resolveSpec, merge, builtins, type Spec, type Catalog } from '../core/c
 import type { Configuration } from '../core/configuration';
 import type { Browsers } from './browser';
 import { ApplicationSession } from './application-session';
-import { applications, type ApplicationId, type Connection, type TerminalSession } from '../shared';
+import { applications, type ApplicationId, type Connection, type TerminalSession, type VncDestination } from '../shared';
 import type { ConnectionInfo } from './connection-info';
 import type { Askpass } from './askpass';
 import { SshConnection } from './ssh-connection';
 import { TerminalController } from './terminal';
+import { VncController } from './vnc';
 
 /**
  * Where a connection goes, compared without case, IPv6 spelling, or the difference between an omitted username or port
@@ -25,6 +26,7 @@ export function destination(spec: Spec) {
 }
 export class ConnectionController {
   readonly terminals = new Map<string, TerminalController>();
+  readonly vncs = new Map<string, VncController>();
   readonly remoteSessions = new Map<string, RemoteSession>();
   private readonly remoteTerminals = new Map<string, TerminalController>();
   readonly info: Connection;
@@ -115,6 +117,7 @@ export class ConnectionController {
         this.info.status = 'connected'; this.integration.sync(this.spec.remote_sessions ?? this.configuration.catalog.settings.remoteSessionIntegration); this.browsers?.sync();
         if (initial && this.terminals.has(initial.info.id) && initial.info.status !== 'closed') initial.start(transport);
         for (const terminal of this.terminals.values()) if (terminal.reconnectOnConnect) this.startTerminal(terminal);
+        for (const vnc of this.vncs.values()) if (vnc.reconnectOnConnect) vnc.start(transport);
         for (const browser of this.browsers?.entries.values() ?? []) { const event = browser.info.application?.event; if (event?.type === 'applications.ended' && event.reason !== 'cancelled') browser.application?.retry(true); }
         void this.detect(transport);
         this.changed();
@@ -215,6 +218,28 @@ export class ConnectionController {
   }
   private failReconnects(message: string) {
     for (const terminal of this.terminals.values()) if (terminal.reconnectOnConnect) terminal.failure(message);
+    for (const vnc of this.vncs.values()) if (vnc.reconnectOnConnect) vnc.failure(message);
+  }
+  newVnc(destination: Partial<VncDestination> = {}) {
+    if (this.info.status !== 'connected') throw new Error('Connection is not connected');
+    const vnc = new VncController(this, destination);
+    this.vncs.set(vnc.info.id, vnc);
+    vnc.start(this.transport!);
+    return vnc.info.id;
+  }
+  async reconnectVnc(id: string) {
+    const vnc = this.vncs.get(id);
+    if (!vnc) throw new Error('VNC tab is closed');
+    if (vnc.info.status !== 'closed') return;
+    if (this.info.status === 'connected') vnc.start(this.transport!);
+    else {
+      vnc.reconnectOnConnect = true;
+      Object.assign(vnc.info, { status: 'connecting', error: undefined, exitCode: undefined }); this.changed();
+      if (this.info.status === 'closed') {
+        try { await this.connect(false); }
+        catch (error) { if (vnc.reconnectOnConnect) vnc.failure(String(error)); }
+      }
+    }
   }
   async reconnectTerminal(id: string) {
     const terminal = this.terminals.get(id);
@@ -251,6 +276,7 @@ export class ConnectionController {
     for (const application of this.applications.values()) application.fail('Connection disconnected');
     this.syncHelper();
     for (const terminal of this.terminals.values()) terminal.stop(true);
+    for (const vnc of this.vncs.values()) vnc.stop(true);
     this.browsers?.sync();
   }
   async disconnect() {
@@ -264,5 +290,6 @@ export class ConnectionController {
     await this.disconnect();
     await this.browsers?.closeConnection();
     for (const terminal of this.terminals.values()) terminal.close();
+    for (const vnc of this.vncs.values()) vnc.close();
   }
 }

@@ -234,7 +234,7 @@
   :is(.console-windows, .console-status) .drop-before::before { left: 0; }
   :is(.console-windows, .console-status) .drop-after::after { right: 0; }
 
-  /* Windows line: the shown connection's terminals and browser sessions, numbered in order; the current one is in inverse video. */
+  /* Windows line: the shown connection's terminals, VNC tabs and browser sessions, numbered in order; the current one is in inverse video. */
   .console-windows .connection-items { display: flex; flex: none; gap: 0; counter-reset: console-window -1; }
   .console-windows .connection-items > li { position: relative; display: flex; flex: none; counter-increment: console-window; }
   .console-windows .row-entry:has([data-kind="tab"]) { counter-increment: none; }
@@ -245,15 +245,15 @@
   .console-windows .row:hover > .nav-item:not([aria-current="page"]) { background: var(--console-hover); }
   .console-windows .nav-item[aria-current="page"] { background: var(--accent); color: var(--on-accent); font-weight: 700; }
   .console-windows .nav-item[aria-current="page"]::before { content: none; }
-  .console-windows .nav-item:is([data-kind="terminal"], [data-kind="browser"])::after { content: "*" / ""; order: 1; margin-left: -6px; visibility: hidden; }
-  .console-windows .nav-item:is([data-kind="terminal"], [data-kind="browser"])[aria-current]::after { visibility: visible; }
+  .console-windows .nav-item:is([data-kind="terminal"], [data-kind="vnc"], [data-kind="browser"])::after { content: "*" / ""; order: 1; margin-left: -6px; visibility: hidden; }
+  .console-windows .nav-item:is([data-kind="terminal"], [data-kind="vnc"], [data-kind="browser"])[aria-current]::after { visibility: visible; }
   /* A label's limit is a whole number of characters and a pixel of slack, so that a cut one ends flush with its ellipsis. */
   .console-windows .nav-label { flex: none; max-width: calc(26ch + 1px); }
   .console-windows .nav-meta { order: 2; color: inherit; font-size: inherit; }
   .console-windows .nav-meta:not(:empty)::before { content: "(" / ""; }
   .console-windows .nav-meta:not(:empty)::after { content: ")" / ""; }
-  .console-windows :is([data-kind="terminal"], [data-kind="browser"]) .nav-icon { display: none; }
-  .console-windows :is([data-kind="terminal"], [data-kind="browser"]) .nav-label::before { content: counter(console-window) ":" / ""; color: var(--text-muted); }
+  .console-windows :is([data-kind="terminal"], [data-kind="vnc"], [data-kind="browser"]) .nav-icon { display: none; }
+  .console-windows :is([data-kind="terminal"], [data-kind="vnc"], [data-kind="browser"]) .nav-label::before { content: counter(console-window) ":" / ""; color: var(--text-muted); }
   .console-windows .nav-item:is([aria-current="page"], [data-status="closed"]) .nav-label::before { color: inherit; }
   /* A browser session is a bracketed group in its colour: its name, then its tabs. */
   .console-windows .session { margin-left: 1ch; color: var(--session-color); }
@@ -275,11 +275,11 @@
   .console-windows .nav-item[data-kind="tab"][data-state="error"] .nav-icon { color: var(--danger); }
   .console-windows .nav-item[data-kind="tab"][data-state="certificate"] .nav-icon { color: var(--warn); }
   .console-windows .nav-item[data-kind="tab"][aria-current="page"] .nav-icon { color: inherit; }
-  /* A closed terminal is faint, and in a muted inverse when it is the current one. */
-  .console-windows .nav-item[data-kind="terminal"][data-status="closed"] { color: var(--text-faint); }
-  .console-windows .nav-item[data-kind="terminal"][data-status="closed"] .nav-label { color: inherit; }
-  .console-windows .nav-item[data-kind="terminal"][data-status="closed"][aria-current="page"] { background: var(--text-muted); color: var(--console-inverse); }
-  .console-windows .nav-item[data-kind="terminal"][data-status="connecting"] .nav-label { animation: pulse 1.2s ease-in-out infinite; }
+  /* A closed terminal or VNC tab is faint, and in a muted inverse when it is the current one. */
+  .console-windows .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="closed"] { color: var(--text-faint); }
+  .console-windows .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="closed"] .nav-label { color: inherit; }
+  .console-windows .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="closed"][aria-current="page"] { background: var(--text-muted); color: var(--console-inverse); }
+  .console-windows .nav-item:is([data-kind="terminal"], [data-kind="vnc"])[data-status="connecting"] .nav-label { animation: pulse 1.2s ease-in-out infinite; }
   /* Buttons side by side stand half a cell apart. */
   .console-windows .row-actions { top: 0; right: 0; bottom: 0; gap: 0.5ch; align-items: stretch; transform: none; color: var(--text-muted); }
   .console-windows .row-actions .icon-button { width: 3ch; height: 100%; color: inherit; }
@@ -348,6 +348,12 @@
   .browser-toolbar { gap: 0; height: 34px; padding: 0 6px 0 9px; box-shadow: inset 3px 0 0 var(--session-color); }
   .browser-toolbar .icon-button { width: 28px; height: 26px; }
   .browser-toolbar .icon-button .icon, .find-bar .icon-button .icon { width: 14px; height: 14px; }
+  .vnc-toolbar { gap: 2px 0; min-height: 34px; padding: 4px 6px 4px 9px; }
+  .vnc-toolbar .icon-button { width: 28px; height: 26px; }
+  .vnc-toolbar .icon-button .icon { width: 14px; height: 14px; }
+  :is(.vnc-scaling, .vnc-zoom-level) { height: 24px; border-radius: 0; }
+  .vnc-held { height: 22px; border-radius: 0; }
+  .vnc-clipboard-text { height: 140px; padding: 6px 8px; }
   .address-field { margin: 0 6px; }
   .address-icon { top: 5px; left: 8px; width: 14px; height: 14px; }
   .address { height: 24px; padding: 0 10px 0 29px; border-color: var(--border-control); border-radius: 0; background: var(--field); }

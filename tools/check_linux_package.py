@@ -29,6 +29,14 @@ subprocess.run(["ssh", "-V"], check=True)
 subprocess.run([str(root / "bartizan"), str(Path("scripts/check-pty.cjs").resolve()),
                 str(root / "resources/app.asar"), args.version],
                env=dict(os.environ, ELECTRON_RUN_AS_NODE="1"), check=True)
+subprocess.run([str(root / "bartizan"), "-e", """
+const fs = require('node:fs');
+const root = process.argv[1] + '/out/renderer/licenses/novnc/';
+for (const file of ['LICENSE.txt', 'AUTHORS', 'docs/LICENSE.MPL-2.0', 'docs/LICENSE.BSD-2-Clause',
+                    'docs/LICENSE.BSD-3-Clause', 'docs/LICENSE.OFL-1.1', 'vendor/pako/LICENSE', 'SOURCE']) {
+  if (!fs.readFileSync(root + file, 'utf8').trim()) throw new Error('Empty noVNC notice: ' + file);
+}
+""", str(root / "resources/app.asar")], env=dict(os.environ, ELECTRON_RUN_AS_NODE="1"), check=True)
 if args.debian:
     profile = Path("/etc/apparmor.d/bartizan").read_text()
     if "/opt/bartizan/bartizan" not in profile or "userns," not in profile:

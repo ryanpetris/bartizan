@@ -1,6 +1,6 @@
 import { remoteVisible } from './store';
 import { createContext, useContext, useLayoutEffect, useRef, type CSSProperties, type DragEvent, type HTMLAttributes, type ReactNode, type SyntheticEvent } from 'react';
-import { browserSessionName, pageAddress, type BrowserAction, type Workspace, type BrowserTab, type TerminalSession } from '../shared';
+import { browserSessionName, pageAddress, type BrowserAction, type Workspace, type BrowserTab, type TerminalSession, type VncSession } from '../shared';
 import { Icon, IconButton, Tags, colorStyle, moveFocus } from './ui';
 import {
   api,
@@ -30,8 +30,10 @@ import {
   sessionTabs,
   revisit,
   activeManifest,
+  vncName,
   type Group,
 } from './store';
+import { closeVnc, openNewVnc, reconnectVnc, vncStatus } from './vnc';
 import { openMenu, connectionChanges, type MenuItem } from './menu';
 import { faviconOf, dropFavicon } from './tab-state';
 import { hasCurrent } from './errors';
@@ -223,6 +225,34 @@ function TerminalRow({ terminal }: { terminal: TerminalSession }) {
     />
   );
 }
+function VncRow({ vnc }: { vnc: VncSession }) {
+  const name = vncName(vnc),
+    closed = vnc.status === 'closed' && connectionOf(vnc.connectionId)?.status === 'connected';
+  return (
+    <Row
+      tag="div"
+      kind="vnc"
+      id={vnc.id}
+      label={name}
+      current={store.selection?.kind === 'vnc' && store.selection.id === vnc.id ? 'page' : undefined}
+      meta={closed ? 'Closed' : ''}
+      data-status={vncStatus(vnc)}
+      icon={<Icon name="display" />}
+      onSelect={() => select({ kind: 'vnc', id: vnc.id })}
+      actions={[
+        closed && <IconButton key="reconnect" icon="reload" label={`Reconnect ${name}`} onClick={() => reconnectVnc(vnc)} />,
+        <IconButton
+          key="close"
+          icon="close"
+          label={`Close ${name}`}
+          tooltip="Close VNC"
+          className="row-close"
+          onClick={() => closeVnc(vnc)}
+        />,
+      ]}
+    />
+  );
+}
 const toggleMute = (workspace: Workspace, tab: BrowserTab) =>
   void run('browser', api.browser(workspace.id, 'mute', tab.id), workspace.connectionId);
 /** Closes tabs of a session one after another; the one kept takes the place of the active tab if that closes. */
@@ -409,11 +439,11 @@ function Session({ workspace }: { workspace: Workspace }) {
     </>
   );
 }
-/** The buttons that act on a connection: add a terminal or browser session, disconnect or cancel, reconnect and remove. */
+/** The buttons that act on a connection: add a terminal, VNC tab or browser session, disconnect or cancel, reconnect and remove. */
 export function ConnectionTools({ connection }: { connection: Group['connection'] }) {
   const id = connection.id;
   const control = (label: string) => `${label} ${connection.label}`;
-  const embeddedBrowser = store.state.capabilities.embeddedBrowser;
+  const { embeddedBrowser, vnc } = store.state.capabilities;
   return (
     <span key={id} className="connection-tools">
       <IconButton
@@ -427,6 +457,7 @@ export function ConnectionTools({ connection }: { connection: Group['connection'
           openMenu(event.currentTarget, [
             { label: 'Terminal', icon: 'terminal', action: () => void openTerminal(id) },
             { label: 'Browser', icon: 'window', action: () => void openBrowser(id) },
+            ...(vnc ? [{ label: 'VNC', icon: 'display' as const, action: () => openNewVnc(id) }] : []),
             { separator: true },
             ...(connection.installed?.includes('t3') ? [{ label: 'T3 Code', icon: applicationIcon('t3'), action: () => void openApplication(id, 't3') }] : []),
             { label: 'Visual Studio Code', icon: applicationIcon('vscode'), action: () => void openApplication(id, 'vscode') },
@@ -475,7 +506,7 @@ export function ConnectionItems({ group: { connection, entries } }: { group: Gro
           )}
           style={colorStyle(entry.workspace && sessionColor(entry.workspace))}
         >
-          {entry.terminal ? <TerminalRow terminal={entry.terminal} /> : <Session workspace={entry.workspace!} />}
+          {entry.terminal ? <TerminalRow terminal={entry.terminal} /> : entry.vnc ? <VncRow vnc={entry.vnc} /> : <Session workspace={entry.workspace!} />}
         </li>
       ))}
       {remoteVisible(connection) && <li className="pinned-entry remote-entry">
@@ -528,6 +559,7 @@ export function ConnectionChips({ current }: { current?: string }) {
             {...orderable('connections', id, [
               { label: 'New Terminal', icon: 'terminal', disabled: !connected, action: () => void openTerminal(id) },
               ...(store.state.capabilities.embeddedBrowser ? [{ label: 'New Browser', icon: 'window' as const, disabled: !connected, action: () => void openBrowser(id) }] : []),
+              ...(store.state.capabilities.vnc ? [{ label: 'New VNC', icon: 'display' as const, disabled: !connected, action: () => openNewVnc(id) }] : []),
               { separator: true },
               closed
                 ? { label: 'Reconnect', icon: 'reload', action: () => void reconnect(id) }

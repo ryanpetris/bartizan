@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type InputHTMLAttributes, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type InputHTMLAttributes, type ReactNode, type Ref, type RefObject } from 'react';
 const paths: Record<string, string> = {
   fullscreen: '<path d="M5.5 2H2v3.5M10.5 2H14v3.5M14 10.5V14h-3.5M5.5 14H2v-3.5"/>',
   external: '<path d="M9 2h5v5M14 2 7 9M7 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9"/>',
@@ -10,6 +10,7 @@ const paths: Record<string, string> = {
     '<rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.75"/><path d="m4.5 6.25 2 1.75-2 1.75M8.25 10h3"/>',
   window:
     '<rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.75"/><path d="M1.75 5.75h12.5"/><circle cx="3.9" cy="4.25" r=".2" fill="currentColor"/><circle cx="5.5" cy="4.25" r=".2" fill="currentColor"/>',
+  display: '<rect x="1.75" y="2.25" width="12.5" height="8.75" rx="1.5"/><path d="M5.25 13.75h5.5M8 11v2.75"/>',
   globe:
     '<circle cx="8" cy="8" r="6.25"/><path d="M1.75 8h12.5M8 1.75c1.8 1.7 2.7 3.8 2.7 6.25S9.8 12.55 8 14.25C6.2 12.55 5.3 10.45 5.3 8S6.2 3.45 8 1.75Z"/>',
   back: '<path d="M13 8H3.25M7.25 4 3.25 8l4 4"/>',
@@ -43,6 +44,11 @@ const paths: Record<string, string> = {
   sidebar: '<rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.75"/><path d="M6.25 2.75v10.5"/>',
   sliders:
     '<path d="M2.25 4.75h6.5m3 0h2M2.25 11.25h2m3 0h6.5"/><circle cx="10.25" cy="4.75" r="1.5"/><circle cx="5.75" cy="11.25" r="1.5"/>',
+  keyboard: '<rect x="1.75" y="3.75" width="12.5" height="8.5" rx="1.5"/><path d="M4.5 6.5h.01M7 6.5h.01M9.5 6.5h.01M12 6.5h.01M5.25 9.5h5.5"/>',
+  clipboard:
+    '<path d="M5.75 2.75H4.5A1.5 1.5 0 0 0 3 4.25v8.5a1.5 1.5 0 0 0 1.5 1.5h7a1.5 1.5 0 0 0 1.5-1.5v-8.5a1.5 1.5 0 0 0-1.5-1.5h-1.25"/><rect x="5.75" y="1.75" width="4.5" height="2.5" rx=".75"/>',
+  move: '<path d="M8 1.75v12.5M1.75 8h12.5M6.25 3.5 8 1.75 9.75 3.5M6.25 12.5 8 14.25l1.75-1.75M3.5 6.25 1.75 8 3.5 9.75M12.5 6.25 14.25 8l-1.75 1.75"/>',
+  eye: '<path d="M1.75 8S4 3.75 8 3.75 14.25 8 14.25 8 12 12.25 8 12.25 1.75 8 1.75 8Z"/><circle cx="8" cy="8" r="2"/>',
 };
 export type IconName = keyof typeof paths;
 export const isIcon = (name: string | undefined): name is IconName => name !== undefined && Object.hasOwn(paths, name);
@@ -73,7 +79,7 @@ export function IconButton({
   tooltip = label,
   className = '',
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { icon: IconName; label: string; tooltip?: string }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { icon: IconName; label: string; tooltip?: string; ref?: Ref<HTMLButtonElement> }) {
   return (
     <button type="button" className={`icon-button ${className}`.trim()} aria-label={label} data-tooltip={tooltip} {...props}>
       <Icon name={icon} />

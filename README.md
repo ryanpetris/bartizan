@@ -14,6 +14,7 @@
 Keep a shell, build output, logs and browser tabs together for each remote connection. Bartizan is an open source desktop app for Linux and macOS built on your installed OpenSSH client.
 
 - Open several terminals over one SSH connection.
+- Use VNC desktops reached through that SSH host, with keyboard and mouse input, zoom, remote resizing, special keys and a clipboard panel.
 - Browse through the connection's SOCKS forward, including DNS lookups. If SSH drops, browser traffic stops until you reconnect.
 - Keep separate browsers, each with its own in-memory cookies and site storage.
 - Save connection profiles, search by tags and arrange your connections to match your work.

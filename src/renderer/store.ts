@@ -6,6 +6,8 @@ import {
   type Connection,
   type Workspace,
   type TerminalSession,
+  type VncSession,
+  type VncDestination,
   type RemoteSession,
   type ApplicationId,
 } from '../shared';
@@ -14,20 +16,21 @@ import { themes } from '../themes';
 
 import { createWebAPI } from './web-api';
 export const api = (window.bartizan ??= createWebAPI());
-export type Selection = { kind: 'connect' } | { kind: 'terminal' | 'browser' | 'connection' | 'remote' | 'details'; id: string } | undefined;
-/** A terminal or a browser session, keyed as in the navigation order. */
-type Entry = { key: string; terminal?: TerminalSession; workspace?: Workspace };
+export type Selection = { kind: 'connect' } | { kind: 'terminal' | 'vnc' | 'browser' | 'connection' | 'remote' | 'details'; id: string } | undefined;
+/** A terminal, a VNC tab or a browser session, keyed as in the navigation order. */
+type Entry = { key: string; terminal?: TerminalSession; vnc?: VncSession; workspace?: Workspace };
 export type Group = { connection: Connection; entries: Entry[] };
 
 export const store = {
   state: {
-    capabilities: { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false },
+    capabilities: { embeddedBrowser: false, nativeFilePicker: false, externalBrowser: false, vnc: false },
     settings: defaultSettings,
     profiles: [],
     defaults: {},
     file: '',
     connections: [],
     terminals: [],
+    vncs: [],
     workspaces: [],
     challenges: [],
   } as State,
@@ -70,10 +73,10 @@ export function onFocusRequest(callback: () => void) {
     if (index >= 0) focusRequests.splice(index, 1);
   };
 }
-/** Moves focus into the selected view once it has rendered. */
-export function focusView() {
+/** Moves focus into the selected view once it has rendered, if `when` still holds then. */
+export function focusView(when = () => true) {
   requestAnimationFrame(() => {
-    for (const callback of focusRequests) callback();
+    if (when()) for (const callback of focusRequests) callback();
   });
 }
 /** Increases with every explicit selection and every request to open something, so a selection waiting for state yields to a later choice. */
@@ -99,6 +102,8 @@ export const exists = (state: State, selection: NonNullable<Selection>) =>
     ? true
     : selection.kind === 'terminal'
       ? state.terminals.some((t) => t.id === selection.id)
+      : selection.kind === 'vnc'
+        ? state.vncs.some((v) => v.id === selection.id)
       : selection.kind === 'connection' || selection.kind === 'remote' || selection.kind === 'details'
         ? state.connections.some((c) => c.id === selection.id && (selection.kind !== 'remote' || remoteVisible(c)))
         : state.workspaces.some((w) => w.id === selection.id && w.tabs.length > 0);
@@ -110,6 +115,8 @@ const selectionConnection = (selection: Selection) =>
       ? selection.id
       : selection.kind === 'terminal'
         ? store.state.terminals.find((t) => t.id === selection.id)?.connectionId
+        : selection.kind === 'vnc'
+          ? store.state.vncs.find((v) => v.id === selection.id)?.connectionId
         : store.state.workspaces.find((w) => w.id === selection.id)?.connectionId;
 
 /** What each connection last showed. */
@@ -118,17 +125,19 @@ onRender(() => {
   const connectionId = selectionConnection(store.selection);
   if (connectionId && store.selection && store.selection.kind !== 'connection') lastShown.set(connectionId, store.selection);
 });
-/** Shows what a connection last showed, or else its first terminal or browser session with tabs, or the connection itself; it opens nothing. */
+/** Shows what a connection last showed, or else its first terminal, VNC tab or browser session with tabs, or the connection itself; it opens nothing. */
 export function revisit(connectionId: string, focus = true) {
   const last = lastShown.get(connectionId);
   const first = groups()
     .find((group) => group.connection.id === connectionId)
-    ?.entries.find((entry) => entry.terminal || entry.workspace?.tabs.length);
+    ?.entries.find((entry) => entry.terminal || entry.vnc || entry.workspace?.tabs.length);
   select(
     last && exists(store.state, last)
       ? last
       : first?.terminal
         ? { kind: 'terminal', id: first.terminal.id }
+        : first?.vnc
+          ? { kind: 'vnc', id: first.vnc.id }
         : first?.workspace
           ? { kind: 'browser', id: first.workspace.id }
           : { kind: 'connection', id: connectionId },
@@ -330,12 +339,14 @@ export function moveKey(scope: string, key: string, before?: string) {
 }
 export const sessionTabs = (workspace: Workspace) => ordered(`tabs:${workspace.id}`, workspace.tabs, (tab) => tab.id);
 
-/** A connection's terminals and browser sessions, in navigation order. */
+/** A connection's terminals, VNC tabs and browser sessions, in navigation order. */
 function entries(connection: Connection, state: State): Entry[] {
   const found = new Map<string, Entry>();
   for (const terminal of state.terminals)
     if (terminal.connectionId === connection.id)
       found.set(`terminal:${terminal.id}`, { key: `terminal:${terminal.id}`, terminal });
+  for (const vnc of state.vncs)
+    if (vnc.connectionId === connection.id) found.set(`vnc:${vnc.id}`, { key: `vnc:${vnc.id}`, vnc });
   for (const workspace of state.workspaces)
     if (workspace.connectionId === connection.id)
       found.set(`session:${workspace.id}`, { key: `session:${workspace.id}`, workspace });
@@ -352,8 +363,8 @@ export function groups(state = store.state): Group[] {
 export const activeConnection = (profileId?: string) =>
   profileId ? store.state.connections.find((c) => c.profileId === profileId && c.status !== 'closed') : undefined;
 
-/** A visible navigation row: a connection, a terminal, or a browser tab. */
-export type Row = { kind: 'connection' | 'terminal' | 'browser' | 'remote' | 'details'; id: string; tab?: string; connectionId: string };
+/** A visible navigation row: a connection, a terminal, a VNC tab, or a browser tab. */
+export type Row = { kind: 'connection' | 'terminal' | 'vnc' | 'browser' | 'remote' | 'details'; id: string; tab?: string; connectionId: string };
 export const sameRow = (a: Row, b: Row) => a.kind === b.kind && a.id === b.id && a.tab === b.tab;
 /** Visible rows in navigation order, each connection first; a browser session contributes its tabs in session order. */
 export function rows(state = store.state): Row[] {
@@ -362,6 +373,8 @@ export function rows(state = store.state): Row[] {
     ...entries.flatMap((entry): Row[] =>
       entry.terminal
         ? [{ kind: 'terminal', id: entry.terminal.id, connectionId: connection.id }]
+        : entry.vnc
+          ? [{ kind: 'vnc', id: entry.vnc.id, connectionId: connection.id }]
         : sessionTabs(entry.workspace!).map((tab) => ({
             kind: 'browser',
             id: entry.workspace!.id,
@@ -472,7 +485,8 @@ function requestTerminal(connectionId: string) {
 /**
  * Shows a connection's most recently shown live terminal or another live one. A connected connection without one gets a
  * new terminal. A connecting one shows what `revisit` would until it connects, then gets one unless another selection is
- * made first. Otherwise its most recent terminal, first browser session with tabs or the connection itself is shown.
+ * made first. Otherwise its most recent terminal, first VNC tab, first browser session with tabs or the connection itself
+ * is shown.
  */
 export function focusConnection(id: string) {
   whenPresent(
@@ -486,9 +500,9 @@ export function focusConnection(id: string) {
       };
       const own = terminals.filter((t) => t.connectionId === id).sort((a, b) => rank(a) - rank(b));
       const live = own.find((t) => t.status !== 'closed');
-      const workspace = groups()
-        .find((group) => group.connection.id === id)
-        ?.entries.find((entry) => entry.workspace?.tabs.length)?.workspace;
+      const items = groups().find((group) => group.connection.id === id)?.entries;
+      const workspace = items?.find((entry) => entry.workspace?.tabs.length)?.workspace;
+      const vnc = items?.find((entry) => entry.vnc)?.vnc;
       const status = connectionOf(id)?.status;
       if (live) select({ kind: 'terminal', id: live.id });
       else if (status === 'connected') requestTerminal(id);
@@ -499,6 +513,7 @@ export function focusConnection(id: string) {
           () => focusConnection(id),
         );
       } else if (own[0]) select({ kind: 'terminal', id: own[0].id });
+      else if (vnc) select({ kind: 'vnc', id: vnc.id });
       else if (workspace) select({ kind: 'browser', id: workspace.id });
       else select({ kind: 'connection', id });
     },
@@ -547,6 +562,13 @@ export function openBrowser(connectionId: string) {
     connectionId,
   );
 }
+/** Opens a VNC tab to a destination as the host resolves it, and shows it unless another selection is made first. */
+export function openVnc(connectionId: string, destination: VncDestination) {
+  const token = ++choice;
+  return api.newVnc(connectionId, destination).then((id) => selectCreated({ kind: 'vnc', id }, token));
+}
+/** A VNC tab's destination, with an IPv6 address in brackets. */
+export const vncName = ({ host, port }: VncDestination) => `${host.includes(':') ? `[${host}]` : host}:${port}`;
 export function openTerminal(connectionId: string) {
   const token = ++choice;
   return run(

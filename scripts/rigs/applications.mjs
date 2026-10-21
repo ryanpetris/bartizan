@@ -335,8 +335,8 @@ os.execv('/usr/bin/python3', ['python3'] + sys.argv[1:])
   await reconnect();
   // The connection looks for T3 Code again each time it connects.
   await waitState(s => s.connections[0].installed?.includes('t3'), 'T3 Code found');
-  assert.deepEqual(await addMenu(), ['Terminal', 'Browser', '-', 'T3 Code', 'Visual Studio Code']);
-  assert.deepEqual(await app.menu.icons(), { Terminal: 'terminal', Browser: 'window', 'Visual Studio Code': 'code', 'T3 Code': 'agent' });
+  assert.deepEqual(await addMenu(), ['Terminal', 'Browser', 'VNC', '-', 'T3 Code', 'Visual Studio Code']);
+  assert.deepEqual(await app.menu.icons(), { Terminal: 'terminal', Browser: 'window', VNC: 'display', 'Visual Studio Code': 'code', 'T3 Code': 'agent' });
   await chooseT3();
   let current = await t3Ready(1, 'T3 Code ready');
   const t3 = t3Sessions(current)[0];
